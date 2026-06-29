@@ -1,0 +1,161 @@
+{
+  "name": "ProjectRequirement",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "\u7528\u6236\u4fe1\u7bb1"
+    },
+    "house_type": {
+      "type": "string",
+      "enum": [
+        "\u516c\u5bd3",
+        "\u900f\u5929\u539d",
+        "\u5927\u6a13",
+        "\u5225\u5885",
+        "\u5176\u4ed6"
+      ],
+      "description": "\u623f\u5c4b\u985e\u578b"
+    },
+    "house_age": {
+      "type": "string",
+      "enum": [
+        "5\u5e74\u4ee5\u4e0b",
+        "5-15\u5e74",
+        "15-30\u5e74",
+        "30\u5e74\u4ee5\u4e0a"
+      ],
+      "description": "\u5c4b\u9f61"
+    },
+    "square_footage": {
+      "type": "number",
+      "description": "\u576a\u6578"
+    },
+    "room_layout": {
+      "type": "string",
+      "description": "\u683c\u5c40\uff08\u59823\u623f2\u5ef32\u885b\uff09"
+    },
+    "material_grade": {
+      "type": "string",
+      "enum": [
+        "\u7d93\u6fdf\u578b",
+        "\u4e2d\u7b49\u7d1a",
+        "\u9ad8\u7b49\u7d1a",
+        "\u9802\u7d1a\u5962\u83ef"
+      ],
+      "description": "\u5efa\u6750\u7b49\u7d1a\u504f\u597d"
+    },
+    "budget_range": {
+      "type": "string",
+      "enum": [
+        "\u4f9d\u8a2d\u8a08\u5e2b\u8a55\u4f30",
+        "50\u842c\u4ee5\u4e0b",
+        "50-100\u842c",
+        "100-200\u842c",
+        "200-500\u842c",
+        "500\u842c\u4ee5\u4e0a"
+      ],
+      "description": "\u9810\u7b97\u7bc4\u570d"
+    },
+    "space_photos": {
+      "type": "object",
+      "description": "\u5404\u7a7a\u9593\u7167\u7247\u5206\u985e",
+      "properties": {
+        "floor_plan": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u5e73\u9762\u5716\u7167\u7247"
+        },
+        "living_room": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u5ba2\u5ef3\u7167\u7247"
+        },
+        "dining_room": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u9910\u5ef3\u7167\u7247"
+        },
+        "kitchen": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u5eda\u623f\u7167\u7247"
+        },
+        "master_bedroom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u4e3b\u81e5\u623f\u7167\u7247"
+        },
+        "study_room": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u66f8\u623f\u7167\u7247"
+        },
+        "bedroom1": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u623f\u95931\u7167\u7247"
+        },
+        "bedroom2": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u623f\u95932\u7167\u7247"
+        },
+        "bathroom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "\u885b\u6d74\u7167\u7247"
+        }
+      }
+    },
+    "atmosphere_description": {
+      "type": "string",
+      "description": "\u559c\u597d\u6c1b\u570d\u63cf\u8ff0"
+    },
+    "reference_photos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u559c\u597d\u53c3\u8003\u7167\u7247URLs"
+    },
+    "special_requirements": {
+      "type": "string",
+      "description": "\u7279\u6b8a\u9700\u6c42"
+    },
+    "completion_status": {
+      "type": "string",
+      "enum": [
+        "\u9032\u884c\u4e2d",
+        "\u5df2\u5b8c\u6210",
+        "\u7b49\u5f85\u8655\u7406"
+      ],
+      "default": "\u9032\u884c\u4e2d",
+      "description": "\u5b8c\u6210\u72c0\u614b"
+    }
+  },
+  "required": [
+    "user_email",
+    "house_type",
+    "square_footage",
+    "budget_range"
+  ]
+}

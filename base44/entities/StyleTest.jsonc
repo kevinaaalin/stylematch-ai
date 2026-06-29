@@ -1,0 +1,86 @@
+{
+  "name": "StyleTest",
+  "type": "object",
+  "properties": {
+    "user_name": {
+      "type": "string",
+      "description": "\u7528\u6236\u59d3\u540d"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "\u7528\u6236\u4fe1\u7bb1"
+    },
+    "user_phone": {
+      "type": "string",
+      "description": "\u806f\u7d61\u96fb\u8a71"
+    },
+    "ratings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "imageId": {
+            "type": "number"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "styles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "\u5716\u7247\u8a55\u5206\u8a73\u60c5"
+    },
+    "test_score": {
+      "type": "object",
+      "description": "\u5404\u98a8\u683c\u8a55\u5206",
+      "properties": {
+        "modern": {
+          "type": "number"
+        },
+        "classic": {
+          "type": "number"
+        },
+        "industrial": {
+          "type": "number"
+        },
+        "scandinavian": {
+          "type": "number"
+        },
+        "minimalist": {
+          "type": "number"
+        },
+        "bohemian": {
+          "type": "number"
+        },
+        "japandi": {
+          "type": "number"
+        },
+        "coastal": {
+          "type": "number"
+        }
+      }
+    },
+    "primary_style": {
+      "type": "string",
+      "description": "\u63a8\u85a6\u7684\u4e3b\u8981\u98a8\u683c"
+    },
+    "secondary_style": {
+      "type": "string",
+      "description": "\u63a8\u85a6\u7684\u6b21\u8981\u98a8\u683c"
+    },
+    "style_images_sent": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u662f\u5426\u5df2\u767c\u9001\u98a8\u683c\u5716\u7247"
+    }
+  },
+  "required": [
+    "user_name",
+    "user_email"
+  ]
+}
