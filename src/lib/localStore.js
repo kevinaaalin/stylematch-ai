@@ -1,6 +1,7 @@
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 
 export const CASE_STAGES = [
+  { value: "matched_confirmed", label: "TWCID 媒合已確認", tone: "bg-emerald-100 text-emerald-800" },
   { value: "intake_created", label: "需求建檔", tone: "bg-sky-100 text-sky-800" },
   { value: "ai_review", label: "AI 初評", tone: "bg-violet-100 text-violet-800" },
   { value: "matching", label: "TWCID 媒合中", tone: "bg-amber-100 text-amber-800" },
@@ -13,10 +14,24 @@ export const CASE_STAGES = [
 const emptyDatabase = {
   styleTests: [],
   projects: [],
+  isafeCases: [],
   notifications: [],
   auditLogs: [],
   jobs: [],
 };
+
+const ISAFE_GOVERNANCE_STEPS = [
+  { code: "D1", key: "D1_intake", label: "需求建檔與監管啟動", phase: "設計前置" },
+  { code: "D2", key: "D2_requirement_review", label: "需求與預算檢核", phase: "設計前置" },
+  { code: "D3", key: "D3_design_match", label: "設計/供應鏈媒合確認", phase: "設計前置" },
+  { code: "D4", key: "D4_proposal_review", label: "提案與估價版本確認", phase: "設計前置" },
+  { code: "D5", key: "D5_contract_ready", label: "合約與開工條件確認", phase: "設計前置" },
+  { code: "C1", key: "C1_contract_start", label: "合約啟動", phase: "工程施工" },
+  { code: "C2", key: "C2_site_execution", label: "現場施工監管", phase: "工程施工" },
+  { code: "C3", key: "C3_change_control", label: "追加減與變更控管", phase: "工程施工" },
+  { code: "C4", key: "C4_acceptance", label: "驗收與缺失改善", phase: "工程施工" },
+  { code: "C5", key: "C5_warranty_closed", label: "保固與結案評鑑", phase: "工程施工" },
+];
 
 const legacyStageMap = {
   "需求建檔": "intake_created",
@@ -104,6 +119,16 @@ function nextIsafeCaseId(database) {
   return `IS-${year}-${nextSequence(database.projects || [], "isafe_case_id", "IS", year)}`;
 }
 
+function buildIsafeWorkspaceUrl(isafeCaseId, role = "headquarter") {
+  if (!isafeCaseId) return "";
+  const params = new URLSearchParams({
+    view: "projects",
+    case: isafeCaseId,
+    role,
+  });
+  return `http://127.0.0.1:4174/?${params.toString()}`;
+}
+
 function makeTimelineEvent({ title, status, actor = "StyleMatch AI", detail = "", at = nowIso(), traceId }) {
   return {
     id: randomId("tl"),
@@ -159,7 +184,7 @@ function serviceMatchStatus(serviceOption) {
 }
 
 function initialStageForService(serviceOption) {
-  if (serviceOption === "platform_matching" || serviceOption === "twcid_platform") return "matching";
+  if (["platform_matching", "twcid_platform", "isafe_governance"].includes(serviceOption)) return "matching";
   return "ai_review";
 }
 
@@ -187,6 +212,13 @@ function normalizeProject(project, index) {
     ...compactProjectData(project),
     id,
     project_id: projectId,
+    stylematch_project_id: project.stylematch_project_id || projectId,
+    canonical_project_id: project.canonical_project_id || null,
+    journey_id: project.journey_id || null,
+    handover_id: project.handover_id || null,
+    tenant_id: project.tenant_id || "tenant_local_tigi",
+    organization_id: project.organization_id || "org_local_headquarter",
+    correlation_id: project.correlation_id || traceId,
     case_code: caseCode,
     twcid_match_id: project.twcid_match_id || null,
     isafe_case_id: project.isafe_case_id || null,
@@ -203,15 +235,118 @@ function normalizeProject(project, index) {
   };
 }
 
+function buildIsafeGovernanceSteps(currentStage = "D1_intake") {
+  const activeIndex = Math.max(0, ISAFE_GOVERNANCE_STEPS.findIndex((step) => step.key === currentStage));
+  return ISAFE_GOVERNANCE_STEPS.map((step, index) => ({
+    ...step,
+    status: index < activeIndex ? "completed" : index === activeIndex ? "active" : "not_started",
+    required_evidence: index === activeIndex ? ["case_master", "timeline", "audit_log"] : [],
+  }));
+}
+
+function makeIsafeCaseFromProject(project, { traceId, at = nowIso() } = {}) {
+  const createdAt = at;
+  return {
+    id: `isafe_${project.isafe_case_id}`,
+    isafe_case_id: project.isafe_case_id,
+    isafe_project_id: project.isafe_case_id,
+    source_project_id: project.project_id,
+    stylematch_project_id: project.stylematch_project_id || project.project_id,
+    project_id: project.canonical_project_id || null,
+    journey_id: project.journey_id || null,
+    handover_id: project.handover_id || null,
+    source_case_code: project.case_code,
+    source: "StyleMatchAI",
+    title: `${project.case_code} iSAFE 監管專案`,
+    status: "active",
+    current_stage: "D1_intake",
+    gate_status: "D1_pending",
+    risk_score: 88,
+    pgp_url: project.pgp_url || `local://isafe/${project.isafe_case_id}/pgp`,
+    workspace_url: buildIsafeWorkspaceUrl(project.isafe_case_id),
+    owner: "local-admin",
+    governance_steps: buildIsafeGovernanceSteps("D1_intake"),
+    evidence_summary: {
+      timeline_events: Array.isArray(project.timeline) ? project.timeline.length : 0,
+      source_audit_logs: Array.isArray(project.audit_log_ids) ? project.audit_log_ids.length : 0,
+      project_photos: project.total_photo_count || 0,
+      reference_photos: project.reference_photo_count || 0,
+    },
+    timeline: [
+      makeTimelineEvent({
+        title: "iSAFE 監管專案成立",
+        status: "D1_intake",
+        actor: "StyleMatch AI",
+        detail: `由 ${project.case_code} 自動成立 iSAFE 監管專案 ${project.isafe_case_id}。`,
+        at: createdAt,
+        traceId,
+      }),
+    ],
+    trace_id: traceId || project.trace_id || makeTraceId(),
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+}
+
+function normalizeIsafeCase(isafeCase, index) {
+  const createdAt = isafeCase.created_at || nowIso();
+  const currentStage = isafeCase.current_stage || "D1_intake";
+  return {
+    id: isafeCase.id || `isafe_${isafeCase.isafe_case_id || index + 1}`,
+    isafe_case_id: isafeCase.isafe_case_id,
+    isafe_project_id: isafeCase.isafe_project_id || isafeCase.isafe_case_id,
+    source_project_id: isafeCase.source_project_id || null,
+    stylematch_project_id: isafeCase.stylematch_project_id || isafeCase.source_project_id || null,
+    project_id: isafeCase.project_id || null,
+    journey_id: isafeCase.journey_id || null,
+    handover_id: isafeCase.handover_id || null,
+    tenant_id: isafeCase.tenant_id || "tenant_local_tigi",
+    organization_id: isafeCase.organization_id || "org_local_headquarter",
+    correlation_id: isafeCase.correlation_id || isafeCase.trace_id || null,
+    source_case_code: isafeCase.source_case_code || null,
+    source: isafeCase.source || "StyleMatchAI",
+    title: isafeCase.title || `${isafeCase.source_case_code || "StyleMatch"} iSAFE 監管專案`,
+    status: isafeCase.status || "active",
+    current_stage: currentStage,
+    gate_status: isafeCase.gate_status || "D1_pending",
+    risk_score: Number.isFinite(isafeCase.risk_score) ? isafeCase.risk_score : 88,
+    pgp_url: isafeCase.pgp_url || (isafeCase.isafe_case_id ? `local://isafe/${isafeCase.isafe_case_id}/pgp` : ""),
+    workspace_url: isafeCase.workspace_url || buildIsafeWorkspaceUrl(isafeCase.isafe_case_id),
+    owner: isafeCase.owner || "local-admin",
+    governance_steps: Array.isArray(isafeCase.governance_steps) && isafeCase.governance_steps.length
+      ? isafeCase.governance_steps
+      : buildIsafeGovernanceSteps(currentStage),
+    evidence_summary: isafeCase.evidence_summary || {},
+    timeline: Array.isArray(isafeCase.timeline) ? isafeCase.timeline : [],
+    trace_id: isafeCase.trace_id || makeTraceId(),
+    created_at: createdAt,
+    updated_at: isafeCase.updated_at || createdAt,
+  };
+}
+
 function compactDatabase(database) {
   const merged = {
     ...emptyDatabase,
     ...database,
   };
+  const projects = (merged.projects || []).map(normalizeProject);
+  const storedIsafeCases = Array.isArray(merged.isafeCases) ? merged.isafeCases : [];
+  const migratedIsafeCases = projects
+    .filter((project) => project.isafe_case_id)
+    .filter((project) => !storedIsafeCases.some(
+      (isafeCase) =>
+        isafeCase.isafe_case_id === project.isafe_case_id ||
+        isafeCase.source_project_id === project.project_id
+    ))
+    .map((project) => makeIsafeCaseFromProject(project, {
+      traceId: project.trace_id,
+      at: project.updated_at || project.created_at,
+    }));
 
   return {
     ...merged,
-    projects: (merged.projects || []).map(normalizeProject),
+    projects,
+    isafeCases: [...storedIsafeCases, ...migratedIsafeCases].map(normalizeIsafeCase),
     auditLogs: Array.isArray(merged.auditLogs) ? merged.auditLogs : [],
     jobs: Array.isArray(merged.jobs) ? merged.jobs : [],
   };
@@ -285,6 +420,12 @@ export const localStore = {
       ...compactProjectData(data),
       id: crypto.randomUUID(),
       project_id: crypto.randomUUID(),
+      stylematch_project_id: null,
+      canonical_project_id: null,
+      journey_id: null,
+      handover_id: null,
+      tenant_id: "tenant_local_tigi",
+      organization_id: "org_local_headquarter",
       case_code: nextCaseCode(database),
       twcid_match_id: null,
       isafe_case_id: null,
@@ -318,6 +459,9 @@ export const localStore = {
       created_at: createdAt,
       updated_at: createdAt,
     };
+
+    record.stylematch_project_id = record.project_id;
+    record.correlation_id = traceId;
 
     const auditLog = makeAuditLog({
       action: "project.create",
@@ -446,18 +590,65 @@ export const localStore = {
     return project;
   },
 
-  createIsafeCase(projectId) {
+  confirmTwcidMatch(projectId) {
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
+    if (!project?.twcid_match_id) return null;
+
+    const traceId = makeTraceId();
+    project.stage_status = "matched_confirmed";
+    project.current_stage = "matched_confirmed";
+    project.match_status = "matched_confirmed";
+    recordProjectEvent(
+      database,
+      project,
+      {
+        title: "TWCID 媒合確認成功",
+        status: "matched_confirmed",
+        actor: "local-admin",
+        detail: `twcid_match_id=${project.twcid_match_id} 已由人工確認，可申請 iSAFE 交接。`,
+      },
+      {
+        action: "match.confirmed",
+        userId: "local-admin",
+        detail: `${project.case_code} match_status=matched_confirmed`,
+        traceId,
+      }
+    );
+    writeDatabase(database);
+    return project;
+  },
+
+  createIsafeCase(projectId, remoteCase = null) {
     const database = readDatabase();
     const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
     if (!project) return null;
 
     const traceId = makeTraceId();
-    project.isafe_case_id = project.isafe_case_id || nextIsafeCaseId(database);
+    project.isafe_case_id = remoteCase?.isafe_case_id || project.isafe_case_id || nextIsafeCaseId(database);
     project.stage_status = "isafe_created";
     project.current_stage = "D1_intake";
     project.gate_status = "D1_pending";
-    project.pgp_url = project.pgp_url || `local://isafe/${project.isafe_case_id}/pgp`;
+    project.pgp_url = remoteCase?.pgp_url || project.pgp_url || `local://isafe/${project.isafe_case_id}/pgp`;
+    project.stylematch_project_id = remoteCase?.stylematch_project_id || project.stylematch_project_id || project.project_id;
+    project.canonical_project_id = remoteCase?.project_id || project.canonical_project_id || null;
+    project.journey_id = remoteCase?.journey_id || project.journey_id || null;
+    project.handover_id = remoteCase?.handover_id || project.handover_id || null;
+    project.correlation_id = remoteCase?.correlation_id || project.correlation_id || traceId;
     project.match_status = "iSAFE 已立案";
+    const isafeCase = remoteCase
+      ? normalizeIsafeCase({
+          ...makeIsafeCaseFromProject(project, { traceId }),
+          ...remoteCase,
+          source_project_id: project.project_id,
+          source_case_code: project.case_code,
+        }, 0)
+      : makeIsafeCaseFromProject(project, { traceId });
+    const existingIsafeIndex = database.isafeCases.findIndex(
+      (item) =>
+        item.isafe_case_id === project.isafe_case_id ||
+        item.source_project_id === project.project_id
+    );
 
     recordProjectEvent(
       database,
@@ -483,8 +674,21 @@ export const localStore = {
       detail: `iSAFE case id: ${project.isafe_case_id}`,
       traceId,
     }));
+    if (existingIsafeIndex >= 0) {
+      database.isafeCases[existingIsafeIndex] = {
+        ...database.isafeCases[existingIsafeIndex],
+        ...isafeCase,
+        timeline: [
+          ...(isafeCase.timeline || []),
+          ...(database.isafeCases[existingIsafeIndex].timeline || []),
+        ],
+        updated_at: nowIso(),
+      };
+    } else {
+      database.isafeCases.unshift(isafeCase);
+    }
     writeDatabase(database);
-    return project;
+    return { project, isafeCase };
   },
 
   removeStyleTest(id) {

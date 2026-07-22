@@ -21,8 +21,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity,
+  ArrowUpRight,
   ClipboardCheck,
+  CircleCheck,
+  Download,
   FileClock,
+  FileJson,
   FolderKanban,
   Link2,
   Mail,
@@ -32,6 +36,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { CASE_STAGES, localStore } from "@/lib/localStore";
+import {
+  buildGovernancePassport,
+  downloadTextFile,
+  governancePassportToMarkdown,
+} from "@/lib/governancePassport";
+import TigiKnowledgePanel from "@/components/knowledge/TigiKnowledgePanel";
+import { createIsafeHandoff } from "@/lib/isafeApi";
 
 const serviceNames = {
   ai_proposal: "AI 提案",
@@ -44,6 +55,18 @@ const gateLabels = {
   D1_pending: "D1 待審",
   closed: "已關閉",
 };
+
+const ISAFE_WORKSPACE_ORIGIN = "http://127.0.0.1:4174/";
+
+function buildIsafeWorkspaceUrl(isafeCase, role = "headquarter") {
+  const caseId = isafeCase?.isafe_case_id || isafeCase?.isafe_project_id || "";
+  const params = new URLSearchParams({
+    view: "projects",
+    role,
+  });
+  if (caseId) params.set("case", caseId);
+  return `${ISAFE_WORKSPACE_ORIGIN}?${params.toString()}`;
+}
 
 function formatDate(value) {
   if (!value) return "-";
@@ -95,6 +118,8 @@ export default function Cases() {
   const [selectedProjectId, setSelectedProjectId] = useState(database.projects[0]?.id || "");
   const [query, setQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
+  const [isCreatingIsafe, setIsCreatingIsafe] = useState(false);
+  const [isafeError, setIsafeError] = useState("");
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
@@ -135,6 +160,9 @@ export default function Cases() {
     () => database.projects.find((project) => project.id === selectedProjectId) || database.projects[0],
     [database.projects, selectedProjectId]
   );
+  const isMatchConfirmed = Boolean(
+    selectedProject?.twcid_match_id && selectedProject?.match_status === "matched_confirmed"
+  );
 
   const selectedAuditLogs = useMemo(() => {
     if (!selectedProject) return [];
@@ -145,8 +173,17 @@ export default function Cases() {
     );
   }, [database.auditLogs, selectedProject]);
 
+  const selectedIsafeCase = useMemo(() => {
+    if (!selectedProject) return null;
+    return (database.isafeCases || []).find(
+      (isafeCase) =>
+        isafeCase.isafe_case_id === selectedProject.isafe_case_id ||
+        isafeCase.source_project_id === selectedProject.project_id
+    ) || null;
+  }, [database.isafeCases, selectedProject]);
+
   const stats = useMemo(() => {
-    const isafeCount = database.projects.filter((project) => project.isafe_case_id).length;
+    const isafeCount = (database.isafeCases || []).length || database.projects.filter((project) => project.isafe_case_id).length;
     const pendingMatches = database.projects.filter(
       (project) => project.stage_status === "matching" || project.stage_status === "ai_review"
     ).length;
@@ -174,9 +211,52 @@ export default function Cases() {
     localStore.createTwcidMatch(selectedProject.id);
   };
 
-  const handleIsafeCreate = () => {
+  const handleMatchConfirmation = () => {
+    if (!selectedProject?.twcid_match_id) {
+      setIsafeError("請先產生 TWCID 媒合結果，再確認媒合成功。");
+      return;
+    }
+    localStore.confirmTwcidMatch(selectedProject.id);
+    setIsafeError("");
+  };
+
+  const handleIsafeCreate = async () => {
     if (!selectedProject) return;
-    localStore.createIsafeCase(selectedProject.id);
+    if (!isMatchConfirmed) {
+      setIsafeError("必須先完成並確認 TWCID 媒合，才能交接建立 iSAFE 監管專案。");
+      return;
+    }
+    setIsCreatingIsafe(true);
+    setIsafeError("");
+    try {
+      const response = await createIsafeHandoff(selectedProject, selectedAuditLogs);
+      localStore.createIsafeCase(selectedProject.id, response.case);
+    } catch (error) {
+      setIsafeError(error.message || "無法連線至 iSAFE 本地 API");
+    } finally {
+      setIsCreatingIsafe(false);
+    }
+  };
+
+  const handlePassportExport = async (format) => {
+    if (!selectedProject) return;
+    const passport = await buildGovernancePassport(selectedProject, database);
+    const safeCaseCode = selectedProject.case_code || selectedProject.project_id || "stylematch-case";
+
+    if (format === "markdown") {
+      downloadTextFile(
+        `${safeCaseCode}-pgp-governance-passport.md`,
+        governancePassportToMarkdown(passport),
+        "text/markdown"
+      );
+      return;
+    }
+
+    downloadTextFile(
+      `${safeCaseCode}-pgp-governance-passport.json`,
+      JSON.stringify(passport, null, 2),
+      "application/json"
+    );
   };
 
   return (
@@ -316,9 +396,12 @@ export default function Cases() {
                 </div>
               ) : (
                 <Tabs defaultValue="overview" className="space-y-4">
-                  <TabsList className="grid h-auto w-full grid-cols-4">
+                  <TabsList className="grid h-auto w-full grid-cols-7">
                     <TabsTrigger value="overview">總覽</TabsTrigger>
                     <TabsTrigger value="timeline">時間軸</TabsTrigger>
+                    <TabsTrigger value="isafe">iSAFE</TabsTrigger>
+                    <TabsTrigger value="passport">PGP</TabsTrigger>
+                    <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
                     <TabsTrigger value="audit">Audit</TabsTrigger>
                     <TabsTrigger value="jobs">Jobs</TabsTrigger>
                   </TabsList>
@@ -342,7 +425,7 @@ export default function Cases() {
                     </div>
 
                     <div className="space-y-3 rounded-md border border-stone-200 bg-white p-4">
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
                         <Select value={selectedProject.stage_status} onValueChange={handleStageChange}>
                           <SelectTrigger>
                             <SelectValue placeholder="更新 stage_status" />
@@ -359,11 +442,24 @@ export default function Cases() {
                           <Network className="mr-2 h-4 w-4" />
                           建立 TWCID 媒合
                         </Button>
+                        <Button
+                          onClick={handleMatchConfirmation}
+                          variant="outline"
+                          disabled={!selectedProject.twcid_match_id || isMatchConfirmed}
+                        >
+                          <CircleCheck className="mr-2 h-4 w-4" />
+                          {isMatchConfirmed ? "媒合已確認" : "確認媒合成功"}
+                        </Button>
                       </div>
-                      <Button onClick={handleIsafeCreate} className="w-full bg-stone-900 hover:bg-stone-800">
+                      <Button
+                        onClick={handleIsafeCreate}
+                        disabled={isCreatingIsafe || Boolean(selectedProject.isafe_case_id) || !isMatchConfirmed}
+                        className="w-full bg-stone-900 hover:bg-stone-800"
+                      >
                         <ShieldCheck className="mr-2 h-4 w-4" />
-                        轉入 iSAFE 並回存 isafe_case_id
+                        成立 iSAFE 監管專案並回存 isafe_case_id
                       </Button>
+                      {isafeError && <p className="text-sm text-red-600">{isafeError}</p>}
                     </div>
                   </TabsContent>
 
@@ -383,6 +479,139 @@ export default function Cases() {
                         </div>
                       </div>
                     ))}
+                  </TabsContent>
+
+                  <TabsContent value="isafe" className="space-y-4">
+                    {!selectedIsafeCase ? (
+                      <div className="rounded-md border border-dashed border-stone-300 bg-white p-6 text-center">
+                        <p className="font-semibold text-stone-900">尚未成立 iSAFE 監管專案</p>
+                        <p className="mt-1 text-sm text-stone-600">
+                          點選「成立 iSAFE 監管專案」後，系統會自動產生 iSAFE project、D1 起始節點、Gate 狀態與 PGP 指標。
+                        </p>
+                        <Button
+                          onClick={handleIsafeCreate}
+                          disabled={isCreatingIsafe || !isMatchConfirmed}
+                          className="mt-4 bg-stone-900 hover:bg-stone-800"
+                        >
+                          <ShieldCheck className="mr-2 h-4 w-4" />
+                          立即成立 iSAFE 監管專案
+                        </Button>
+                        {isafeError && <p className="mt-3 text-sm text-red-600">{isafeError}</p>}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <Field label="isafe_project_id" value={selectedIsafeCase.isafe_project_id} />
+                          <Field label="isafe_case_id" value={selectedIsafeCase.isafe_case_id} />
+                          <Field label="source_case_code" value={selectedIsafeCase.source_case_code} />
+                          <Field label="source_project_id" value={selectedIsafeCase.source_project_id} />
+                          <Field label="current_stage" value={selectedIsafeCase.current_stage} />
+                          <Field label="gate_status" value={selectedIsafeCase.gate_status} />
+                          <Field label="risk_score" value={selectedIsafeCase.risk_score} />
+                          <Field label="pgp_url" value={selectedIsafeCase.pgp_url} />
+                        </div>
+
+                        <div className="rounded-md border border-stone-200 bg-white p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="font-semibold text-stone-900">iSAFE 正式監管工作台</p>
+                              <p className="mt-1 text-sm text-stone-600">
+                                StyleMatchAI 只保留轉案紀錄；總部、代理商、設計師與業主權限頁面在 iSAFE 網站呈現。
+                              </p>
+                              <p className="mt-2 break-all font-mono text-xs text-stone-500">
+                                {selectedIsafeCase.workspace_url || buildIsafeWorkspaceUrl(selectedIsafeCase)}
+                              </p>
+                            </div>
+                            <a
+                              href={selectedIsafeCase.workspace_url || buildIsafeWorkspaceUrl(selectedIsafeCase)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <Button className="bg-stone-900 hover:bg-stone-800">
+                                <ArrowUpRight className="mr-2 h-4 w-4" />
+                                開啟 iSAFE 工作台
+                              </Button>
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="rounded-md border border-stone-200 bg-white p-4">
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="font-semibold text-stone-900">兩階段十大監管節點</p>
+                            <Badge variant="outline">{selectedIsafeCase.status}</Badge>
+                          </div>
+                          <div className="mt-3 grid grid-cols-1 gap-2">
+                            {(selectedIsafeCase.governance_steps || []).map((step) => (
+                              <div
+                                key={step.key}
+                                className="grid grid-cols-[52px_1fr_auto] items-center gap-3 rounded-md border border-stone-200 px-3 py-2"
+                              >
+                                <span className="font-mono text-sm font-semibold text-stone-900">{step.code}</span>
+                                <div>
+                                  <p className="text-sm font-medium text-stone-900">{step.label}</p>
+                                  <p className="text-xs text-stone-500">{step.phase}</p>
+                                </div>
+                                <Badge variant={step.status === "active" ? "default" : "outline"}>
+                                  {step.status}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                          <Field label="timeline_events" value={selectedIsafeCase.evidence_summary?.timeline_events} />
+                          <Field label="source_audit_logs" value={selectedIsafeCase.evidence_summary?.source_audit_logs} />
+                          <Field label="project_photos" value={selectedIsafeCase.evidence_summary?.project_photos} />
+                        </div>
+                      </>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="passport" className="space-y-4">
+                    <div className="rounded-md border border-stone-200 bg-white p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-semibold text-stone-900">PGP Governance Passport</p>
+                          <p className="mt-1 text-sm text-stone-600">
+                            Reviewer-ready export aligned to the July 1 SBIR Gate, Evidence, PGP, and RiskScore model.
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button variant="outline" onClick={() => handlePassportExport("json")}>
+                            <FileJson className="mr-2 h-4 w-4" />
+                            JSON
+                          </Button>
+                          <Button variant="outline" onClick={() => handlePassportExport("markdown")}>
+                            <Download className="mr-2 h-4 w-4" />
+                            MD
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="PGP source" value="localStorage MVP evidence chain" />
+                      <Field label="SBIR baseline" value="2026-07-01 PGP / Evidence / RiskScore" />
+                      <Field label="timeline events" value={(selectedProject.timeline || []).length} />
+                      <Field label="audit logs" value={selectedAuditLogs.length} />
+                    </div>
+
+                    <div className="rounded-md border border-stone-200 bg-white p-3">
+                      <p className="text-sm font-semibold text-stone-900">Included case evidence</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-600">
+                        <Badge variant="outline">case_code</Badge>
+                        <Badge variant="outline">timeline</Badge>
+                        <Badge variant="outline">audit_logs</Badge>
+                        <Badge variant="outline">stage_status</Badge>
+                        <Badge variant="outline">isafe_case_id</Badge>
+                        <Badge variant="outline">trace IDs</Badge>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="knowledge">
+                    <TigiKnowledgePanel project={selectedProject} compact />
                   </TabsContent>
 
                   <TabsContent value="audit">

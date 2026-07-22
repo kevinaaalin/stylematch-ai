@@ -51,8 +51,11 @@ import Home from './pages/Home';
 import StyleTest from './pages/StyleTest';
 import Requirements from './pages/Requirements';
 import Cases from './pages/Cases';
+import IsafeProjects from './pages/IsafeProjects';
+import IsafeDirectIntake from './pages/IsafeDirectIntake';
 import AIProposal from './pages/AIProposal';
 import AIGenerate from './pages/AIGenerate';
+import Knowledge from './pages/Knowledge';
 import MyProjects from './pages/MyProjects';
 import PricingPlans from './pages/PricingPlans';
 import __Layout from './Layout.jsx';
@@ -63,8 +66,11 @@ export const PAGES = {
     "StyleTest": StyleTest,
     "Requirements": Requirements,
     "Cases": Cases,
+    "IsafeProjects": IsafeProjects,
+    "IsafeDirectIntake": IsafeDirectIntake,
     "AIProposal": AIProposal,
     "AIGenerate": AIGenerate,
+    "Knowledge": Knowledge,
     "MyProjects": MyProjects,
     "PricingPlans": PricingPlans,
 }

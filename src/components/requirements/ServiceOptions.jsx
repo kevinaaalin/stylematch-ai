@@ -9,9 +9,11 @@ import {
   Loader2,
   CreditCard,
   UserCheck,
-  Link
+  Link,
+  ShieldCheck
 } from "lucide-react";
 import { ProjectRequirement, SendEmail } from "@/lib/localAdapters";
+import { localStore } from "@/lib/localStore";
 
 export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting }) {
   const [selectedOption, setSelectedOption] = useState("");
@@ -67,6 +69,22 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
         "TWCID 平台品質保證"
       ],
       action: "選擇 TWCID 招標"
+    },
+    {
+      id: "isafe_governance",
+      icon: ShieldCheck,
+      title: "後續銜接 iSAFE 監管",
+      description: "先建立 StyleMatchAI 與 TWCID 媒合需求；媒合結果經人工確認後，才能正式交接至 iSAFE。",
+      price: "依監管方案",
+      features: [
+        "建立 TWCID 媒合需求",
+        "人工確認媒合成功",
+        "確認後才產生 isafe_case_id",
+        "同步案件時間軸與稽核紀錄",
+        "建立 Evidence 與 PGP 基礎資料",
+        "由 iSAFE 管理後續 Gate 狀態"
+      ],
+      action: "建立媒合及監管需求"
     }
   ];
 
@@ -85,13 +103,19 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
         service_option: optionId,
       };
       
-      await ProjectRequirement.create(projectData);
+      const project = await ProjectRequirement.create(projectData);
+      // This records the governance requirement only. The iSAFE handover is
+      // created after the TWCID match is explicitly confirmed.
 
       // 根據選擇的服務發送不同的 email
       let emailSubject = "";
       let emailBody = "";
 
       switch (optionId) {
+        case "isafe_governance":
+          emailSubject = "iSAFE 監管需求已登記";
+          emailBody = `您的 StyleMatchAI 案件已登記後續 iSAFE 監管需求。\n\n案件代碼：${project.case_code}\n完成 TWCID 媒合並經人工確認後，系統才會建立 iSAFE 監管專案。`;
+          break;
         case "ai_proposal":
           emailSubject = "AI設計提案服務 - 付款資訊";
           emailBody = `
@@ -298,6 +322,7 @@ StyleMatch AI 團隊
                     {option.id === "ai_proposal" && <CreditCard className="w-4 h-4 mr-2" />}
                     {option.id === "platform_matching" && <UserCheck className="w-4 h-4 mr-2" />}
                     {option.id === "twcid_platform" && <Link className="w-4 h-4 mr-2" />}
+                    {option.id === "isafe_governance" && <ShieldCheck className="w-4 h-4 mr-2" />}
                     {option.action}
                   </>
                 )}
