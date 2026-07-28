@@ -1,25 +1,13 @@
-const STAGE_TO_NODE = {
-  intake_created: "D1_intake",
-  ai_review: "D2_requirement_review",
-  matching: "D3_twcID_matching",
-  matched: "D4_proposal_alignment",
-  isafe_ready: "D5_isafe_handoff_ready",
-  isafe_created: "D1_intake",
-  closed: "C5_warranty_closed",
-};
+import {
+  ISAFE_CONTRACT_VERSION,
+  ISAFE_GOVERNANCE_STEPS,
+  normalizeIsafeStage,
+} from "@/lib/isafeContract";
 
-const GOVERNANCE_NODES = [
-  { code: "D1", key: "D1_intake", label: "Design intake", phase: "design" },
-  { code: "D2", key: "D2_requirement_review", label: "Requirement review", phase: "design" },
-  { code: "D3", key: "D3_twcID_matching", label: "TWCID matching", phase: "design" },
-  { code: "D4", key: "D4_proposal_alignment", label: "Proposal alignment", phase: "design" },
-  { code: "D5", key: "D5_isafe_handoff_ready", label: "iSAFE handoff", phase: "design" },
-  { code: "C1", key: "C1_contract_start", label: "Contract start", phase: "construction" },
-  { code: "C2", key: "C2_site_execution", label: "Site execution", phase: "construction" },
-  { code: "C3", key: "C3_change_control", label: "Change control", phase: "construction" },
-  { code: "C4", key: "C4_acceptance", label: "Acceptance", phase: "construction" },
-  { code: "C5", key: "C5_warranty_closed", label: "Warranty and closure", phase: "construction" },
-];
+const GOVERNANCE_NODES = ISAFE_GOVERNANCE_STEPS.map((step) => ({
+  ...step,
+  label: step.name,
+}));
 
 const SBIR_REFERENCES = [
   "SBIR V2 optimized submission draft, 2026-07-01, chapter 5 two-phase ten governance nodes",
@@ -51,7 +39,10 @@ async function sha256Hex(value) {
 }
 
 function stageRank(project) {
-  const currentKey = STAGE_TO_NODE[project.stage_status] || project.current_stage || "D1_intake";
+  const currentKey = normalizeIsafeStage(
+    project.isafe_current_stage || project.current_stage,
+    "D1_design_preparation"
+  );
   const index = GOVERNANCE_NODES.findIndex((node) => node.key === currentKey);
   return index < 0 ? 0 : index;
 }
@@ -98,9 +89,12 @@ function buildRiskSummary(project, timeline, auditLogs) {
   });
 
   return {
-    model: "R5 local-trial explainable rule weights; human gate decisions remain authoritative",
+    model: "StyleMatch pre-handoff pilot indicator; iSAFE human review remains authoritative",
     score: Math.max(0, score),
     level: score >= 85 ? "green" : score >= 70 ? "yellow" : "red",
+    status: "pilot_unverified",
+    formal: false,
+    human_confirmation: false,
     deductions,
   };
 }
@@ -144,11 +138,11 @@ export async function buildGovernancePassport(project, database) {
   );
 
   const passport = {
-    schema: "TIGI.PGP/20260721_R5",
-    schema_version: "20260721_R5",
+    schema: "TIGI.PGP/20260722_R5_2",
+    schema_version: ISAFE_CONTRACT_VERSION,
     generated_at: new Date().toISOString(),
     reviewer_note:
-      "Reviewer-ready local-trial export aligned to the R5 canonical identifiers, PGP, Gate, Evidence, and human-decision governance contract.",
+      "StyleMatch pre-handoff preview aligned to the R5.2 state contract. The authoritative PGP, Gate, checklist confirmations, and audit record remain in iSAFE.",
     sbir_references: SBIR_REFERENCES,
     case_master: {
       project_id: project.project_id,
@@ -163,6 +157,7 @@ export async function buildGovernancePassport(project, database) {
       isafe_case_id: project.isafe_case_id || null,
       stage_status: project.stage_status,
       current_stage: project.current_stage,
+      isafe_current_stage: project.isafe_current_stage || project.current_stage,
       gate_status: project.gate_status,
       pgp_url: project.pgp_url || null,
       user_email: project.user_email || null,
@@ -184,6 +179,8 @@ export async function buildGovernancePassport(project, database) {
           current_stage: isafeCase.current_stage,
           gate_status: isafeCase.gate_status,
           risk_score: isafeCase.risk_score,
+          risk_assessment: isafeCase.risk_assessment,
+          contract_version: isafeCase.contract_version || isafeCase.schema_version || ISAFE_CONTRACT_VERSION,
           pgp_url: isafeCase.pgp_url,
           governance_steps: isafeCase.governance_steps,
           evidence_summary: isafeCase.evidence_summary,

@@ -13,7 +13,6 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { ProjectRequirement, SendEmail } from "@/lib/localAdapters";
-import { localStore } from "@/lib/localStore";
 
 export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting }) {
   const [selectedOption, setSelectedOption] = useState("");

@@ -1,3 +1,5 @@
+import { getIsafeIdentity } from "@/lib/isafeContract";
+
 const ISAFE_API_ORIGIN = import.meta.env.VITE_ISAFE_API_ORIGIN || "http://127.0.0.1:4180";
 const R5_CONTEXT = {
   tenantId: import.meta.env.VITE_TIGI_TENANT_ID || "tenant_local_tigi",
@@ -6,6 +8,7 @@ const R5_CONTEXT = {
 };
 
 async function request(path, options = {}) {
+  const identity = getIsafeIdentity();
   const response = await fetch(`${ISAFE_API_ORIGIN}${path}`, {
     ...options,
     headers: {
@@ -15,6 +18,13 @@ async function request(path, options = {}) {
       "X-Organization-Id": R5_CONTEXT.organizationId,
       "X-Purpose": "isafe_governance_handover",
       "X-Consent-Ref": "consent_local_trial",
+      "X-Trace-Id": `tr_stylematch_${crypto.randomUUID()}`,
+      "X-User-Id": identity.userId,
+      "X-Member-Tier": identity.memberTier,
+      "X-Case-Role": identity.caseRole,
+      ...(identity.certifiedMemberType
+        ? { "X-Certified-Member-Type": identity.certifiedMemberType }
+        : {}),
       ...(options.headers || {}),
     },
   });
@@ -65,6 +75,14 @@ export function createDirectIsafeIntake(data) {
 
 export function listIsafeCases() {
   return request("/api/v1/isafe/cases");
+}
+
+export function getIsafeLegacyWorkspace(isafeCaseId) {
+  return request(`/api/v1/isafe/cases/${encodeURIComponent(isafeCaseId)}/legacy`, {
+    headers: {
+      "X-Purpose": "isafe_legacy_functional_parity",
+    },
+  });
 }
 
 export function getIsafeHealth() {

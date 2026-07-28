@@ -14,7 +14,12 @@ import {
 } from "@/components/ui/table";
 import { createPageUrl } from "@/utils";
 import { localStore } from "@/lib/localStore";
-import { listIsafeCases } from "@/lib/isafeApi";
+import { getIsafeLegacyWorkspace, listIsafeCases } from "@/lib/isafeApi";
+import {
+  buildIsafeWorkspaceUrl,
+  isPendingGovernance,
+  summarizeLegacyWorkspace,
+} from "@/lib/isafeContract";
 import {
   ArrowUpRight,
   ClipboardCheck,
@@ -25,8 +30,6 @@ import {
   ShieldPlus,
 } from "lucide-react";
 
-const ISAFE_WORKSPACE_ORIGIN = "http://127.0.0.1:4174/";
-
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString("zh-TW", {
@@ -35,16 +38,6 @@ function formatDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function buildIsafeWorkspaceUrl(isafeCase, role = "headquarter") {
-  const caseId = isafeCase?.isafe_case_id || isafeCase?.isafe_project_id || "";
-  const params = new URLSearchParams({
-    view: "projects",
-    role,
-  });
-  if (caseId) params.set("case", caseId);
-  return `${ISAFE_WORKSPACE_ORIGIN}?${params.toString()}`;
 }
 
 function Field({ label, value }) {
@@ -79,6 +72,8 @@ export default function IsafeProjects() {
   const [query, setQuery] = useState("");
   const [apiCases, setApiCases] = useState([]);
   const [apiStatus, setApiStatus] = useState("connecting");
+  const [legacyWorkspace, setLegacyWorkspace] = useState(null);
+  const [legacyStatus, setLegacyStatus] = useState("idle");
 
   useEffect(() => {
     const refresh = () => {
@@ -97,7 +92,13 @@ export default function IsafeProjects() {
 
   const isafeCases = useMemo(() => {
     const merged = new Map((database.isafeCases || []).map((item) => [item.isafe_case_id, item]));
-    apiCases.forEach((item) => merged.set(item.isafe_case_id, item));
+    apiCases
+      .filter((item) => item.intake_channel !== "isafe_direct" && (
+        item.stylematch_project_id ||
+        item.source_project_id ||
+        item.source === "StyleMatchAI"
+      ))
+      .forEach((item) => merged.set(item.isafe_case_id, item));
     return Array.from(merged.values());
   }, [apiCases, database.isafeCases]);
 
@@ -135,11 +136,41 @@ export default function IsafeProjects() {
     [isafeCases, selectedId]
   );
 
+  useEffect(() => {
+    const caseId = selectedCase?.isafe_case_id;
+    if (!caseId || apiStatus !== "connected") {
+      setLegacyWorkspace(null);
+      setLegacyStatus(apiStatus === "offline" ? "offline" : "idle");
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLegacyStatus("loading");
+    getIsafeLegacyWorkspace(caseId)
+      .then((payload) => {
+        if (cancelled) return;
+        setLegacyWorkspace(payload.workspace || null);
+        setLegacyStatus("connected");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLegacyWorkspace(null);
+        setLegacyStatus("offline");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiStatus, selectedCase?.isafe_case_id]);
+
   const stats = useMemo(() => {
     const activeCount = isafeCases.filter((item) => item.status === "active").length;
-    const pendingGateCount = isafeCases.filter((item) => String(item.gate_status || "").includes("pending")).length;
-    const averageRisk = isafeCases.length
-      ? Math.round(isafeCases.reduce((total, item) => total + (Number(item.risk_score) || 0), 0) / isafeCases.length)
+    const pendingGateCount = isafeCases.filter(isPendingGovernance).length;
+    const pilotRisks = isafeCases
+      .map((item) => item.risk_assessment?.value ?? item.risk_score)
+      .filter(Number.isFinite);
+    const averageRisk = pilotRisks.length
+      ? Math.round(pilotRisks.reduce((total, value) => total + value, 0) / pilotRisks.length)
       : 0;
 
     return {
@@ -150,7 +181,17 @@ export default function IsafeProjects() {
     };
   }, [isafeCases]);
 
-  const workspaceUrl = selectedCase ? selectedCase.workspace_url || buildIsafeWorkspaceUrl(selectedCase) : "";
+  const workspaceUrl = selectedCase ? buildIsafeWorkspaceUrl(selectedCase) : "";
+  const legacySummary = useMemo(
+    () => summarizeLegacyWorkspace(legacyWorkspace, selectedCase?.current_stage),
+    [legacyWorkspace, selectedCase?.current_stage]
+  );
+  const selectedRisk = selectedCase?.risk_assessment || {
+    value: selectedCase?.risk_score,
+    status: "pilot_unverified",
+    formal: false,
+    human_confirmation: false,
+  };
 
   return (
     <div className="min-h-screen bg-stone-50 py-8">
@@ -163,7 +204,7 @@ export default function IsafeProjects() {
             </div>
             <h1 className="text-3xl font-semibold text-stone-950">iSAFE 轉案摘要</h1>
             <p className="mt-2 max-w-3xl text-stone-600">
-              StyleMatchAI 只負責成立 iSAFE 監管專案、保留轉案摘要與 PGP 匯出線索；正式專案頁、總部與代理商權限視圖，都交由 iSAFE 工作台承接。
+              StyleMatch AI 負責案件交接與唯讀監管摘要；會員權限、雙方確認、Gate、證據及正式稽核紀錄由 iSAFE 工作台管理。
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -188,7 +229,7 @@ export default function IsafeProjects() {
           <MetricCard label="已轉 iSAFE" value={stats.total} detail="StyleMatchAI handoff records" Icon={ShieldCheck} />
           <MetricCard label="有效轉案" value={stats.activeCount} detail="status=active" Icon={ClipboardCheck} />
           <MetricCard label="待 iSAFE Gate" value={stats.pendingGateCount} detail="pending in iSAFE workspace" Icon={FileClock} />
-          <MetricCard label="平均 RiskScore" value={stats.averageRisk} detail="from initial handoff snapshot" Icon={FolderKanban} />
+          <MetricCard label="Pilot 風險指標" value={stats.averageRisk || "-"} detail="未經人工確認，不是正式 RiskScore" Icon={FolderKanban} />
         </div>
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,0.95fr)]">
@@ -220,7 +261,7 @@ export default function IsafeProjects() {
                       <TableHead>iSAFE</TableHead>
                       <TableHead>來源案件</TableHead>
                       <TableHead>轉案狀態</TableHead>
-                      <TableHead>Risk</TableHead>
+                      <TableHead>Pilot 風險</TableHead>
                       <TableHead>建立時間</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -242,7 +283,7 @@ export default function IsafeProjects() {
                           <TableCell>
                             <Badge variant="outline">{item.current_stage}</Badge>
                           </TableCell>
-                          <TableCell>{item.risk_score}</TableCell>
+                          <TableCell>{item.risk_assessment?.value ?? item.risk_score ?? "-"}</TableCell>
                           <TableCell className="text-stone-600">{formatDate(item.created_at)}</TableCell>
                         </TableRow>
                       );
@@ -277,7 +318,7 @@ export default function IsafeProjects() {
                       <div>
                         <p className="font-semibold text-stone-900">正式監管入口</p>
                         <p className="mt-1 text-sm text-stone-600">
-                          角色權限、總部/代理商頁面、Gate 操作與證據治理在 iSAFE 網站呈現。
+                          會員層級、案件角色、雙方確認、Gate 操作與證據治理均在 iSAFE 網站呈現。
                         </p>
                         <p className="mt-2 break-all font-mono text-xs text-stone-500">{workspaceUrl}</p>
                       </div>
@@ -302,7 +343,10 @@ export default function IsafeProjects() {
                     <Field label="source_project_id" value={selectedCase.source_project_id} />
                     <Field label="current_stage" value={selectedCase.current_stage} />
                     <Field label="gate_status" value={selectedCase.gate_status} />
-                    <Field label="risk_score" value={selectedCase.risk_score} />
+                    <Field label="Pilot 風險值" value={selectedRisk.value} />
+                    <Field label="風險狀態" value={selectedRisk.status} />
+                    <Field label="正式判定" value={selectedRisk.formal ? "是" : "否"} />
+                    <Field label="人工確認" value={selectedRisk.human_confirmation ? "已確認" : "待確認"} />
                     <Field label="pgp_url" value={selectedCase.pgp_url} />
                     <Field label="trace_id" value={selectedCase.trace_id} />
                   </div>
@@ -317,7 +361,7 @@ export default function IsafeProjects() {
                         >
                           <span className="font-mono text-sm font-semibold text-stone-900">{step.code}</span>
                           <div>
-                            <p className="text-sm font-medium text-stone-900">{step.label}</p>
+                            <p className="text-sm font-medium text-stone-900">{step.name || step.label}</p>
                             <p className="text-xs text-stone-500">{step.phase}</p>
                           </div>
                           <Badge variant={step.status === "active" ? "default" : "outline"}>
@@ -325,6 +369,28 @@ export default function IsafeProjects() {
                           </Badge>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border border-stone-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-stone-900">雙方確認與稽核摘要</p>
+                        <p className="mt-1 text-sm text-stone-600">
+                          唯讀顯示 iSAFE 正式資料；清單修改及確認仍須在 iSAFE 工作台進行。
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {legacyStatus === "connected" ? legacySummary.contractVersion : legacyStatus === "loading" ? "載入中" : "離線備援"}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <Field label="總檢核進度" value={`${legacySummary.completed}/${legacySummary.total}`} />
+                      <Field label="目前階段進度" value={`${legacySummary.currentStageCompleted}/${legacySummary.currentStageTotal}`} />
+                      <Field label="認證會員待確認" value={legacySummary.certifiedMemberPending} />
+                      <Field label="業主待確認" value={legacySummary.ownerPending} />
+                      <Field label="階段鎖定" value={legacySummary.stageLocked ? "已鎖定" : "未鎖定"} />
+                      <Field label="契約版本" value={legacySummary.contractVersion} />
                     </div>
                   </div>
 

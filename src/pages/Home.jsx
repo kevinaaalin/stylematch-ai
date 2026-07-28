@@ -19,7 +19,6 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
-  Users,
   Wand2,
 } from "lucide-react";
 

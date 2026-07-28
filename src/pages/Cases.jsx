@@ -43,6 +43,7 @@ import {
 } from "@/lib/governancePassport";
 import TigiKnowledgePanel from "@/components/knowledge/TigiKnowledgePanel";
 import { createIsafeHandoff } from "@/lib/isafeApi";
+import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 
 const serviceNames = {
   ai_proposal: "AI 提案",
@@ -53,20 +54,10 @@ const serviceNames = {
 const gateLabels = {
   not_started: "尚未啟動",
   D1_pending: "D1 待審",
+  migration_review_required: "遷移後待人工覆核",
+  intake_pending: "待受理",
   closed: "已關閉",
 };
-
-const ISAFE_WORKSPACE_ORIGIN = "http://127.0.0.1:4174/";
-
-function buildIsafeWorkspaceUrl(isafeCase, role = "headquarter") {
-  const caseId = isafeCase?.isafe_case_id || isafeCase?.isafe_project_id || "";
-  const params = new URLSearchParams({
-    view: "projects",
-    role,
-  });
-  if (caseId) params.set("case", caseId);
-  return `${ISAFE_WORKSPACE_ORIGIN}?${params.toString()}`;
-}
 
 function formatDate(value) {
   if (!value) return "-";
@@ -486,7 +477,7 @@ export default function Cases() {
                       <div className="rounded-md border border-dashed border-stone-300 bg-white p-6 text-center">
                         <p className="font-semibold text-stone-900">尚未成立 iSAFE 監管專案</p>
                         <p className="mt-1 text-sm text-stone-600">
-                          點選「成立 iSAFE 監管專案」後，系統會自動產生 iSAFE project、D1 起始節點、Gate 狀態與 PGP 指標。
+                          點選「成立 iSAFE 監管專案」後，系統會產生 iSAFE project、D1 前置作業、Gate 狀態與正式監管連結。
                         </p>
                         <Button
                           onClick={handleIsafeCreate}
@@ -507,7 +498,8 @@ export default function Cases() {
                           <Field label="source_project_id" value={selectedIsafeCase.source_project_id} />
                           <Field label="current_stage" value={selectedIsafeCase.current_stage} />
                           <Field label="gate_status" value={selectedIsafeCase.gate_status} />
-                          <Field label="risk_score" value={selectedIsafeCase.risk_score} />
+                          <Field label="Pilot 風險值" value={selectedIsafeCase.risk_assessment?.value ?? selectedIsafeCase.risk_score} />
+                          <Field label="風險狀態" value={selectedIsafeCase.risk_assessment?.status || "pilot_unverified"} />
                           <Field label="pgp_url" value={selectedIsafeCase.pgp_url} />
                         </div>
 
@@ -516,14 +508,14 @@ export default function Cases() {
                             <div>
                               <p className="font-semibold text-stone-900">iSAFE 正式監管工作台</p>
                               <p className="mt-1 text-sm text-stone-600">
-                                StyleMatchAI 只保留轉案紀錄；總部、代理商、設計師與業主權限頁面在 iSAFE 網站呈現。
+                                StyleMatch AI 只保留轉案與唯讀摘要；會員層級、案件角色、雙方確認與 Gate 操作均在 iSAFE 網站處理。
                               </p>
                               <p className="mt-2 break-all font-mono text-xs text-stone-500">
-                                {selectedIsafeCase.workspace_url || buildIsafeWorkspaceUrl(selectedIsafeCase)}
+                                {buildIsafeWorkspaceUrl(selectedIsafeCase)}
                               </p>
                             </div>
                             <a
-                              href={selectedIsafeCase.workspace_url || buildIsafeWorkspaceUrl(selectedIsafeCase)}
+                              href={buildIsafeWorkspaceUrl(selectedIsafeCase)}
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -548,7 +540,7 @@ export default function Cases() {
                               >
                                 <span className="font-mono text-sm font-semibold text-stone-900">{step.code}</span>
                                 <div>
-                                  <p className="text-sm font-medium text-stone-900">{step.label}</p>
+                                  <p className="text-sm font-medium text-stone-900">{step.name || step.label}</p>
                                   <p className="text-xs text-stone-500">{step.phase}</p>
                                 </div>
                                 <Badge variant={step.status === "active" ? "default" : "outline"}>
