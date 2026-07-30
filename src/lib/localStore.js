@@ -48,6 +48,25 @@ function getPhotoSummary(spacePhotos = {}) {
   );
 }
 
+function compactMediaUrls(urls = [], limit = 2) {
+  return (Array.isArray(urls) ? urls : [])
+    .filter((url) => typeof url === "string" && (
+      !url.startsWith("data:") || url.length <= 450000
+    ))
+    .slice(0, limit);
+}
+
+function compactProposalMedia(spacePhotos = {}, referencePhotos = []) {
+  return {
+    space_photos: Object.fromEntries(
+      Object.entries(spacePhotos)
+        .map(([space, photos]) => [space, compactMediaUrls(photos)])
+        .filter(([, photos]) => photos.length > 0)
+    ),
+    reference_photos: compactMediaUrls(referencePhotos, 3),
+  };
+}
+
 export function compactProjectData(data) {
   const {
     space_photos: spacePhotos = {},
@@ -63,6 +82,7 @@ export function compactProjectData(data) {
       0
     ),
     reference_photo_count: Array.isArray(referencePhotos) ? referencePhotos.length : 0,
+    proposal_media: compactProposalMedia(spacePhotos, referencePhotos),
   };
 }
 

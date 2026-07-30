@@ -1,134 +1,47 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { ArrowRight, BriefcaseBusiness, CheckCircle2, Crown, FileText, LockKeyhole, ShieldCheck, Users } from "lucide-react";
 import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  BriefcaseBusiness,
-  CheckCircle2,
-  Crown,
-  FolderKanban,
-  LockKeyhole,
-  ShieldCheck,
-  Sparkles,
-  Users,
-} from "lucide-react";
 import { localStore } from "@/lib/localStore";
+import { createPageUrl } from "@/utils";
 
-const SUBSCRIPTION_STORAGE_KEY = "stylematch_active_plan_v1";
+const PLAN_KEY = "stylematch_active_plan_v1";
 
-const planCatalog = [
-  {
-    id: "free",
-    name: "免費風格測試",
-    price: "免費",
-    audience: "一般屋主",
-    projectLimit: 1,
-    aiLimit: 1,
-    memberLimit: 1,
-    permissions: ["免費風格測試", "查看測試結果"],
-  },
-  {
-    id: "single",
-    name: "單次購買方案",
-    price: "NT$ 2,999",
-    audience: "單一裝修案件",
-    projectLimit: 1,
-    aiLimit: 1,
-    memberLimit: 1,
-    permissions: ["AI 裝修規劃設計提案", "裝修預算配置", "風格與材料方向", "高解析度報告"],
-  },
-  {
-    id: "pro",
-    name: "商業方案 Pro",
-    price: "NT$499/月",
-    audience: "個人設計師與小型工作室",
-    projectLimit: 999,
-    aiLimit: 999,
-    memberLimit: 1,
-    permissions: ["無限次 AI 設計生成", "全部設計風格", "高解析度下載", "無限專案管理", "優先處理佇列", "去除浮水印"],
-  },
-  {
-    id: "business",
-    name: "商業方案",
-    price: "NT$1,999/月",
-    audience: "設計公司與團隊",
-    projectLimit: 999,
-    aiLimit: 999,
-    memberLimit: 5,
-    permissions: ["Pro 方案所有功能", "團隊協作（5人）", "API 接口", "自訂品牌浮水印", "專屬客服", "批量處理"],
-  },
+const plans = [
+  { id: "free", name: "免費體驗", price: "免費", limit: "1 個專案", features: ["風格測驗", "基礎需求保存"] },
+  { id: "single", name: "單次提案", price: "NT$ 2,999", limit: "1 個正式提案", features: ["完整設計提案", "PDF 下載", "圖片與材料建議"] },
+  { id: "pro", name: "專業方案 Pro", price: "NT$ 499 / 月", limit: "無限專案", features: ["無限專案管理", "AI 圖片生成", "高解析度下載"] },
+  { id: "business", name: "企業方案", price: "NT$ 1,999 / 月", limit: "5 位成員", features: ["團隊權限", "品牌設定", "API 與企業整合"] },
 ];
 
-const teamMembers = [
-  { name: "Kevin Chen", email: "owner@stylematch.ai", role: "Owner", plan: "商業方案", status: "啟用" },
-  { name: "Project Manager", email: "pm@stylematch.ai", role: "Admin", plan: "商業方案", status: "啟用" },
-  { name: "Interior Designer", email: "designer@stylematch.ai", role: "Designer", plan: "商業方案 Pro", status: "啟用" },
-  { name: "Client Viewer", email: "client@example.com", role: "Viewer", plan: "單次購買方案", status: "邀請中" },
+const members = [
+  { name: "Kevin Chen", email: "owner@stylematch.ai", role: "Owner", scope: "方案、付款、成員、專案與整合設定" },
+  { name: "Project Manager", email: "pm@stylematch.ai", role: "Admin", scope: "專案管理、案件狀態與報告下載" },
+  { name: "Interior Designer", email: "designer@stylematch.ai", role: "Designer", scope: "需求整理、提案預覽、圖片與材料內容" },
+  { name: "Client Viewer", email: "client@example.com", role: "Viewer", scope: "僅檢視指定專案及已發布提案" },
 ];
 
-const rolePermissions = [
-  { role: "Owner", scope: "帳務、方案、團隊、API、所有專案", level: "完整控管" },
-  { role: "Admin", scope: "團隊成員、專案管理、案件狀態、報告下載", level: "管理權限" },
-  { role: "Designer", scope: "建立專案、AI 生成、編輯提案、下載素材", level: "作業權限" },
-  { role: "Viewer", scope: "查看指定專案、查看報告、留言確認", level: "唯讀權限" },
-];
-
-function readActivePlan() {
+function readPlan() {
   try {
-    return window.localStorage.getItem(SUBSCRIPTION_STORAGE_KEY) || "pro";
+    return window.localStorage.getItem(PLAN_KEY) || "pro";
   } catch {
     return "pro";
   }
 }
 
-function writeActivePlan(planId) {
-  try {
-    window.localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, planId);
-  } catch {
-    // localStorage may be unavailable in private browsing; UI can still run with state.
-  }
-}
-
-function UsageCard({ label, used, limit, Icon }) {
-  const isUnlimited = limit >= 999;
-  const percent = isUnlimited ? Math.min(used * 8, 100) : Math.min((used / limit) * 100, 100);
-
-  return (
-    <Card className="border-stone-200 shadow-sm">
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-stone-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-stone-950">
-              {used}
-              <span className="text-sm font-medium text-stone-500"> / {isUnlimited ? "無限" : limit}</span>
-            </p>
-          </div>
-          <div className="flex h-11 w-11 items-center justify-center rounded-md bg-stone-100">
-            <Icon className="h-5 w-5 text-stone-700" />
-          </div>
-        </div>
-        <Progress value={percent} className="mt-4 h-2" />
-      </CardContent>
-    </Card>
-  );
+function serviceLabel(value) {
+  if (value === "ai_proposal") return "AI 裝修規劃設計提案";
+  if (value === "platform_matching") return "專業設計師媒合";
+  if (value === "twcid_platform") return "TWCID 平台招標媒合";
+  return value || "需求整理";
 }
 
 export default function MyProjects() {
   const [database, setDatabase] = useState(() => localStore.getAll());
-  const [activePlanId, setActivePlanId] = useState(readActivePlan);
+  const [planId, setPlanId] = useState(readPlan);
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
@@ -136,226 +49,160 @@ export default function MyProjects() {
     return () => window.removeEventListener("stylematch:data-changed", refresh);
   }, []);
 
-  const activePlan = useMemo(
-    () => planCatalog.find((plan) => plan.id === activePlanId) || planCatalog[2],
-    [activePlanId]
-  );
+  const activePlan = useMemo(() => plans.find((plan) => plan.id === planId) || plans[2], [planId]);
+  const projects = database.projects || [];
 
-  const usage = useMemo(() => {
-    const projects = database.projects || [];
-    const styleTests = database.styleTests || [];
-    const generatedJobs = (database.jobs || []).filter((job) => job.type?.includes("ai")).length;
-
-    return {
-      projects: projects.length,
-      aiRuns: Math.max(styleTests.length + generatedJobs, projects.length),
-      members: activePlan.id === "business" ? teamMembers.length : 1,
-    };
-  }, [database, activePlan.id]);
-
-  const recentProjects = (database.projects || []).slice(0, 5);
-
-  const handlePlanChange = (planId) => {
-    setActivePlanId(planId);
-    writeActivePlan(planId);
+  const changePlan = (nextPlan) => {
+    setPlanId(nextPlan);
+    try {
+      window.localStorage.setItem(PLAN_KEY, nextPlan);
+    } catch {
+      // The selection remains usable in memory when local storage is unavailable.
+    }
   };
 
   return (
     <div className="min-h-screen bg-stone-50 py-8">
-      <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white">
-              <BriefcaseBusiness className="h-4 w-4" />
-              SaaS Workspace
-            </div>
-            <h1 className="text-3xl font-semibold text-stone-950">我的專案與會員權限控台</h1>
-            <p className="mt-2 max-w-3xl text-stone-600">
-              對應平台方案價格，集中管理目前方案、AI 使用量、專案資料、團隊成員與角色權限。這一版先沿用 localStorage MVP，後續可接會員、付款與 RBAC API。
-            </p>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <header className="mb-6">
+          <div className="inline-flex items-center gap-2 rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white">
+            <BriefcaseBusiness className="h-4 w-4" />StyleMatch AI Workspace
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to={createPageUrl("PricingPlans")}>
-              <Button variant="outline">
-                <Crown className="mr-2 h-4 w-4" />
-                查看平台方案價格
-              </Button>
-            </Link>
-            <Link to={createPageUrl("Cases")}>
-              <Button>
-                <FolderKanban className="mr-2 h-4 w-4" />
-                進入案件控台
-              </Button>
-            </Link>
-          </div>
-        </div>
+          <h1 className="mt-4 text-3xl font-bold text-stone-950">我的專案與會員權限控台</h1>
+          <p className="mt-2 text-stone-600">管理 StyleMatch 方案、裝修需求、圖片、設計提案與團隊權限。</p>
+        </header>
 
-        <Card className="border-stone-200 shadow-sm">
-          <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">目前方案</Badge>
-                <h2 className="text-2xl font-semibold text-stone-950">{activePlan.name}</h2>
-                <p className="text-lg font-semibold text-amber-600">{activePlan.price}</p>
-              </div>
-              <p className="mt-2 text-stone-600">{activePlan.audience}</p>
-              <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {activePlan.permissions.slice(0, 6).map((permission) => (
-                  <div key={permission} className="flex items-center gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700">
-                    <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-600" />
-                    <span>{permission}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-md border border-stone-200 bg-white p-4">
-              <p className="text-sm font-medium text-stone-600">切換 MVP 方案檢視</p>
-              <div className="mt-3 grid gap-2">
-                {planCatalog.map((plan) => (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => handlePlanChange(plan.id)}
-                    className={`rounded-md border px-3 py-2 text-left text-sm transition ${
-                      activePlan.id === plan.id
-                        ? "border-amber-400 bg-amber-50 text-amber-900"
-                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
-                    }`}
-                  >
-                    <span className="font-medium">{plan.name}</span>
-                    <span className="ml-2 text-stone-500">{plan.price}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <UsageCard label="專案管理" used={usage.projects} limit={activePlan.projectLimit} Icon={FolderKanban} />
-          <UsageCard label="AI 分析 / 生成" used={usage.aiRuns} limit={activePlan.aiLimit} Icon={Sparkles} />
-          <UsageCard label="團隊成員" used={usage.members} limit={activePlan.memberLimit} Icon={Users} />
-        </div>
-
-        <Tabs defaultValue="projects" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="projects">專案</TabsTrigger>
-            <TabsTrigger value="members">會員與角色</TabsTrigger>
-            <TabsTrigger value="permissions">權限分級</TabsTrigger>
+        <Tabs defaultValue="plan" className="space-y-5">
+          <TabsList className="h-auto flex-wrap justify-start">
+            <TabsTrigger value="plan"><Crown className="mr-2 h-4 w-4" />目前方案</TabsTrigger>
+            <TabsTrigger value="projects"><FileText className="mr-2 h-4 w-4" />StyleMatch 專案</TabsTrigger>
+            <TabsTrigger value="members"><Users className="mr-2 h-4 w-4" />會員與權限</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="projects">
-            <Card className="border-stone-200 shadow-sm">
-              <CardHeader>
-                <CardTitle>近期專案</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {recentProjects.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-stone-300 p-8 text-center text-stone-500">
-                    目前尚未建立專案。完成 AI 裝修規劃設計提案後，專案會出現在這裡。
+          <TabsContent value="plan">
+            <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+              <Card className="border-stone-200 shadow-sm">
+                <CardHeader>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">目前方案</Badge>
+                    <CardTitle className="text-2xl">{activePlan.name}</CardTitle>
+                    <span className="text-lg font-bold text-amber-700">{activePlan.price}</span>
                   </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>案件編號</TableHead>
-                        <TableHead>屋況</TableHead>
-                        <TableHead>服務方案</TableHead>
-                        <TableHead>狀態</TableHead>
-                        <TableHead>建立時間</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentProjects.map((project) => (
-                        <TableRow key={project.id}>
-                          <TableCell className="font-medium">{project.case_code || project.project_id}</TableCell>
-                          <TableCell>{project.house_type || "-"}</TableCell>
-                          <TableCell>{project.service_option || "AI 裝修規劃設計提案"}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{project.stage_status || "ai_review"}</Badge>
-                          </TableCell>
-                          <TableCell>{project.created_at ? new Date(project.created_at).toLocaleDateString("zh-TW") : "-"}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="members">
-            <Card className="border-stone-200 shadow-sm">
-              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <CardTitle>會員與團隊管理</CardTitle>
-                <Button variant="outline" disabled={activePlan.id !== "business"}>
-                  <Users className="mr-2 h-4 w-4" />
-                  邀請成員
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>成員</TableHead>
-                      <TableHead>角色</TableHead>
-                      <TableHead>對應方案</TableHead>
-                      <TableHead>狀態</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(activePlan.id === "business" ? teamMembers : teamMembers.slice(0, 1)).map((member) => (
-                      <TableRow key={member.email}>
-                        <TableCell>
-                          <div className="font-medium text-stone-900">{member.name}</div>
-                          <div className="text-sm text-stone-500">{member.email}</div>
-                        </TableCell>
-                        <TableCell>{member.role}</TableCell>
-                        <TableCell>{member.plan}</TableCell>
-                        <TableCell>
-                          <Badge className={member.status === "啟用" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-stone-100 text-stone-700 hover:bg-stone-100"}>
-                            {member.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {activePlan.id !== "business" && (
-                  <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    <LockKeyhole className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                    <p>團隊協作、多人席次與角色分派屬於商業方案功能；目前方案僅開放帳號本人使用。</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="permissions">
-            <Card className="border-stone-200 shadow-sm">
-              <CardHeader>
-                <CardTitle>會員權限分級控管</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {rolePermissions.map((item) => (
-                    <div key={item.role} className="rounded-md border border-stone-200 bg-white p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="h-5 w-5 text-stone-700" />
-                          <h3 className="font-semibold text-stone-950">{item.role}</h3>
-                        </div>
-                        <Badge variant="outline">{item.level}</Badge>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-stone-600">{activePlan.limit}</p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    {activePlan.features.map((feature) => (
+                      <div key={feature} className="flex items-center gap-2 border border-stone-200 bg-white p-3 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />{feature}
                       </div>
-                      <p className="mt-3 text-sm leading-relaxed text-stone-600">{item.scope}</p>
+                    ))}
+                  </div>
+                  <div className="mt-6 flex gap-3">
+                    <Link to={createPageUrl("PricingPlans")}>
+                      <Button className="bg-stone-900 text-white hover:bg-stone-800">
+                        升級目前方案<ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                    <Button variant="outline">管理付款方式</Button>
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="border border-stone-200 bg-white p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="font-bold text-stone-900">切換 MVP 方案檢視</h2>
+                  <Link to={createPageUrl("PricingPlans")}>
+                    <Button size="sm" variant="outline">
+                      查看平台方案價格<ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {plans.map((plan) => (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => changePlan(plan.id)}
+                      className={`w-full border px-3 py-3 text-left text-sm ${plan.id === activePlan.id ? "border-amber-500 bg-amber-50" : "border-stone-200 hover:bg-stone-50"}`}
+                    >
+                      <span className="font-semibold">{plan.name}</span><span className="ml-2 text-stone-500">{plan.price}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="projects">
+            <section className="border border-stone-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 p-5">
+                <div>
+                  <h2 className="text-xl font-bold text-stone-950">StyleMatch 專案</h2>
+                  <p className="mt-1 text-sm text-stone-600">此區僅管理裝修需求、圖片與設計提案，不代表已進入 iSAFE 工程監管。</p>
+                </div>
+                <Link to={createPageUrl("AIProposal")}><Button>建立新專案</Button></Link>
+              </div>
+              {projects.length ? (
+                <div className="divide-y divide-stone-200">
+                  {projects.map((project) => (
+                    <div key={project.id} className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-bold text-stone-900">{project.case_code}</h3>
+                          <Badge variant="outline">{serviceLabel(project.service_option)}</Badge>
+                          {project.isafe_case_id && <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">已銜接 iSAFE</Badge>}
+                        </div>
+                        <p className="mt-2 text-sm text-stone-600">
+                          {project.house_type || "房屋類型待確認"} · {project.square_footage ? `${project.square_footage} 坪` : "坪數待確認"} · {project.room_layout || "格局待確認"}
+                        </p>
+                        <p className="mt-1 text-xs text-stone-500">建立日期：{new Date(project.created_at).toLocaleDateString("zh-TW")}</p>
+                      </div>
+                      <Link to={`${createPageUrl("ProjectDetail")}?project=${project.project_id}`}>
+                        <Button variant="outline">開啟專案內頁<ArrowRight className="ml-2 h-4 w-4" /></Button>
+                      </Link>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              ) : (
+                <div className="p-10 text-center text-stone-500">目前尚未建立 StyleMatch 專案。</div>
+              )}
+            </section>
+          </TabsContent>
+
+          <TabsContent value="members">
+            <section className="border border-stone-200 bg-white">
+              <div className="border-b border-stone-200 p-5">
+                <h2 className="text-xl font-bold">會員與角色權限</h2>
+                <p className="mt-1 text-sm text-stone-600">權限只適用於 StyleMatch 工作區；iSAFE 另有工程治理角色與稽核權限。</p>
+              </div>
+              <div className="divide-y divide-stone-200">
+                {members.slice(0, activePlan.id === "business" ? members.length : 1).map((member) => (
+                  <div key={member.email} className="grid gap-3 p-5 md:grid-cols-[220px_120px_1fr_auto] md:items-center">
+                    <div><p className="font-semibold">{member.name}</p><p className="text-sm text-stone-500">{member.email}</p></div>
+                    <Badge variant="outline" className="w-fit">{member.role}</Badge>
+                    <p className="text-sm text-stone-600">{member.scope}</p>
+                    <Button size="icon" variant="ghost" title="權限設定"><LockKeyhole className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+              </div>
+            </section>
           </TabsContent>
         </Tabs>
+
+        <section className="mt-8 border-l-4 border-teal-600 bg-teal-950 p-6 text-white">
+          <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-teal-300"><ShieldCheck className="h-5 w-5" />獨立工程治理系統</div>
+              <h2 className="mt-2 text-2xl font-bold">進入案件 iSAFE 控台</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-teal-100">
+                StyleMatch 負責裝修需求與設計提案；案件完成媒合、人工確認並正式立案後，才進入 iSAFE 工程階段、Gate、證據與稽核流程。
+              </p>
+            </div>
+            <Link to={createPageUrl("Cases")}>
+              <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">進入案件 iSAFE 控台<ArrowRight className="ml-2 h-4 w-4" /></Button>
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   );

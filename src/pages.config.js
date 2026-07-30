@@ -58,6 +58,8 @@ import AIGenerate from './pages/AIGenerate';
 import Knowledge from './pages/Knowledge';
 import MyProjects from './pages/MyProjects';
 import PricingPlans from './pages/PricingPlans';
+import ProposalReport from './pages/ProposalReport';
+import ProjectDetail from './pages/ProjectDetail';
 import __Layout from './Layout.jsx';
 
 
@@ -73,6 +75,8 @@ export const PAGES = {
     "Knowledge": Knowledge,
     "MyProjects": MyProjects,
     "PricingPlans": PricingPlans,
+    "ProposalReport": ProposalReport,
+    "ProjectDetail": ProjectDetail,
 }
 
 export const pagesConfig = {

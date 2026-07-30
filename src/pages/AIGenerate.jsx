@@ -1,39 +1,213 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, ImagePlus, Loader2, Sparkles, Wand2 } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Cuboid,
+  CreditCard,
+  Download,
+  Eye,
+  FileImage,
+  ImagePlus,
+  Loader2,
+  Orbit,
+  Upload,
+  Wand2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import PanoramaViewer from "@/components/ai/PanoramaViewer";
+import { styleImages } from "@/components/styletest/styleImageData";
 import { localStore } from "@/lib/localStore";
 
 const API_BASE = "http://127.0.0.1:4180/api/v1";
-const styles = ["現代簡約", "日式無印", "北歐自然", "侘寂", "工業風", "現代奢華"];
+const AI_TASK_SESSION_KEY = "stylematch_ai_current_task_v1";
+const stylePresets = ["現代簡約", "北歐自然", "日式無印", "侘寂風格", "輕奢質感", "現代古典"];
+const roomPresets = ["客廳", "餐廳", "客餐廳（開放式）", "主臥室", "次臥室", "書房", "廚房", "衛浴", "其他"];
+const roomMediaKeys = {
+  客廳: ["living_room"],
+  餐廳: ["dining_room"],
+  "客餐廳（開放式）": ["living_room", "dining_room"],
+  主臥室: ["master_bedroom"],
+  次臥室: ["bedroom1", "bedroom2"],
+  書房: ["study", "bedroom1"],
+  廚房: ["kitchen"],
+  衛浴: ["bathroom"],
+  其他: [],
+};
+const roomStyleOffsets = { 客廳: 0, 餐廳: 1, "客餐廳（開放式）": 0, 主臥室: 2, 次臥室: 3, 書房: 4, 廚房: 5, 衛浴: 6, 其他: 7 };
+const styleKeyByPreset = {
+  現代簡約: "modern",
+  北歐自然: "scandinavian",
+  日式無印: "japandi",
+  侘寂風格: "minimalist",
+  輕奢質感: "classic",
+  現代古典: "classic",
+};
+const styleLabelByKey = {
+  modern: "現代簡約",
+  scandinavian: "北歐自然",
+  japandi: "日式無印",
+  minimalist: "侘寂風格",
+  classic: "現代古典",
+  industrial: "工業風格",
+  bohemian: "波希米亞",
+  coastal: "海岸風格",
+};
 
-const headers = (idempotencyKey) => ({
+const requestHeaders = (idempotencyKey, purpose) => ({
   "Content-Type": "application/json",
   Authorization: "Bearer local-dev-headquarter",
   "X-Tenant-Id": "tenant_local_tigi",
   "X-Organization-Id": "org_local_headquarter",
-  "X-Purpose": "stylematch_design_recommendation_draft",
+  "X-Purpose": purpose,
   "X-Consent-Ref": "consent_local_trial",
   "X-Trace-Id": `tr_stylematch_${Date.now()}`,
   "Idempotency-Key": idempotencyKey,
 });
 
+function UploadField({ label, hint, preview, onChange }) {
+  return (
+    <label className="block rounded-md border border-dashed border-stone-300 bg-white p-3 transition hover:border-amber-500">
+      <span className="flex items-center gap-2 text-sm font-medium text-stone-800"><Upload className="h-4 w-4" />{label}</span>
+      <span className="mt-1 block text-xs text-stone-500">{hint}</span>
+      <input className="sr-only" type="file" accept="image/*" onChange={onChange} />
+      {preview && <img src={preview} alt={`${label}預覽`} className="mt-3 h-24 w-full rounded object-cover" />}
+    </label>
+  );
+}
+
+function StatusPill({ online }) {
+  return (
+    <div className={`flex items-center gap-2 text-sm ${online ? "text-emerald-700" : "text-rose-700"}`}>
+      {online ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+      ComfyUI：{online ? "已連線" : "未連線，請先啟動 8188"}
+    </div>
+  );
+}
+
+function proposalImagesFor(project, room, styleKey) {
+  if (!project) return [];
+  const roomKeys = roomMediaKeys[room] || [];
+  const proposalSpaces = project.design_proposal?.spaces
+    || project.proposal_media?.design_proposal
+    || project.proposal_images_by_room
+    || {};
+  const directRoomImages = roomKeys
+    .flatMap((key) => proposalSpaces[key]?.images || proposalSpaces[key] || [])
+    .filter(Boolean);
+  if (directRoomImages.length) return [...new Set(directRoomImages)].slice(0, 6);
+
+  const generated = project.proposal_images || project.generated_images || project.design_images || [];
+  if (generated.length) {
+    const start = roomStyleOffsets[room] % generated.length;
+    const count = room === "客餐廳（開放式）" ? 4 : 3;
+    return Array.from({ length: Math.min(count, generated.length) }, (_, index) => generated[(start + index) % generated.length]).filter(Boolean);
+  }
+
+  const candidates = styleImages.filter((image) => image.style.includes(styleKey));
+  const library = candidates.length ? candidates : styleImages;
+  const start = roomStyleOffsets[room] % library.length;
+  const count = room === "客餐廳（開放式）" ? 4 : 3;
+  return Array.from({ length: Math.min(count, library.length) }, (_, index) => library[(start + index) % library.length]?.src).filter(Boolean);
+}
+
+function collectProjectMedia(project, room, proposalImages) {
+  if (!project) return { floorPlan: "", roomImages: [], referenceImages: [], all: [] };
+  const media = project.proposal_media || {};
+  const spacePhotos = media.space_photos || project.space_photos || {};
+  const roomImages = (roomMediaKeys[room] || [])
+    .flatMap((key) => spacePhotos[key] || [])
+    .filter(Boolean);
+  const floorPlan = spacePhotos.floor_plan?.[0] || project.floor_plan_url || "";
+  const referenceImages = [...new Set(proposalImages.filter(Boolean))];
+  return {
+    floorPlan,
+    roomImages,
+    referenceImages,
+    all: [...new Set([floorPlan, ...roomImages, ...referenceImages].filter(Boolean))],
+  };
+}
+
+function projectRequirements(project) {
+  if (!project) return "自然採光、動線清楚、材質一致，保留實際住宅尺度。";
+  return [
+    project.atmosphere_description,
+    project.special_requirements,
+    project.room_layout && `格局：${project.room_layout}`,
+    project.material_grade && `材質等級：${project.material_grade}`,
+    project.budget_range && `預算範圍：${project.budget_range}`,
+  ].filter(Boolean).join("；") || "自然採光、動線清楚、材質一致，保留實際住宅尺度。";
+}
+
 export default function AIGenerate() {
-  const projects = useMemo(() => localStore.getAll().projects || [], []);
+  const database = useMemo(() => localStore.getAll(), []);
+  const projects = database.projects || [];
+  const styleTests = database.styleTests || [];
   const [projectId, setProjectId] = useState(projects[0]?.project_id || "");
-  const [style, setStyle] = useState(styles[0]);
-  const [space, setSpace] = useState("客廳");
-  const [requirements, setRequirements] = useState("明亮、自然採光、收納充足，保留舒適動線");
-  const [task, setTask] = useState(null);
+  const [mode, setMode] = useState("image");
+  const [style, setStyle] = useState(stylePresets[0]);
+  const [space, setSpace] = useState(roomPresets[0]);
+  const [requirements, setRequirements] = useState("自然採光、動線清楚、材質一致，保留實際住宅尺度。");
+  const [roomSize, setRoomSize] = useState({ length: "5.2", width: "4.0", clearHeight: "2.8" });
+  const [heightNotes, setHeightNotes] = useState("FH 280 cm；如有樑位請依平面圖 BH／UBH 標示。");
+  const [viewpoint, setViewpoint] = useState("空間中央，視線高度 150 cm");
+  const [task, setTask] = useState(() => {
+    try {
+      return JSON.parse(window.sessionStorage.getItem(AI_TASK_SESSION_KEY)) || null;
+    } catch {
+      return null;
+    }
+  });
   const [health, setHealth] = useState(null);
   const [error, setError] = useState("");
+  const [entitlement, setEntitlement] = useState(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentInfoOpen, setPaymentInfoOpen] = useState(false);
+  const [floorPlan, setFloorPlan] = useState("");
+  const [uploadedPanorama, setUploadedPanorama] = useState("");
   const selectedProject = projects.find((item) => item.project_id === projectId);
+  const projectStyleTest = styleTests.find((test) => test.user_email && test.user_email === selectedProject?.user_email);
+  const projectStyleKey = selectedProject?.primary_style
+    || projectStyleTest?.primary_style
+    || styleKeyByPreset[style]
+    || "modern";
+  const projectProposalImages = useMemo(
+    () => proposalImagesFor(selectedProject, space, projectStyleKey),
+    [selectedProject, space, projectStyleKey]
+  );
+  const importedMedia = useMemo(
+    () => collectProjectMedia(selectedProject, space, projectProposalImages),
+    [selectedProject, space, projectProposalImages]
+  );
 
   useEffect(() => {
-    fetch(`${API_BASE}/ai/health`).then((response) => response.json()).then(setHealth).catch(() => setHealth({ comfyui: "offline" }));
+    fetch(`${API_BASE}/ai/health`)
+      .then((response) => response.json())
+      .then(setHealth)
+      .catch(() => setHealth({ comfyui: "offline" }));
   }, []);
+
+  useEffect(() => {
+    if (task) window.sessionStorage.setItem(AI_TASK_SESSION_KEY, JSON.stringify(task));
+    else window.sessionStorage.removeItem(AI_TASK_SESSION_KEY);
+  }, [task]);
+
+  useEffect(() => {
+    if (!selectedProject) return;
+    const projectStyle = selectedProject.primary_style
+      || projectStyleTest?.primary_style
+      || selectedProject.preferred_style
+      || selectedProject.style;
+    const matchedStyle = stylePresets.find((preset) => projectStyle?.includes(preset))
+      || styleLabelByKey[projectStyle]
+      || "現代簡約";
+    setStyle(matchedStyle);
+    setRequirements(projectRequirements(selectedProject));
+    setFloorPlan(importedMedia.floorPlan);
+  }, [selectedProject, projectStyleTest?.primary_style, importedMedia.floorPlan]);
 
   useEffect(() => {
     if (!task || !["queued", "running"].includes(task.status)) return undefined;
@@ -42,7 +216,7 @@ export default function AIGenerate() {
         const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}`);
         const data = await response.json();
         setTask(data.task);
-        if (data.task?.status === "failed") setError(data.task.error || "ComfyUI 生圖失敗");
+        if (data.task?.status === "failed") setError(data.task.error || "ComfyUI 生成失敗");
       } catch (pollError) {
         setError(pollError.message);
       }
@@ -50,18 +224,87 @@ export default function AIGenerate() {
     return () => window.clearInterval(timer);
   }, [task]);
 
+  useEffect(() => {
+    if (task?.status !== "completed") {
+      setEntitlement(null);
+      return;
+    }
+    const query = new URLSearchParams(window.location.search);
+    const sessionId = query.get("session_id");
+    const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+    setPaymentBusy(true);
+    fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/download-entitlement${suffix}`, {
+      headers: requestHeaders(`stylematch-entitlement-${task.ai_task_id}`, "stylematch_download_entitlement"),
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "無法確認付款狀態");
+        setEntitlement(data.entitlement);
+        if (sessionId) window.history.replaceState({}, "", `${window.location.pathname}#/AIGenerate`);
+      })
+      .catch((requestError) => setError(requestError.message))
+      .finally(() => setPaymentBusy(false));
+  }, [task?.ai_task_id, task?.status]);
+
+  const fileHandler = (setter) => (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setter(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  };
+
   const generate = async () => {
     setError("");
     setTask(null);
-    const prompt = `Professional interior design visualization of a ${space}, ${style} style, ${requirements}. Photorealistic, practical residential layout, natural materials, coherent lighting, wide angle, no people.`;
+    const panorama = mode === "panorama";
+    const openPlanNote = space === "客餐廳（開放式）"
+      ? "The living and dining zones are one continuous open-plan room. Preserve a single shared ceiling, floor, wall openings, circulation axis and coherent furniture scale across both zones."
+      : "";
+    const geometry = `${roomSize.length}m x ${roomSize.width}m, clear height ${roomSize.clearHeight}m. ${heightNotes}`;
+    const prompt = panorama
+      ? `A seamless 360-degree equirectangular panorama of one ${space}, ${style} interior. ${openPlanNote} Room geometry: ${geometry}. Camera: ${viewpoint}. ${requirements}. Preserve wall openings, furniture identity, scale, material and lighting consistency around the entire room. Photorealistic architectural visualization, 2:1 projection, no people, no text, no duplicated furniture, seamless left and right edges.`
+      : `Professional interior design visualization of a ${space}, ${style} style. ${openPlanNote} ${requirements}. Room geometry: ${geometry}. Photorealistic, practical residential layout, natural materials, coherent lighting, wide angle, no people.`;
+
     try {
       const response = await fetch(`${API_BASE}/ai/image-tasks`, {
         method: "POST",
-        headers: headers(`stylematch-image-${crypto.randomUUID()}`),
-        body: JSON.stringify({ prompt, stylematch_project_id: selectedProject?.stylematch_project_id || projectId || null, case_code: selectedProject?.case_code || null, width: 1024, height: 768 }),
+        headers: requestHeaders(
+          `stylematch-${panorama ? "panorama" : "image"}-${crypto.randomUUID()}`,
+          panorama ? "stylematch_single_room_panorama_draft" : "stylematch_design_recommendation_draft"
+        ),
+        body: JSON.stringify({
+          prompt,
+          stylematch_project_id: selectedProject?.stylematch_project_id || projectId || null,
+          case_code: selectedProject?.case_code || null,
+          width: panorama ? 1536 : 1024,
+          height: panorama ? 768 : 768,
+          output_type: panorama ? "equirectangular_2_1" : "perspective_draft",
+          proposal_scope: "stylematch_pre_match_concept",
+          room: space,
+          room_geometry: { ...roomSize, height_notes: heightNotes },
+          viewpoint,
+          source_media_urls: [...new Set([
+            ...importedMedia.referenceImages,
+            floorPlan,
+            ...importedMedia.all,
+          ].filter(Boolean))],
+          source_media_count: [...new Set([
+            ...importedMedia.referenceImages,
+            floorPlan,
+            ...importedMedia.all,
+          ].filter(Boolean))].length,
+          source_content: {
+            atmosphere_description: selectedProject?.atmosphere_description || null,
+            special_requirements: selectedProject?.special_requirements || null,
+            room_layout: selectedProject?.room_layout || null,
+            material_grade: selectedProject?.material_grade || null,
+            primary_style: selectedProject?.primary_style || null,
+          },
+        }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "無法建立生圖任務");
+      if (!response.ok) throw new Error(data.message || "無法建立 AI 任務");
       setTask(data.task);
       setHealth((value) => ({ ...value, comfyui: "online" }));
     } catch (requestError) {
@@ -70,41 +313,200 @@ export default function AIGenerate() {
   };
 
   const busy = task && ["queued", "running"].includes(task.status);
+  const generatedImage = task?.status === "completed" ? `${task.image_url}?v=${task.updated_at}` : "";
+  const panoramaImage = uploadedPanorama || (mode === "panorama" ? generatedImage : "");
+  const downloadableImage = mode === "panorama" ? panoramaImage : generatedImage;
+
+  const downloadResult = async () => {
+    if (!downloadableImage || !task?.ai_task_id || !entitlement?.download_unlocked) return;
+    const filename = `StyleMatch-${selectedProject?.case_code || "proposal"}-${space}-${mode === "panorama" ? "360-panorama" : "design-draft"}.png`;
+    try {
+      const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/download`, {
+        headers: requestHeaders(`stylematch-download-${task.ai_task_id}`, "stylematch_paid_file_download"),
+      });
+      if (!response.ok) throw new Error("download failed");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      setError("下載失敗，請重新確認付款狀態。");
+    }
+  };
+
+  const openPayment = async () => {
+    if (task?.status !== "completed") return;
+    setError("");
+    setPaymentBusy(true);
+    try {
+      const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/checkout-session`, {
+        method: "POST",
+        headers: requestHeaders(`stylematch-checkout-${task.ai_task_id}`, "stylematch_download_checkout"),
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "無法建立付款頁面");
+      if (data.entitlement?.download_unlocked) {
+        setEntitlement(data.entitlement);
+        return;
+      }
+      if (!data.checkout_url) throw new Error("付款服務未回傳Checkout網址");
+      window.location.assign(data.checkout_url);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setPaymentBusy(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-stone-50 py-8">
-      <div className="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-        <header>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900"><Sparkles className="h-4 w-4" />StyleMatch Design Recommendation Draft</div>
-          <h1 className="text-3xl font-bold text-stone-950">AI 空間設計建議草案</h1>
-          <p className="mt-2 text-stone-600">透過本地後端提交 ComfyUI 任務。輸出僅供設計討論，需由設計師人工審核。</p>
+    <div className="min-h-screen bg-stone-50 py-7">
+      <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6 lg:px-8">
+        <header className="border-b border-stone-200 pb-5">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900"><Wand2 className="h-4 w-4" />StyleMatch AI 設計提案工作室</span>
+            <span className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs text-stone-600">R6.1 前期概念提案</span>
+          </div>
+          <h1 className="text-3xl font-bold text-stone-950">AI 空間設計與 360° 環景</h1>
+          <p className="mt-2 max-w-3xl text-stone-600">沿用 StyleMatch 專案資料，產生單張設計草案或單一空間 360°×180° 環景提案。</p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-          <Card className="border-stone-200 shadow-sm">
-            <CardHeader><CardTitle className="text-lg">生成設定</CardTitle></CardHeader>
-            <CardContent className="space-y-5">
-              <div><label className="mb-2 block text-sm font-medium">StyleMatch 專案</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">未綁定測試專案</option>{projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.case_code || project.project_id}</option>)}</select></div>
-              <div><label className="mb-2 block text-sm font-medium">空間</label><Input value={space} onChange={(event) => setSpace(event.target.value)} /></div>
-              <div><label className="mb-2 block text-sm font-medium">設計風格</label><div className="grid grid-cols-2 gap-2">{styles.map((preset) => <Button key={preset} type="button" variant={style === preset ? "default" : "outline"} onClick={() => setStyle(preset)}>{preset}</Button>)}</div></div>
-              <div><label className="mb-2 block text-sm font-medium">需求摘要</label><Textarea rows={4} value={requirements} onChange={(event) => setRequirements(event.target.value)} /></div>
-              <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online"} onClick={generate}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}{busy ? "ComfyUI 生成中" : "產生設計草案"}</Button>
-              <div className={`flex items-center gap-2 text-sm ${health?.comfyui === "online" ? "text-emerald-700" : "text-rose-700"}`}>{health?.comfyui === "online" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}ComfyUI：{health?.comfyui === "online" ? "已連線" : "未連線（請先啟動 8188）"}</div>
-              {error && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-            </CardContent>
-          </Card>
+        <Tabs value={mode} onValueChange={(value) => { setMode(value); setTask(null); setError(""); }}>
+          <TabsList className="grid h-auto w-full max-w-md grid-cols-2">
+            <TabsTrigger value="image" className="gap-2 py-2"><ImagePlus className="h-4 w-4" />單張空間草案</TabsTrigger>
+            <TabsTrigger value="panorama" className="gap-2 py-2"><Orbit className="h-4 w-4" />單一空間 360°</TabsTrigger>
+          </TabsList>
 
-          <Card className="overflow-hidden border-stone-200 shadow-sm">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ImagePlus className="h-5 w-5 text-amber-600" />AI 設計草案</CardTitle></CardHeader>
-            <CardContent>
-              <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-stone-200">
-                {task?.status === "completed" ? <img src={`${task.image_url}?v=${task.updated_at}`} alt={`${space} ${style} AI 設計草案`} className="h-full w-full object-cover" /> : busy ? <div className="text-center text-stone-600"><Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin" /><p>正在本機生成設計草案</p></div> : <div className="text-center text-stone-500"><ImagePlus className="mx-auto mb-3 h-10 w-10" /><p>設定需求後產生第一張草案</p></div>}
+          <div className="mt-5 grid gap-5 lg:grid-cols-[390px_minmax(0,1fr)]">
+            <Card className="border-stone-200 shadow-sm">
+              <CardHeader><CardTitle className="text-lg">提案輸入</CardTitle></CardHeader>
+              <CardContent className="space-y-5">
+                <div>
+                  <label className="mb-2 block text-sm font-medium">StyleMatch 專案</label>
+                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                    <option value="">未連結專案</option>
+                    {projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.case_code || project.project_id}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">單一空間</label>
+                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={space} onChange={(event) => setSpace(event.target.value)}>
+                    {roomPresets.map((room) => <option key={room}>{room}</option>)}
+                  </select>
+                </div>
+
+                <TabsContent value="panorama" className="m-0 space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div><label className="mb-1 block text-xs text-stone-600">長度 m</label><Input value={roomSize.length} onChange={(event) => setRoomSize((value) => ({ ...value, length: event.target.value }))} /></div>
+                    <div><label className="mb-1 block text-xs text-stone-600">寬度 m</label><Input value={roomSize.width} onChange={(event) => setRoomSize((value) => ({ ...value, width: event.target.value }))} /></div>
+                    <div><label className="mb-1 block text-xs text-stone-600">淨高 m</label><Input value={roomSize.clearHeight} onChange={(event) => setRoomSize((value) => ({ ...value, clearHeight: event.target.value }))} /></div>
+                  </div>
+                  <div><label className="mb-2 block text-sm font-medium">高度與樑位</label><Textarea rows={2} value={heightNotes} onChange={(event) => setHeightNotes(event.target.value)} /></div>
+                  <div><label className="mb-2 block text-sm font-medium">觀看點</label><Input value={viewpoint} onChange={(event) => setViewpoint(event.target.value)} /></div>
+                </TabsContent>
+
+                <div><label className="mb-2 block text-sm font-medium">設計需求</label><Textarea rows={3} value={requirements} onChange={(event) => setRequirements(event.target.value)} /></div>
+
+                <TabsContent value="panorama" className="m-0 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <UploadField label="平面配置圖" hint="尺寸、BH／UBH／FH 標示" preview={floorPlan} onChange={fileHandler(setFloorPlan)} />
+                  <div className="rounded-md border border-stone-200 bg-white p-3">
+                    <span className="flex items-center gap-2 text-sm font-medium text-stone-800"><FileImage className="h-4 w-4" />提案參考圖</span>
+                    <span className="mt-1 block text-xs text-stone-500">依專案風格與「{space}」自動選取，不需手動輸入</span>
+                    {importedMedia.referenceImages.length ? (
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {importedMedia.referenceImages.map((imageUrl, index) => (
+                          <img key={imageUrl} src={imageUrl} alt={`${space}設計提案風格參考 ${index + 1}`} className="h-24 w-full rounded object-cover" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-3 grid h-40 place-items-center rounded bg-stone-100 text-xs text-stone-500">專案尚無此空間的提案圖</div>
+                    )}
+                  </div>
+                </TabsContent>
+                {mode === "panorama" && selectedProject && (
+                  <div className={`rounded-md border p-3 text-sm ${importedMedia.all.length ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                    <p className="font-medium">{importedMedia.all.length ? `已從專案自動導入 ${importedMedia.all.length} 張來源圖片` : "此舊專案沒有可還原的來源圖片"}</p>
+                    <p className="mt-1 text-xs leading-5">{importedMedia.all.length ? "風格、需求、平面圖及所選空間圖片會隨任務送出。" : "舊資料只保存照片數量；可在上方重新選圖，之後建立的新專案會保存可用的提案圖片。"}</p>
+                  </div>
+                )}
+
+                <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online"} onClick={generate}>
+                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : mode === "panorama" ? <Orbit className="mr-2 h-4 w-4" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                  {busy ? "ComfyUI 生成中" : mode === "panorama" ? "產生 2:1 環景草案" : "產生設計草案"}
+                </Button>
+                <StatusPill online={health?.comfyui === "online"} />
+                {error && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-5">
+              <Card className="overflow-hidden border-stone-200 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">{mode === "panorama" ? <Orbit className="h-5 w-5 text-amber-600" /> : <ImagePlus className="h-5 w-5 text-amber-600" />}{mode === "panorama" ? "360° 環景預覽" : "AI 設計草案"}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {mode === "panorama" ? (
+                    panoramaImage ? <PanoramaViewer imageUrl={panoramaImage} title={`${space} ${style} 360° 環景`} /> : (
+                      <div className="flex h-[clamp(320px,58vh,640px)] items-center justify-center rounded-md bg-stone-200 text-center text-stone-500">
+                        {busy ? <div><Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin" /><p>正在建立 2:1 環景草案</p></div> : <div><Orbit className="mx-auto mb-3 h-10 w-10" /><p>設定單一空間後產生環景草案</p></div>}
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-stone-200">
+                      {generatedImage ? <img src={generatedImage} alt={`${space} ${style} AI 設計草案`} className="h-full w-full object-cover" /> : busy ? <div className="text-center text-stone-600"><Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin" /><p>正在本機生成設計草案</p></div> : <div className="text-center text-stone-500"><ImagePlus className="mx-auto mb-3 h-10 w-10" /><p>設定需求後產生第一張草案</p></div>}
+                    </div>
+                  )}
+
+                  {mode === "panorama" && (
+                    <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-amber-700 hover:text-amber-800">
+                      <FileImage className="h-4 w-4" />載入既有 2:1 環景圖測試播放器
+                      <input type="file" accept="image/*" className="sr-only" onChange={fileHandler(setUploadedPanorama)} />
+                    </label>
+                  )}
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <Button type="button" variant="outline" disabled={!downloadableImage || !entitlement?.download_unlocked} onClick={downloadResult}>
+                      <Download className="mr-2 h-4 w-4" />{entitlement?.download_unlocked ? "下載檔案" : "付費後解鎖下載"}
+                    </Button>
+                    <Button type="button" disabled={task?.status !== "completed" || paymentBusy || entitlement?.download_unlocked} className="bg-stone-900 text-white hover:bg-stone-800" onClick={() => setPaymentInfoOpen((value) => !value)}>
+                      {paymentBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : entitlement?.download_unlocked ? <CheckCircle2 className="mr-2 h-4 w-4" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                      {entitlement?.download_unlocked ? "付款完成" : paymentBusy ? "確認付款狀態" : "付費下載說明"}
+                    </Button>
+                  </div>
+                  {paymentInfoOpen && !entitlement?.download_unlocked && (
+                    <div className="mt-3 border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-stone-700">
+                      <p className="font-semibold text-stone-900">正式檔案下載規則</p>
+                      <p className="mt-1 leading-6">畫面預覽免費；正式圖片檔須完成單次付款。付款由 Stripe Checkout 處理，後端確認成功後才會解鎖此任務的下載權限。</p>
+                      <Button type="button" size="sm" className="mt-3 bg-amber-600 text-white hover:bg-amber-700" disabled={paymentBusy} onClick={openPayment}>
+                        {paymentBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}前往安全付款
+                      </Button>
+                    </div>
+                  )}
+                  {task?.status === "completed" && !entitlement?.download_unlocked && (
+                    <p className="mt-2 text-xs text-stone-500">預覽不受影響；下載檔案必須經付款服務確認後解鎖。</p>
+                  )}
+
+                  <div className="mt-4 grid gap-2 text-sm text-stone-600 sm:grid-cols-2">
+                    <p>任務：{task?.ai_task_id || "尚未建立"}</p>
+                    <p>狀態：{task?.status || "待命"}</p>
+                    <p>模型：{task?.checkpoint || health?.checkpoint || "待偵測"}</p>
+                    <p>輸出：{mode === "panorama" ? "1536×768 2:1 預覽" : "1024×768 草案"}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="border-l-2 border-amber-500 bg-white p-4"><Cuboid className="mb-2 h-5 w-5 text-amber-700" /><p className="font-medium text-stone-900">空間母模</p><p className="mt-1 text-xs leading-5 text-stone-600">尺寸與高度已納入任務；精準牆體與家具定位仍需 Blender 建模服務。</p></div>
+                <div className="border-l-2 border-teal-600 bg-white p-4"><Eye className="mb-2 h-5 w-5 text-teal-700" /><p className="font-medium text-stone-900">一致性約束</p><p className="mt-1 text-xs leading-5 text-stone-600">同一空間共用設定；接縫、極點與跨視角一致性需專用 ComfyUI workflow。</p></div>
+                <div className="border-l-2 border-stone-500 bg-white p-4"><AlertCircle className="mb-2 h-5 w-5 text-stone-700" /><p className="font-medium text-stone-900">治理邊界</p><p className="mt-1 text-xs leading-5 text-stone-600">成果僅供 StyleMatch 前期討論，不是施工圖、合約或 iSAFE 正式紀錄。</p></div>
               </div>
-              <div className="mt-4 grid gap-2 text-sm text-stone-600 sm:grid-cols-2"><p>任務：{task?.ai_task_id || "尚未建立"}</p><p>狀態：{task?.status || "待命"}</p><p>模型：{task?.checkpoint || health?.checkpoint || "待偵測"}</p><p>Workflow：{task?.workflow_version || health?.workflow_version || "stylematch-sdxl-v1"}</p></div>
-              <p className="mt-4 border-l-4 border-amber-400 pl-3 text-sm text-stone-700">AI 設計建議草案，非施工圖、契約附件或正式決策；發布或交付前需由設計師人工審核。</p>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </Tabs>
       </div>
     </div>
   );

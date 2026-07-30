@@ -44,7 +44,7 @@ const features = [
   ["AI風格分析", "分析偏好的設計風格、材質語彙與空間氛圍。", Palette],
   ["裝修預算配置", "依屋況與空間需求拆解合理比例，避免超支。", BadgeDollarSign],
   ["空間規劃方向", "先整理收納、動線與生活需求，再進入設計。", ClipboardList],
-  ["單張AI空間照片生成模擬", "上傳一張空間照片，快速模擬設計方向。", ImagePlus],
+  ["AI 空間設計與 360° 環景", "導入專案空間照片與設計風格，生成 AI 空間設計草案與 360° 環景預覽。", ImagePlus],
   ["設計師媒合與工程治理", "可銜接 TWCID 媒合與 iSAFE 工程履歷。", ShieldCheck],
 ];
 
@@ -353,13 +353,13 @@ export default function Home() {
       <section className="bg-stone-100 py-16 lg:py-20">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <div>
-            <h2 className="text-3xl font-bold text-stone-950">AI 設計前後對比</h2>
+            <h2 className="text-3xl font-bold text-stone-950">AI 空間設計與 360° 環景</h2>
             <p className="mt-3 text-lg leading-relaxed text-stone-600">
-              上傳空間照片，AI 在數秒內生成專業設計方案，讓您在動工前就能看見成果。
+              導入專案空間照片與設計風格，生成 AI 空間設計草案與 360° 環景預覽。
             </p>
             <Link to={createPageUrl("AIGenerate")} className="mt-6 inline-flex">
               <Button className="bg-amber-500 text-white hover:bg-amber-600">
-                單張AI空間照片生成模擬
+                AI 空間設計與 360° 環景
                 <Wand2 className="ml-2 h-4 w-4" />
               </Button>
             </Link>

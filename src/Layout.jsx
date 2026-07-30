@@ -12,7 +12,7 @@ export default function Layout({ children }) {
     { title: "首頁", url: createPageUrl("Home"), icon: Home },
     { title: "喜好風格測試", url: createPageUrl("StyleTest"), icon: Palette },
     { title: "AI 裝修規劃設計提案", url: createPageUrl("AIProposal"), icon: PenTool },
-    { title: "單張AI空間照片生成模擬", url: createPageUrl("AIGenerate"), icon: ImagePlus },
+    { title: "AI 空間設計與 360° 環景", url: createPageUrl("AIGenerate"), icon: ImagePlus },
     { title: "我的專案", url: createPageUrl("MyProjects"), icon: BriefcaseBusiness },
     { title: "平台方案價格", url: createPageUrl("PricingPlans"), icon: BadgeDollarSign },
   ];
@@ -104,7 +104,7 @@ export default function Layout({ children }) {
             <ul className="space-y-2 text-sm text-stone-400">
               <li>喜好風格測試</li>
               <li>AI 裝修規劃設計提案</li>
-              <li>單張AI空間照片生成模擬</li>
+              <li>AI 空間設計與 360° 環景</li>
               <li>我的專案與平台方案價格</li>
             </ul>
           </div>
