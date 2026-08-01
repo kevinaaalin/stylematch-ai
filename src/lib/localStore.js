@@ -9,6 +9,8 @@ const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 2;
 const STORAGE_EVENT_KEY = "stylematch_local_mvp_event_v1";
 const STORAGE_CHANNEL_NAME = "stylematch-local-mvp-sync";
+const EXPORT_FORMAT = "stylematch-local-mvp-export";
+const EXPORT_VERSION = 1;
 
 let syncChannel;
 
@@ -458,6 +460,21 @@ function recordProjectEvent(database, project, event, audit) {
   database.auditLogs.unshift(auditLog);
 }
 
+function mergeRecords(current = [], incoming = [], getKey = (item) => item.id) {
+  const merged = new Map();
+  current.forEach((item) => merged.set(getKey(item), item));
+  incoming.forEach((item) => merged.set(getKey(item), item));
+  return Array.from(merged.values()).filter(Boolean);
+}
+
+function projectKey(project) {
+  return project.project_id || project.id || project.case_code;
+}
+
+function isafeCaseKey(isafeCase) {
+  return isafeCase.isafe_case_id || isafeCase.isafe_project_id || isafeCase.id;
+}
+
 export const localStore = {
   createStyleTest(data) {
     const database = readDatabase();
@@ -593,6 +610,44 @@ export const localStore = {
 
   subscribe(callback) {
     return subscribeToDataChanges(callback);
+  },
+
+  exportData() {
+    return {
+      format: EXPORT_FORMAT,
+      export_version: EXPORT_VERSION,
+      exported_at: nowIso(),
+      origin: typeof window === "undefined" ? "unknown" : window.location.origin,
+      database: readDatabase(),
+    };
+  },
+
+  importData(payload, { mode = "merge" } = {}) {
+    const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+    const incomingDatabase = parsed?.format === EXPORT_FORMAT ? parsed.database : parsed;
+    const imported = compactDatabase(incomingDatabase || {});
+    const current = readDatabase();
+    const nextDatabase = mode === "replace"
+      ? imported
+      : compactDatabase({
+          ...current,
+          styleTests: mergeRecords(current.styleTests, imported.styleTests),
+          projects: mergeRecords(current.projects, imported.projects, projectKey),
+          isafeCases: mergeRecords(current.isafeCases, imported.isafeCases, isafeCaseKey),
+          notifications: mergeRecords(current.notifications, imported.notifications),
+          auditLogs: mergeRecords(current.auditLogs, imported.auditLogs),
+          jobs: mergeRecords(current.jobs, imported.jobs),
+        });
+
+    writeDatabase(nextDatabase);
+    return {
+      mode,
+      projects: nextDatabase.projects.length,
+      styleTests: nextDatabase.styleTests.length,
+      isafeCases: nextDatabase.isafeCases.length,
+      auditLogs: nextDatabase.auditLogs.length,
+      jobs: nextDatabase.jobs.length,
+    };
   },
 
   updateProjectStage(projectId, nextStage) {

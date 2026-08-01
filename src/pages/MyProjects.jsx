@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BriefcaseBusiness, CheckCircle2, Crown, FileText, LockKeyhole, ShieldCheck, Users } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, BriefcaseBusiness, CheckCircle2, Crown, Download, FileText, LockKeyhole, ShieldCheck, Upload, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,8 @@ function serviceLabel(value) {
 export default function MyProjects() {
   const [database, setDatabase] = useState(() => localStore.getAll());
   const [planId, setPlanId] = useState(readPlan);
+  const [dataTransferStatus, setDataTransferStatus] = useState("");
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
@@ -50,6 +52,12 @@ export default function MyProjects() {
 
   const activePlan = useMemo(() => plans.find((plan) => plan.id === planId) || plans[2], [planId]);
   const projects = database.projects || [];
+  const dataCounts = useMemo(() => ({
+    projects: database.projects?.length || 0,
+    styleTests: database.styleTests?.length || 0,
+    isafeCases: database.isafeCases?.length || 0,
+    auditLogs: database.auditLogs?.length || 0,
+  }), [database]);
 
   const changePlan = (nextPlan) => {
     setPlanId(nextPlan);
@@ -57,6 +65,36 @@ export default function MyProjects() {
       window.localStorage.setItem(PLAN_KEY, nextPlan);
     } catch {
       // The selection remains usable in memory when local storage is unavailable.
+    }
+  };
+
+  const exportLocalData = () => {
+    const exportPayload = localStore.exportData();
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `stylematch-local-data-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setDataTransferStatus(`已匯出 ${exportPayload.database.projects.length} 筆專案資料。`);
+  };
+
+  const importLocalData = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const summary = localStore.importData(await file.text(), { mode: "merge" });
+      setDatabase(localStore.getAll());
+      setDataTransferStatus(`匯入完成：${summary.projects} 筆專案、${summary.auditLogs} 筆 audit log。`);
+    } catch {
+      setDataTransferStatus("匯入失敗，請確認檔案是 StyleMatch 匯出的 JSON。");
+    } finally {
+      event.target.value = "";
     }
   };
 
@@ -70,6 +108,41 @@ export default function MyProjects() {
           <h1 className="mt-4 text-3xl font-bold text-stone-950">我的專案與會員權限控台</h1>
           <p className="mt-2 text-stone-600">管理 StyleMatch 方案、裝修需求、圖片、設計提案與團隊權限。</p>
         </header>
+
+        <section className="mb-5 border border-stone-200 bg-white p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="font-semibold text-stone-900">LocalStorage 資料搬移</p>
+              <p className="mt-1 text-sm text-stone-600">
+                將本機案例匯出成 JSON，再到 GitHub Pages 匯入；資料會合併，不會清空既有專案。
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-600">
+                <Badge variant="outline">專案 {dataCounts.projects}</Badge>
+                <Badge variant="outline">風格測試 {dataCounts.styleTests}</Badge>
+                <Badge variant="outline">iSAFE {dataCounts.isafeCases}</Badge>
+                <Badge variant="outline">Audit {dataCounts.auditLogs}</Badge>
+              </div>
+              {dataTransferStatus && <p className="mt-2 text-sm text-emerald-700">{dataTransferStatus}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={exportLocalData}>
+                <Download className="mr-2 h-4 w-4" />
+                匯出資料
+              </Button>
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="mr-2 h-4 w-4" />
+                匯入資料
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={importLocalData}
+              />
+            </div>
+          </div>
+        </section>
 
         <Tabs defaultValue="projects" className="space-y-5">
           <TabsList className="h-auto flex-wrap justify-start">
