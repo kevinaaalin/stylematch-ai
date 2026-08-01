@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, FileText, Image as ImageIcon, ShieldCheck } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,17 @@ function Field({ label, value }) {
 export default function ProjectDetail() {
   const [searchParams] = useSearchParams();
   const projectId = searchParams.get("project");
-  const project = localStore.getAll().projects.find((item) => item.id === projectId || item.project_id === projectId);
+  const [database, setDatabase] = useState(() => localStore.getAll());
+
+  useEffect(() => {
+    const refresh = () => setDatabase(localStore.getAll());
+    return localStore.subscribe(refresh);
+  }, []);
+
+  const project = useMemo(
+    () => database.projects.find((item) => item.id === projectId || item.project_id === projectId),
+    [database.projects, projectId]
+  );
 
   if (!project) {
     return <div className="mx-auto max-w-4xl px-4 py-16 text-center"><h1 className="text-2xl font-bold">找不到此專案</h1><Link to={createPageUrl("MyProjects")}><Button className="mt-5">返回專案控台</Button></Link></div>;

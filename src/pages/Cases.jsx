@@ -114,8 +114,7 @@ export default function Cases() {
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
-    window.addEventListener("stylematch:data-changed", refresh);
-    return () => window.removeEventListener("stylematch:data-changed", refresh);
+    return localStore.subscribe(refresh);
   }, []);
 
   useEffect(() => {

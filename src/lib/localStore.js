@@ -7,6 +7,16 @@ import {
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 2;
+const STORAGE_EVENT_KEY = "stylematch_local_mvp_event_v1";
+const STORAGE_CHANNEL_NAME = "stylematch-local-mvp-sync";
+
+let syncChannel;
+
+function getSyncChannel() {
+  if (typeof window === "undefined" || typeof window.BroadcastChannel === "undefined") return null;
+  if (!syncChannel) syncChannel = new window.BroadcastChannel(STORAGE_CHANNEL_NAME);
+  return syncChannel;
+}
 
 export const CASE_STAGES = [
   { value: "matched_confirmed", label: "TWCID 媒合已確認", tone: "bg-emerald-100 text-emerald-800" },
@@ -386,10 +396,51 @@ function readDatabase() {
 function writeDatabase(database) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compactDatabase(database)));
-    window.dispatchEvent(new CustomEvent("stylematch:data-changed"));
+    notifyDataChanged();
   } catch {
     throw new Error("本機案件資料儲存失敗，請先清出瀏覽器儲存空間後再試。");
   }
+}
+
+function notifyDataChanged() {
+  const payload = {
+    storage_key: STORAGE_KEY,
+    source: "localStore",
+    updated_at: nowIso(),
+    nonce: makeTraceId(),
+  };
+
+  window.dispatchEvent(new CustomEvent("stylematch:data-changed", { detail: payload }));
+  getSyncChannel()?.postMessage(payload);
+
+  try {
+    window.localStorage.setItem(STORAGE_EVENT_KEY, JSON.stringify(payload));
+  } catch {
+    // Same-tab updates already fired; this fallback only wakes other tabs.
+  }
+}
+
+function subscribeToDataChanges(callback) {
+  if (typeof window === "undefined") return () => {};
+
+  const refresh = () => callback();
+  const handleStorage = (event) => {
+    if (event.key === STORAGE_KEY || event.key === STORAGE_EVENT_KEY) refresh();
+  };
+  const handleChannel = (event) => {
+    if (event.data?.storage_key === STORAGE_KEY) refresh();
+  };
+  const channel = getSyncChannel();
+
+  window.addEventListener("stylematch:data-changed", refresh);
+  window.addEventListener("storage", handleStorage);
+  channel?.addEventListener("message", handleChannel);
+
+  return () => {
+    window.removeEventListener("stylematch:data-changed", refresh);
+    window.removeEventListener("storage", handleStorage);
+    channel?.removeEventListener("message", handleChannel);
+  };
 }
 
 function recordProjectEvent(database, project, event, audit) {
@@ -538,6 +589,10 @@ export const localStore = {
 
   getAll() {
     return readDatabase();
+  },
+
+  subscribe(callback) {
+    return subscribeToDataChanges(callback);
   },
 
   updateProjectStage(projectId, nextStage) {

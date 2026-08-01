@@ -143,7 +143,7 @@ function projectRequirements(project) {
 }
 
 export default function AIGenerate() {
-  const database = useMemo(() => localStore.getAll(), []);
+  const [database, setDatabase] = useState(() => localStore.getAll());
   const projects = database.projects || [];
   const styleTests = database.styleTests || [];
   const [projectId, setProjectId] = useState(projects[0]?.project_id || "");
@@ -182,6 +182,18 @@ export default function AIGenerate() {
     () => collectProjectMedia(selectedProject, space, projectProposalImages),
     [selectedProject, space, projectProposalImages]
   );
+
+  useEffect(() => {
+    const refresh = () => setDatabase(localStore.getAll());
+    return localStore.subscribe(refresh);
+  }, []);
+
+  useEffect(() => {
+    if (!projects.length) return;
+    if (!projects.some((project) => project.project_id === projectId)) {
+      setProjectId(projects[0].project_id);
+    }
+  }, [projectId, projects]);
 
   useEffect(() => {
     fetch(`${API_BASE}/ai/health`)

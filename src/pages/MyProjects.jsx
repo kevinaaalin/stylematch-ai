@@ -45,8 +45,7 @@ export default function MyProjects() {
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
-    window.addEventListener("stylematch:data-changed", refresh);
-    return () => window.removeEventListener("stylematch:data-changed", refresh);
+    return localStore.subscribe(refresh);
   }, []);
 
   const activePlan = useMemo(() => plans.find((plan) => plan.id === planId) || plans[2], [planId]);
@@ -72,7 +71,7 @@ export default function MyProjects() {
           <p className="mt-2 text-stone-600">管理 StyleMatch 方案、裝修需求、圖片、設計提案與團隊權限。</p>
         </header>
 
-        <Tabs defaultValue="plan" className="space-y-5">
+        <Tabs defaultValue="projects" className="space-y-5">
           <TabsList className="h-auto flex-wrap justify-start">
             <TabsTrigger value="plan"><Crown className="mr-2 h-4 w-4" />目前方案</TabsTrigger>
             <TabsTrigger value="projects"><FileText className="mr-2 h-4 w-4" />StyleMatch 專案</TabsTrigger>

@@ -86,8 +86,7 @@ export default function IsafeProjects() {
         .catch(() => setApiStatus("offline"));
     };
     refresh();
-    window.addEventListener("stylematch:data-changed", refresh);
-    return () => window.removeEventListener("stylematch:data-changed", refresh);
+    return localStore.subscribe(refresh);
   }, []);
 
   const isafeCases = useMemo(() => {

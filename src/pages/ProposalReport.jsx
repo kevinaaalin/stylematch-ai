@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import html2canvas from "html2canvas";
@@ -34,10 +34,16 @@ export default function ProposalReport() {
   const [searchParams] = useSearchParams();
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState("");
+  const [database, setDatabase] = useState(() => localStore.getAll());
   const reportRef = useRef(null);
   const projectId = searchParams.get("project");
   const sampleMode = searchParams.get("sample") === "1";
-  const database = localStore.getAll();
+
+  useEffect(() => {
+    const refresh = () => setDatabase(localStore.getAll());
+    return localStore.subscribe(refresh);
+  }, []);
+
   const project = sampleMode
     ? buildSampleProject()
     : database.projects.find((item) => item.id === projectId || item.project_id === projectId)
