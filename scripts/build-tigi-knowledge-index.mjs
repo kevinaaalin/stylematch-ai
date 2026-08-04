@@ -7,8 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, "..");
 const releaseId = "20260730_R7_Implementation_Integrated";
 const releaseLabel = "R7 Implementation Integrated";
-const releaseRoot = path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260730_R7_Implementation_Integrated");
+const externalReleaseRoot = process.env.TIGI_R7_SOURCE_ROOT
+  ? path.resolve(process.env.TIGI_R7_SOURCE_ROOT)
+  : path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260730_R7_Implementation_Integrated");
 const publicRoot = path.join(appRoot, "public", "tigi-corpus");
+const repositorySourcesRoot = path.join(publicRoot, "sources");
 const sourceNames = [
   "01_TIGI_Engineering_Master_20260730_R7_Implementation_Integrated.md",
   "02_SBIR_Final_Submission_Master_20260730_R7_Implementation_Integrated.md",
@@ -50,13 +53,17 @@ async function build() {
   await mkdir(sourcesRoot, { recursive: true });
   const documents = []; const chunks = [];
   for (const [order, fileName] of sourceNames.entries()) {
-    const sourcePath = path.join(releaseRoot, fileName);
+    const externalSourcePath = path.join(externalReleaseRoot, fileName);
+    const repositorySourcePath = path.join(repositorySourcesRoot, fileName);
+    const sourcePath = existsSync(externalSourcePath) ? externalSourcePath : repositorySourcePath;
     if (!existsSync(sourcePath)) throw new Error(`R7 knowledge source missing: ${sourcePath}`);
     const markdown = await readFile(sourcePath, "utf8");
     const title = titleFromMarkdown(markdown, fileName);
     const documentId = `releases/${releaseId}/${fileName}`;
     const sourceUrl = `tigi-corpus/sources/${fileName}`;
-    await copyFileIfChanged(sourcePath, path.join(sourcesRoot, fileName));
+    if (path.resolve(sourcePath) !== path.resolve(repositorySourcePath)) {
+      await copyFileIfChanged(sourcePath, repositorySourcePath);
+    }
     documents.push({ id: documentId, category: "r7-implementation", categoryLabel: releaseLabel, title, fileName, path: `analysis_output/${releaseId}/${fileName}`, sourceUrl, order, length: markdown.length, headings: headingsFromMarkdown(markdown) });
     chunks.push(...splitIntoChunks(markdown, title).map((chunk) => ({ id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId, category: "r7-implementation", categoryLabel: releaseLabel, title, heading: chunk.heading, text: chunk.text, sourceUrl, path: `analysis_output/${releaseId}/${fileName}`, order: chunk.sectionIndex })));
   }
