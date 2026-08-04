@@ -41,6 +41,10 @@ export default function Requirements() {
     atmosphere_description: "",
     reference_photos: [],
     special_requirements: "",
+    cultural_preference_enabled: false,
+    birth_date: "",
+    birth_time: "",
+    zodiac_sign: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -132,7 +136,7 @@ export default function Requirements() {
               disabled={!isStepValid()}
               className="bg-amber-500 text-white hover:bg-amber-600"
             >
-              {currentStep === steps.length - 2 ? "查看三種方案" : "下一步"}
+              {currentStep === steps.length - 2 ? "選擇你的方案" : "下一步"}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>

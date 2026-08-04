@@ -8,6 +8,7 @@ import {
   Eye,
   FileImage,
   ImagePlus,
+  Layers3,
   Loader2,
   Orbit,
   Upload,
@@ -21,11 +22,18 @@ import { Textarea } from "@/components/ui/textarea";
 import PanoramaViewer from "@/components/ai/PanoramaViewer";
 import { styleImages } from "@/components/styletest/styleImageData";
 import { localStore } from "@/lib/localStore";
+import { Link, useSearchParams } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 
 const API_BASE = "http://127.0.0.1:4180/api/v1";
 const AI_TASK_SESSION_KEY = "stylematch_ai_current_task_v1";
 const stylePresets = ["現代簡約", "北歐自然", "日式無印", "侘寂風格", "輕奢質感", "現代古典"];
-const roomPresets = ["客廳", "餐廳", "客餐廳（開放式）", "主臥室", "次臥室", "書房", "廚房", "衛浴", "其他"];
+const roomPresets = ["客廳", "餐廳", "客餐廳（開放式）", "主臥室", "次臥室", "書房", "廚房", "衛浴", "辦公室", "商業空間", "接待／門市", "其他"];
+const inputTypeOptions = ["空間實景照片", "3D 設計圖／場景", "手繪草圖", "平面配置圖", "無圖片，純文字生成"];
+const creativeModeOptions = ["維持格局與主要物件", "保留格局，重新設計家具與材質", "保留主要物件，調整風格與照明", "自由創意重新設計"];
+const lightingOptions = ["自然光", "自然光＋室內燈具", "明亮均勻照明", "溫暖情境照明", "商業展示照明", "維持原圖光線"];
+const materialOptions = ["不指定", "自然木質", "石材與金屬", "清水模與灰泥", "玻璃與霧面金屬", "織品與藤編", "維持原圖材質"];
+const colorOptions = ["不指定", "米白與暖灰", "大地色系", "黑白灰", "自然木色", "低飽和莫蘭迪", "品牌識別色", "維持原圖色彩"];
 const roomMediaKeys = {
   客廳: ["living_room"],
   餐廳: ["dining_room"],
@@ -35,9 +43,12 @@ const roomMediaKeys = {
   書房: ["study", "bedroom1"],
   廚房: ["kitchen"],
   衛浴: ["bathroom"],
+  辦公室: ["office"],
+  商業空間: ["commercial_space"],
+  "接待／門市": ["reception", "commercial_space"],
   其他: [],
 };
-const roomStyleOffsets = { 客廳: 0, 餐廳: 1, "客餐廳（開放式）": 0, 主臥室: 2, 次臥室: 3, 書房: 4, 廚房: 5, 衛浴: 6, 其他: 7 };
+const roomStyleOffsets = { 客廳: 0, 餐廳: 1, "客餐廳（開放式）": 0, 主臥室: 2, 次臥室: 3, 書房: 4, 廚房: 5, 衛浴: 6, 辦公室: 1, 商業空間: 5, "接待／門市": 0, 其他: 7 };
 const styleKeyByPreset = {
   現代簡約: "modern",
   北歐自然: "scandinavian",
@@ -57,7 +68,7 @@ const styleLabelByKey = {
   coastal: "海岸風格",
 };
 
-const requestHeaders = (idempotencyKey, purpose) => ({
+const requestHeaders = (idempotencyKey, purpose, caseAuthorization = "*") => ({
   "Content-Type": "application/json",
   Authorization: "Bearer local-dev-headquarter",
   "X-Tenant-Id": "tenant_local_tigi",
@@ -65,6 +76,9 @@ const requestHeaders = (idempotencyKey, purpose) => ({
   "X-Purpose": purpose,
   "X-Consent-Ref": "consent_local_trial",
   "X-Trace-Id": `tr_stylematch_${Date.now()}`,
+  "X-Server-Role": "headquarter",
+  "X-Case-Role": "owner",
+  "X-Case-Authorization": caseAuthorization,
   "Idempotency-Key": idempotencyKey,
 });
 
@@ -143,14 +157,21 @@ function projectRequirements(project) {
 }
 
 export default function AIGenerate() {
+  const [searchParams] = useSearchParams();
   const [database, setDatabase] = useState(() => localStore.getAll());
   const projects = database.projects || [];
   const styleTests = database.styleTests || [];
-  const [projectId, setProjectId] = useState(projects[0]?.project_id || "");
+  const [projectId, setProjectId] = useState(searchParams.get("project") || projects[0]?.project_id || "");
   const [mode, setMode] = useState("image");
   const [style, setStyle] = useState(stylePresets[0]);
   const [space, setSpace] = useState(roomPresets[0]);
   const [requirements, setRequirements] = useState("自然採光、動線清楚、材質一致，保留實際住宅尺度。");
+  const [inputType, setInputType] = useState(inputTypeOptions[0]);
+  const [creativeMode, setCreativeMode] = useState(creativeModeOptions[0]);
+  const [lighting, setLighting] = useState(lightingOptions[0]);
+  const [material, setMaterial] = useState(materialOptions[0]);
+  const [colorPalette, setColorPalette] = useState(colorOptions[0]);
+  const [sourceImage, setSourceImage] = useState("");
   const [roomSize, setRoomSize] = useState({ length: "5.2", width: "4.0", clearHeight: "2.8" });
   const [heightNotes, setHeightNotes] = useState("FH 280 cm；如有樑位請依平面圖 BH／UBH 標示。");
   const [viewpoint, setViewpoint] = useState("空間中央，視線高度 150 cm");
@@ -225,7 +246,9 @@ export default function AIGenerate() {
     if (!task || !["queued", "running"].includes(task.status)) return undefined;
     const timer = window.setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}`);
+        const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}`, {
+          headers: requestHeaders(`stylematch-status-${task.ai_task_id}`, "stylematch_ai_task_status", selectedProject?.case_code || "*"),
+        });
         const data = await response.json();
         setTask(data.task);
         if (data.task?.status === "failed") setError(data.task.error || "ComfyUI 生成失敗");
@@ -234,7 +257,7 @@ export default function AIGenerate() {
       }
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [task]);
+  }, [selectedProject?.case_code, task]);
 
   useEffect(() => {
     if (task?.status !== "completed") {
@@ -246,7 +269,7 @@ export default function AIGenerate() {
     const suffix = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
     setPaymentBusy(true);
     fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/download-entitlement${suffix}`, {
-      headers: requestHeaders(`stylematch-entitlement-${task.ai_task_id}`, "stylematch_download_entitlement"),
+      headers: requestHeaders(`stylematch-entitlement-${task.ai_task_id}`, "stylematch_download_entitlement", selectedProject?.case_code || "*"),
     })
       .then(async (response) => {
         const data = await response.json();
@@ -274,16 +297,18 @@ export default function AIGenerate() {
       ? "The living and dining zones are one continuous open-plan room. Preserve a single shared ceiling, floor, wall openings, circulation axis and coherent furniture scale across both zones."
       : "";
     const geometry = `${roomSize.length}m x ${roomSize.width}m, clear height ${roomSize.clearHeight}m. ${heightNotes}`;
+    const controlledDesign = `Input type: ${inputType}. Creative mode: ${creativeMode}. Lighting: ${lighting}. Material: ${material}. Color palette: ${colorPalette}.`;
     const prompt = panorama
-      ? `A seamless 360-degree equirectangular panorama of one ${space}, ${style} interior. ${openPlanNote} Room geometry: ${geometry}. Camera: ${viewpoint}. ${requirements}. Preserve wall openings, furniture identity, scale, material and lighting consistency around the entire room. Photorealistic architectural visualization, 2:1 projection, no people, no text, no duplicated furniture, seamless left and right edges.`
-      : `Professional interior design visualization of a ${space}, ${style} style. ${openPlanNote} ${requirements}. Room geometry: ${geometry}. Photorealistic, practical residential layout, natural materials, coherent lighting, wide angle, no people.`;
+      ? `A seamless 360-degree equirectangular panorama of one ${space}, ${style} interior. ${openPlanNote} ${controlledDesign} Room geometry: ${geometry}. Camera: ${viewpoint}. ${requirements}. Preserve wall openings, furniture identity, scale, material and lighting consistency around the entire room. Photorealistic architectural visualization, 2:1 projection, no people, no text, no duplicated furniture, seamless left and right edges.`
+      : `Professional interior design visualization of a ${space}, ${style} style. ${openPlanNote} ${controlledDesign} ${requirements}. Room geometry: ${geometry}. Photorealistic, practical layout, coherent lighting, wide angle, no people.`;
 
     try {
       const response = await fetch(`${API_BASE}/ai/image-tasks`, {
         method: "POST",
         headers: requestHeaders(
           `stylematch-${panorama ? "panorama" : "image"}-${crypto.randomUUID()}`,
-          panorama ? "stylematch_single_room_panorama_draft" : "stylematch_design_recommendation_draft"
+          panorama ? "stylematch_single_room_panorama_draft" : "stylematch_design_recommendation_draft",
+          selectedProject?.case_code || "*"
         ),
         body: JSON.stringify({
           prompt,
@@ -298,11 +323,13 @@ export default function AIGenerate() {
           viewpoint,
           source_media_urls: [...new Set([
             ...importedMedia.referenceImages,
+            sourceImage,
             floorPlan,
             ...importedMedia.all,
           ].filter(Boolean))],
           source_media_count: [...new Set([
             ...importedMedia.referenceImages,
+            sourceImage,
             floorPlan,
             ...importedMedia.all,
           ].filter(Boolean))].length,
@@ -312,6 +339,11 @@ export default function AIGenerate() {
             room_layout: selectedProject?.room_layout || null,
             material_grade: selectedProject?.material_grade || null,
             primary_style: selectedProject?.primary_style || null,
+            input_type: inputType,
+            creative_mode: creativeMode,
+            lighting,
+            material,
+            color_palette: colorPalette,
           },
         }),
       });
@@ -329,12 +361,25 @@ export default function AIGenerate() {
   const panoramaImage = uploadedPanorama || (mode === "panorama" ? generatedImage : "");
   const downloadableImage = mode === "panorama" ? panoramaImage : generatedImage;
 
+  useEffect(() => {
+    if (!selectedProject || !generatedImage || !task?.ai_task_id) return;
+    const alreadySaved = (selectedProject.reference_revisions || []).some((item) => item.source_task_id === task.ai_task_id);
+    if (alreadySaved) return;
+    localStore.saveReferenceRevision(selectedProject.project_id, {
+      image_url: generatedImage,
+      image_role: mode === "panorama" ? "ai_panorama" : "ai_reference",
+      prompt: task.prompt || "",
+      source_task_id: task.ai_task_id,
+      space,
+    });
+  }, [generatedImage, mode, selectedProject, space, task?.ai_task_id, task?.prompt]);
+
   const downloadResult = async () => {
     if (!downloadableImage || !task?.ai_task_id || !entitlement?.download_unlocked) return;
     const filename = `StyleMatch-${selectedProject?.case_code || "proposal"}-${space}-${mode === "panorama" ? "360-panorama" : "design-draft"}.png`;
     try {
       const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/download`, {
-        headers: requestHeaders(`stylematch-download-${task.ai_task_id}`, "stylematch_paid_file_download"),
+        headers: requestHeaders(`stylematch-download-${task.ai_task_id}`, "stylematch_paid_file_download", selectedProject?.case_code || "*"),
       });
       if (!response.ok) throw new Error("download failed");
       const blob = await response.blob();
@@ -356,7 +401,7 @@ export default function AIGenerate() {
     try {
       const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/checkout-session`, {
         method: "POST",
-        headers: requestHeaders(`stylematch-checkout-${task.ai_task_id}`, "stylematch_download_checkout"),
+        headers: requestHeaders(`stylematch-checkout-${task.ai_task_id}`, "stylematch_download_checkout", selectedProject?.case_code || "*"),
         body: JSON.stringify({}),
       });
       const data = await response.json();
@@ -380,15 +425,15 @@ export default function AIGenerate() {
         <header className="border-b border-stone-200 pb-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900"><Wand2 className="h-4 w-4" />StyleMatch AI 設計提案工作室</span>
-            <span className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs text-stone-600">R6.1 前期概念提案</span>
+            <span className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs text-stone-600">R7 Implementation Integrated 前期概念提案</span>
           </div>
           <h1 className="text-3xl font-bold text-stone-950">AI 空間設計與 360° 環景</h1>
-          <p className="mt-2 max-w-3xl text-stone-600">沿用 StyleMatch 專案資料，產生單張設計草案或單一空間 360°×180° 環景提案。</p>
+          <p className="mt-2 max-w-3xl text-stone-600">沿用 StyleMatch 專案資料，產生單張空間創意彩現或單一空間 360°×180° 環景提案。</p>
         </header>
 
         <Tabs value={mode} onValueChange={(value) => { setMode(value); setTask(null); setError(""); }}>
           <TabsList className="grid h-auto w-full max-w-md grid-cols-2">
-            <TabsTrigger value="image" className="gap-2 py-2"><ImagePlus className="h-4 w-4" />單張空間草案</TabsTrigger>
+            <TabsTrigger value="image" className="gap-2 py-2"><ImagePlus className="h-4 w-4" />單張空間創意彩現</TabsTrigger>
             <TabsTrigger value="panorama" className="gap-2 py-2"><Orbit className="h-4 w-4" />單一空間 360°</TabsTrigger>
           </TabsList>
 
@@ -411,6 +456,20 @@ export default function AIGenerate() {
                   </select>
                 </div>
 
+                <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
+                  <UploadField label="自行上傳空間圖片（或 3D 設計圖）" hint="JPG、PNG、WebP；建議 16:9 或 4:3，避免過度裁切" preview={sourceImage} onChange={fileHandler(setSourceImage)} />
+                  <p className="mt-2 text-xs leading-5 text-amber-900">上傳圖片會作為構圖與空間關係參考；若選擇「維持格局」，系統應優先保留牆體、開口與主要物件位置。</p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div><label className="mb-2 block text-sm font-medium">輸入類型</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={inputType} onChange={(event) => setInputType(event.target.value)}>{inputTypeOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
+                  <div><label className="mb-2 block text-sm font-medium">創意模式</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={creativeMode} onChange={(event) => setCreativeMode(event.target.value)}>{creativeModeOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
+                  <div><label className="mb-2 block text-sm font-medium">風格分類</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={style} onChange={(event) => setStyle(event.target.value)}>{stylePresets.map((item) => <option key={item}>{item}</option>)}</select></div>
+                  <div><label className="mb-2 block text-sm font-medium">照明選項</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={lighting} onChange={(event) => setLighting(event.target.value)}>{lightingOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
+                  <div><label className="mb-2 block text-sm font-medium">材質（選填）</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={material} onChange={(event) => setMaterial(event.target.value)}>{materialOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
+                  <div><label className="mb-2 block text-sm font-medium">顏色（選填）</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={colorPalette} onChange={(event) => setColorPalette(event.target.value)}>{colorOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
+                </div>
+
                 <TabsContent value="panorama" className="m-0 space-y-4">
                   <div className="grid grid-cols-3 gap-2">
                     <div><label className="mb-1 block text-xs text-stone-600">長度 m</label><Input value={roomSize.length} onChange={(event) => setRoomSize((value) => ({ ...value, length: event.target.value }))} /></div>
@@ -421,7 +480,7 @@ export default function AIGenerate() {
                   <div><label className="mb-2 block text-sm font-medium">觀看點</label><Input value={viewpoint} onChange={(event) => setViewpoint(event.target.value)} /></div>
                 </TabsContent>
 
-                <div><label className="mb-2 block text-sm font-medium">設計需求</label><Textarea rows={3} value={requirements} onChange={(event) => setRequirements(event.target.value)} /></div>
+                <div><label className="mb-2 block text-sm font-medium">設計需求（補充說明）</label><Textarea rows={4} maxLength={2000} placeholder="描述下拉選單無法涵蓋的細節，例如必須保留的物件、收納、動線或品牌需求。" value={requirements} onChange={(event) => setRequirements(event.target.value)} /><p className="mt-1 text-right text-xs text-stone-500">{requirements.length}/2000</p></div>
 
                 <TabsContent value="panorama" className="m-0 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <UploadField label="平面配置圖" hint="尺寸、BH／UBH／FH 標示" preview={floorPlan} onChange={fileHandler(setFloorPlan)} />
@@ -448,7 +507,7 @@ export default function AIGenerate() {
 
                 <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online"} onClick={generate}>
                   {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : mode === "panorama" ? <Orbit className="mr-2 h-4 w-4" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                  {busy ? "ComfyUI 生成中" : mode === "panorama" ? "產生 2:1 環景草案" : "產生設計草案"}
+                  {busy ? "ComfyUI 生成中" : mode === "panorama" ? "產生 2:1 環景草案" : "產生空間創意彩現"}
                 </Button>
                 <StatusPill online={health?.comfyui === "online"} />
                 {error && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
@@ -458,7 +517,7 @@ export default function AIGenerate() {
             <div className="space-y-5">
               <Card className="overflow-hidden border-stone-200 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">{mode === "panorama" ? <Orbit className="h-5 w-5 text-amber-600" /> : <ImagePlus className="h-5 w-5 text-amber-600" />}{mode === "panorama" ? "360° 環景預覽" : "AI 設計草案"}</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-lg">{mode === "panorama" ? <Orbit className="h-5 w-5 text-amber-600" /> : <ImagePlus className="h-5 w-5 text-amber-600" />}{mode === "panorama" ? "360° 環景預覽" : "單張空間創意彩現"}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {mode === "panorama" ? (
@@ -469,7 +528,7 @@ export default function AIGenerate() {
                     )
                   ) : (
                     <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-stone-200">
-                      {generatedImage ? <img src={generatedImage} alt={`${space} ${style} AI 設計草案`} className="h-full w-full object-cover" /> : busy ? <div className="text-center text-stone-600"><Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin" /><p>正在本機生成設計草案</p></div> : <div className="text-center text-stone-500"><ImagePlus className="mx-auto mb-3 h-10 w-10" /><p>設定需求後產生第一張草案</p></div>}
+                      {generatedImage ? <img src={generatedImage} alt={`${space} ${style} 空間創意彩現`} className="h-full w-full object-cover" /> : busy ? <div className="text-center text-stone-600"><Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin" /><p>正在生成空間創意彩現</p></div> : <div className="text-center text-stone-500"><ImagePlus className="mx-auto mb-3 h-10 w-10" /><p>設定條件後產生第一張創意彩現</p></div>}
                     </div>
                   )}
 
@@ -501,12 +560,17 @@ export default function AIGenerate() {
                   {task?.status === "completed" && !entitlement?.download_unlocked && (
                     <p className="mt-2 text-xs text-stone-500">預覽不受影響；下載檔案必須經付款服務確認後解鎖。</p>
                   )}
+                  {task?.status === "completed" && selectedProject && (
+                    <Button asChild type="button" className="mt-3 w-full bg-amber-500 text-white hover:bg-amber-600">
+                      <Link to={`${createPageUrl("ReferenceCanvas")}?project=${selectedProject.project_id}`}><Layers3 className="mr-2 h-4 w-4" />進入自由畫布修改與確認</Link>
+                    </Button>
+                  )}
 
                   <div className="mt-4 grid gap-2 text-sm text-stone-600 sm:grid-cols-2">
                     <p>任務：{task?.ai_task_id || "尚未建立"}</p>
                     <p>狀態：{task?.status || "待命"}</p>
                     <p>模型：{task?.checkpoint || health?.checkpoint || "待偵測"}</p>
-                    <p>輸出：{mode === "panorama" ? "1536×768 2:1 預覽" : "1024×768 草案"}</p>
+                    <p>輸出：{mode === "panorama" ? "1536×768 2:1 預覽" : "1024×768 創意彩現"}</p>
                   </div>
                 </CardContent>
               </Card>

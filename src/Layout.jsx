@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { BadgeDollarSign, BriefcaseBusiness, Home, ImagePlus, Menu, Palette, PenTool, X } from "lucide-react";
+import { BadgeDollarSign, BriefcaseBusiness, Home, ImagePlus, Layers3, Menu, Palette, PenTool, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Layout({ children }) {
@@ -12,6 +12,7 @@ export default function Layout({ children }) {
     { title: "首頁", url: createPageUrl("Home"), icon: Home },
     { title: "喜好風格測試", url: createPageUrl("StyleTest"), icon: Palette },
     { title: "AI 裝修規劃設計提案", url: createPageUrl("AIProposal"), icon: PenTool },
+    { title: "自由畫布", url: createPageUrl("ReferenceCanvas"), icon: Layers3 },
     { title: "AI 空間設計與 360° 環景", url: createPageUrl("AIGenerate"), icon: ImagePlus },
     { title: "我的專案", url: createPageUrl("MyProjects"), icon: BriefcaseBusiness },
     { title: "平台方案價格", url: createPageUrl("PricingPlans"), icon: BadgeDollarSign },

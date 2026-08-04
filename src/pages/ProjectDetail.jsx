@@ -16,6 +16,9 @@ const roomLabels = {
   bedroom1: "臥室一",
   bedroom2: "臥室二",
   bathroom: "衛浴",
+  office: "辦公室",
+  commercial_space: "商業空間",
+  reception: "接待／門市",
 };
 
 function Field({ label, value }) {

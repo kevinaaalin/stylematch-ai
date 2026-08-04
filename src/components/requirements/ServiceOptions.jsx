@@ -76,9 +76,9 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
           <h2 className="mt-4 text-2xl font-bold text-stone-900">需求已完成登記</h2>
           <p className="mt-2 text-stone-600">案件代碼：{completedProject.case_code}</p>
           {completedProject.service_option === "ai_proposal" && (
-            <Link to={`${createPageUrl("ProposalReport")}?project=${completedProject.project_id}`}>
-              <Button className="mt-5 bg-stone-900 text-white hover:bg-stone-800">
-                <FileText className="mr-2 h-4 w-4" />預覽並下載設計提案
+              <Link to={`${createPageUrl("AIGenerate")}?project=${completedProject.project_id}`}>
+                <Button className="mt-5 bg-stone-900 text-white hover:bg-stone-800">
+                <FileText className="mr-2 h-4 w-4" />生成設計參考圖片
               </Button>
             </Link>
           )}
@@ -117,24 +117,31 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
                   </li>
                 ))}
               </ul>
-              <Button
-                type="button"
-                className={`mt-6 w-full ${option.highlighted ? "bg-amber-500 text-white hover:bg-amber-600" : ""}`}
-                variant={option.highlighted ? "default" : "outline"}
-                disabled={isSubmitting}
-                onClick={() => handleOptionSelect(option)}
-              >
-                {isSubmitting && selectedOption === option.id ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : option.id === "ai_proposal" ? (
-                  <CreditCard className="mr-2 h-4 w-4" />
-                ) : option.id === "platform_matching" ? (
-                  <UserCheck className="mr-2 h-4 w-4" />
-                ) : (
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                )}
-                {option.action}
-              </Button>
+              {option.id === "twcid_platform" ? (
+                <Button asChild type="button" className="mt-6 w-full" variant="outline">
+                  <a href="https://twcid.net" target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    {option.action}
+                  </a>
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className={`mt-6 w-full ${option.highlighted ? "bg-amber-500 text-white hover:bg-amber-600" : ""}`}
+                  variant={option.highlighted ? "default" : "outline"}
+                  disabled={isSubmitting}
+                  onClick={() => handleOptionSelect(option)}
+                >
+                  {isSubmitting && selectedOption === option.id ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : option.id === "ai_proposal" ? (
+                    <CreditCard className="mr-2 h-4 w-4" />
+                  ) : (
+                    <UserCheck className="mr-2 h-4 w-4" />
+                  )}
+                  {option.action}
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}

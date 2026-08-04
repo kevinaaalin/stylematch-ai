@@ -4,10 +4,14 @@ import {
   ISAFE_CONTRACT_VERSION,
   normalizeIsafeStage,
 } from "@/lib/isafeContract";
+import { analyzeProject } from "@/lib/projectAnalysis";
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
-const STORAGE_SCHEMA_VERSION = 2;
+const STORAGE_SCHEMA_VERSION = 4;
+const DEFAULT_POINT_BALANCE = 100;
+const PROPOSAL_GENERATION_COST = 30;
 const STORAGE_EVENT_KEY = "stylematch_local_mvp_event_v1";
+const STORAGE_IMPORT_BACKUP_KEY = "stylematch_local_mvp_import_backup_v1";
 const STORAGE_CHANNEL_NAME = "stylematch-local-mvp-sync";
 const EXPORT_FORMAT = "stylematch-local-mvp-export";
 const EXPORT_VERSION = 1;
@@ -39,6 +43,8 @@ const emptyDatabase = {
   notifications: [],
   auditLogs: [],
   jobs: [],
+  point_balance: DEFAULT_POINT_BALANCE,
+  point_ledger: [],
 };
 
 const legacyStageMap = {
@@ -206,7 +212,7 @@ function initialStageForService(serviceOption) {
   return "ai_review";
 }
 
-function normalizeProject(project, index) {
+function normalizeProject(project, index, styleTests = []) {
   const createdAt = project.created_at || nowIso();
   const id = project.id || randomId("project");
   const projectId = project.project_id || id;
@@ -226,8 +232,10 @@ function normalizeProject(project, index) {
         }),
       ];
 
+  const matchingStyleTest = styleTests.find((test) => test.user_email && test.user_email === project.user_email);
+  const compacted = compactProjectData(project);
   return {
-    ...compactProjectData(project),
+    ...compacted,
     id,
     project_id: projectId,
     stylematch_project_id: project.stylematch_project_id || projectId,
@@ -255,6 +263,7 @@ function normalizeProject(project, index) {
     audit_log_ids: Array.isArray(project.audit_log_ids) ? project.audit_log_ids : [],
     created_at: createdAt,
     updated_at: project.updated_at || createdAt,
+    analysis: project.analysis || analyzeProject(compacted, matchingStyleTest),
   };
 }
 
@@ -356,7 +365,8 @@ function compactDatabase(database) {
     ...emptyDatabase,
     ...database,
   };
-  const projects = (merged.projects || []).map(normalizeProject);
+  const styleTests = Array.isArray(merged.styleTests) ? merged.styleTests : [];
+  const projects = (merged.projects || []).map((project, index) => normalizeProject(project, index, styleTests));
   const storedIsafeCases = Array.isArray(merged.isafeCases) ? merged.isafeCases : [];
   const migratedIsafeCases = projects
     .filter((project) => project.isafe_case_id)
@@ -377,6 +387,8 @@ function compactDatabase(database) {
     isafeCases: [...storedIsafeCases, ...migratedIsafeCases].map(normalizeIsafeCase),
     auditLogs: Array.isArray(merged.auditLogs) ? merged.auditLogs : [],
     jobs: Array.isArray(merged.jobs) ? merged.jobs : [],
+    point_balance: Number.isFinite(merged.point_balance) ? merged.point_balance : DEFAULT_POINT_BALANCE,
+    point_ledger: Array.isArray(merged.point_ledger) ? merged.point_ledger : [],
   };
 }
 
@@ -460,11 +472,41 @@ function recordProjectEvent(database, project, event, audit) {
   database.auditLogs.unshift(auditLog);
 }
 
+function recordTimestamp(record) {
+  const value = record?.updated_at || record?.created_at || record?.at;
+  if (!value) return Number.NEGATIVE_INFINITY;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+}
+
 function mergeRecords(current = [], incoming = [], getKey = (item) => item.id) {
   const merged = new Map();
-  current.forEach((item) => merged.set(getKey(item), item));
-  incoming.forEach((item) => merged.set(getKey(item), item));
-  return Array.from(merged.values()).filter(Boolean);
+  const summary = { added: 0, updated: 0, skipped: 0, conflicts: 0 };
+
+  current.filter(Boolean).forEach((item, index) => {
+    const key = getKey(item) || `__current_${index}`;
+    merged.set(key, item);
+  });
+
+  incoming.filter(Boolean).forEach((item, index) => {
+    const key = getKey(item) || `__incoming_${index}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, item);
+      summary.added += 1;
+      return;
+    }
+
+    summary.conflicts += 1;
+    if (recordTimestamp(item) > recordTimestamp(existing)) {
+      merged.set(key, item);
+      summary.updated += 1;
+    } else {
+      summary.skipped += 1;
+    }
+  });
+
+  return { records: Array.from(merged.values()), summary };
 }
 
 function projectKey(project) {
@@ -496,6 +538,15 @@ export const localStore = {
     });
 
     database.styleTests.unshift(record);
+    const latestProject = database.projects
+      .filter((project) => project.user_email && project.user_email === record.user_email)
+      .sort((a, b) => Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0))[0];
+    if (latestProject) {
+      latestProject.analysis = analyzeProject(latestProject, record);
+      latestProject.primary_style = latestProject.analysis.style.primary_style;
+      latestProject.secondary_style = latestProject.analysis.style.secondary_style;
+      latestProject.updated_at = record.created_at;
+    }
     database.auditLogs.unshift(auditLog);
     writeDatabase(database);
     return record;
@@ -550,6 +601,13 @@ export const localStore = {
       updated_at: createdAt,
     };
 
+    const matchingStyleTest = database.styleTests.find(
+      (test) => test.user_email && test.user_email === data.user_email
+    );
+    record.analysis = analyzeProject(record, matchingStyleTest);
+    record.primary_style = record.analysis.style.primary_style;
+    record.secondary_style = record.analysis.style.secondary_style;
+
     record.stylematch_project_id = record.project_id;
     record.correlation_id = traceId;
 
@@ -576,6 +634,98 @@ export const localStore = {
     }));
     writeDatabase(database);
     return record;
+  },
+
+  saveReferenceRevision(projectId, data) {
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
+    if (!project || !data?.image_url) return null;
+    const revisions = Array.isArray(project.reference_revisions) ? project.reference_revisions : [];
+    const space = data.space || "general";
+    const version = revisions.filter((item) => item.space === space).length + 1;
+    const at = nowIso();
+    const revision = {
+      revision_id: randomId("refrev"),
+      project_id: project.project_id,
+      space,
+      image_role: data.image_role || "ai_revision",
+      image_url: data.image_url,
+      source_image_url: data.source_image_url || null,
+      instruction: data.instruction || "",
+      prompt: data.prompt || "",
+      seed: data.seed ?? null,
+      source_task_id: data.source_task_id || null,
+      version,
+      status: "candidate",
+      created_at: at,
+    };
+    project.reference_revisions = [revision, ...revisions];
+    project.updated_at = at;
+    database.jobs.unshift(makeJob({ project, type: "reference_revision", status: "completed", detail: `${space} v${version}`, at }));
+    writeDatabase(database);
+    return revision;
+  },
+
+  confirmReferenceSet(projectId, revisionIds = []) {
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
+    if (!project) return null;
+    const revisions = (project.reference_revisions || []).filter((item) => revisionIds.includes(item.revision_id));
+    if (!revisions.length) throw new Error("請至少選擇一張採用圖片。");
+    const existingSets = Array.isArray(project.confirmed_reference_sets) ? project.confirmed_reference_sets : [];
+    const version = existingSets.length + 1;
+    const at = nowIso();
+    const confirmedSet = Object.freeze({
+      confirmed_reference_set_id: randomId("refset"),
+      version,
+      project_id: project.project_id,
+      revision_ids: revisions.map((item) => item.revision_id),
+      images: revisions.map((item) => ({ revision_id: item.revision_id, space: item.space, image_url: item.image_url, version: item.version })),
+      status: "confirmed",
+      confirmed_at: at,
+    });
+    project.confirmed_reference_sets = [confirmedSet, ...existingSets];
+    project.active_confirmed_reference_set_id = confirmedSet.confirmed_reference_set_id;
+    project.reference_revisions = (project.reference_revisions || []).map((item) => ({ ...item, status: revisionIds.includes(item.revision_id) ? "adopted" : item.status }));
+    project.updated_at = at;
+    writeDatabase(database);
+    return confirmedSet;
+  },
+
+  generateProposalWithPoints(projectId, { idempotencyKey, cost = PROPOSAL_GENERATION_COST } = {}) {
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
+    if (!project) throw new Error("找不到專案。");
+    const key = idempotencyKey || `proposal-${project.project_id}-${project.active_confirmed_reference_set_id}`;
+    const existing = (database.point_ledger || []).find((item) => item.idempotency_key === key);
+    if (existing) return { project, transaction: existing, balance: database.point_balance, reused: true };
+    const confirmedSet = (project.confirmed_reference_sets || []).find((item) => item.confirmed_reference_set_id === project.active_confirmed_reference_set_id);
+    if (!confirmedSet) throw new Error("請先確認採用的參考圖片。");
+    if ((database.point_balance || 0) < cost) throw new Error(`點數不足，需要 ${cost} 點。`);
+    const at = nowIso();
+    const transaction = {
+      transaction_id: randomId("points"),
+      idempotency_key: key,
+      project_id: project.project_id,
+      type: "proposal_generation",
+      points: -Math.abs(cost),
+      status: "completed",
+      confirmed_reference_set_id: confirmedSet.confirmed_reference_set_id,
+      created_at: at,
+    };
+    database.point_balance -= Math.abs(cost);
+    database.point_ledger.unshift(transaction);
+    project.proposal_generation = {
+      status: "completed",
+      generated_at: at,
+      confirmed_reference_set_id: confirmedSet.confirmed_reference_set_id,
+      analysis_schema_version: project.analysis?.schema_version || null,
+      transaction_id: transaction.transaction_id,
+    };
+    project.proposal_images = confirmedSet.images.map((item) => item.image_url);
+    project.updated_at = at;
+    writeDatabase(database);
+    return { project, transaction, balance: database.point_balance, reused: false };
   },
 
   addNotification(data) {
@@ -627,21 +777,46 @@ export const localStore = {
     const incomingDatabase = parsed?.format === EXPORT_FORMAT ? parsed.database : parsed;
     const imported = compactDatabase(incomingDatabase || {});
     const current = readDatabase();
+    const backup = {
+      format: EXPORT_FORMAT,
+      export_version: EXPORT_VERSION,
+      exported_at: nowIso(),
+      origin: typeof window === "undefined" ? "unknown" : window.location.origin,
+      reason: "before_import",
+      database: current,
+    };
+    const collections = mode === "replace" ? null : {
+      styleTests: mergeRecords(current.styleTests, imported.styleTests),
+      projects: mergeRecords(current.projects, imported.projects, projectKey),
+      isafeCases: mergeRecords(current.isafeCases, imported.isafeCases, isafeCaseKey),
+      notifications: mergeRecords(current.notifications, imported.notifications),
+      auditLogs: mergeRecords(current.auditLogs, imported.auditLogs),
+      jobs: mergeRecords(current.jobs, imported.jobs),
+    };
     const nextDatabase = mode === "replace"
       ? imported
       : compactDatabase({
           ...current,
-          styleTests: mergeRecords(current.styleTests, imported.styleTests),
-          projects: mergeRecords(current.projects, imported.projects, projectKey),
-          isafeCases: mergeRecords(current.isafeCases, imported.isafeCases, isafeCaseKey),
-          notifications: mergeRecords(current.notifications, imported.notifications),
-          auditLogs: mergeRecords(current.auditLogs, imported.auditLogs),
-          jobs: mergeRecords(current.jobs, imported.jobs),
+          styleTests: collections.styleTests.records,
+          projects: collections.projects.records,
+          isafeCases: collections.isafeCases.records,
+          notifications: collections.notifications.records,
+          auditLogs: collections.auditLogs.records,
+          jobs: collections.jobs.records,
         });
 
+    window.localStorage.setItem(STORAGE_IMPORT_BACKUP_KEY, JSON.stringify(backup));
     writeDatabase(nextDatabase);
+    const collectionSummary = mode === "replace"
+      ? {}
+      : Object.fromEntries(Object.entries(collections).map(([key, value]) => [key, value.summary]));
     return {
       mode,
+      backup,
+      collections: collectionSummary,
+      imported: Object.values(collectionSummary).reduce((total, item) => total + item.added + item.updated, 0),
+      skipped: Object.values(collectionSummary).reduce((total, item) => total + item.skipped, 0),
+      conflicts: Object.values(collectionSummary).reduce((total, item) => total + item.conflicts, 0),
       projects: nextDatabase.projects.length,
       styleTests: nextDatabase.styleTests.length,
       isafeCases: nextDatabase.isafeCases.length,

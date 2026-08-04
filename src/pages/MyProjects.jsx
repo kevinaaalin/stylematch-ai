@@ -39,10 +39,22 @@ function serviceLabel(value) {
   return value || "需求整理";
 }
 
+function downloadJson(payload, filename) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function MyProjects() {
   const [database, setDatabase] = useState(() => localStore.getAll());
   const [planId, setPlanId] = useState(readPlan);
-  const [dataTransferStatus, setDataTransferStatus] = useState("");
+  const [dataTransferStatus, setDataTransferStatus] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -70,17 +82,9 @@ export default function MyProjects() {
 
   const exportLocalData = () => {
     const exportPayload = localStore.exportData();
-    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
     const date = new Date().toISOString().slice(0, 10);
-    link.href = url;
-    link.download = `stylematch-local-data-${date}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setDataTransferStatus(`已匯出 ${exportPayload.database.projects.length} 筆專案資料。`);
+    downloadJson(exportPayload, `stylematch-local-data-${date}.json`);
+    setDataTransferStatus({ type: "export", message: `已匯出 ${exportPayload.database.projects.length} 筆專案資料。` });
   };
 
   const importLocalData = async (event) => {
@@ -89,10 +93,12 @@ export default function MyProjects() {
 
     try {
       const summary = localStore.importData(await file.text(), { mode: "merge" });
+      const backupTime = summary.backup.exported_at.replace(/[:.]/g, "-");
+      downloadJson(summary.backup, `stylematch-before-import-${backupTime}.json`);
       setDatabase(localStore.getAll());
-      setDataTransferStatus(`匯入完成：${summary.projects} 筆專案、${summary.auditLogs} 筆 audit log。`);
+      setDataTransferStatus({ type: "import", summary });
     } catch {
-      setDataTransferStatus("匯入失敗，請確認檔案是 StyleMatch 匯出的 JSON。");
+      setDataTransferStatus({ type: "error", message: "匯入失敗，請確認檔案是 StyleMatch 匯出的 JSON，且瀏覽器有足夠的儲存空間。" });
     } finally {
       event.target.value = "";
     }
@@ -122,7 +128,34 @@ export default function MyProjects() {
                 <Badge variant="outline">iSAFE {dataCounts.isafeCases}</Badge>
                 <Badge variant="outline">Audit {dataCounts.auditLogs}</Badge>
               </div>
-              {dataTransferStatus && <p className="mt-2 text-sm text-emerald-700">{dataTransferStatus}</p>}
+              {dataTransferStatus?.message && (
+                <p className={`mt-2 text-sm ${dataTransferStatus.type === "error" ? "text-red-700" : "text-emerald-700"}`}>
+                  {dataTransferStatus.message}
+                </p>
+              )}
+              {dataTransferStatus?.type === "import" && (
+                <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+                  <p className="font-semibold">匯入完成，匯入前備份已自動下載</p>
+                  <p className="mt-1">
+                    寫入 {dataTransferStatus.summary.imported} 筆、略過 {dataTransferStatus.summary.skipped} 筆；偵測到 {dataTransferStatus.summary.conflicts} 筆 ID 衝突。
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {[
+                      ["專案", "projects"],
+                      ["iSAFE case", "isafeCases"],
+                      ["Audit", "auditLogs"],
+                    ].map(([label, key]) => {
+                      const item = dataTransferStatus.summary.collections[key];
+                      return item && (
+                        <Badge key={key} variant="outline" className="border-emerald-300 bg-white text-emerald-900">
+                          {label}：新增 {item.added}／更新 {item.updated}／略過 {item.skipped}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-emerald-800">相同 ID 僅在匯入資料的 updated_at 較新時更新；時間相同或較舊皆保留本機版本。</p>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={exportLocalData}>

@@ -1,185 +1,74 @@
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, "..");
-const releaseId = "20260714_R4";
-const masterName = "TIGI_R4_Consolidated_Master_20260714_R4.md";
-const manifestName = "TIGI_Official_Edition_20260714_R4_manifest.md";
-const latestRoot = path.resolve(appRoot, "..", "tigi_latest");
-const versionRoot = path.resolve(appRoot, "..", "tigi_versions", releaseId);
+const releaseId = "20260730_R7_Implementation_Integrated";
+const releaseLabel = "R7 Implementation Integrated";
+const releaseRoot = path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260730_R7_Implementation_Integrated");
 const publicRoot = path.join(appRoot, "public", "tigi-corpus");
+const sourceNames = [
+  "01_TIGI_Engineering_Master_20260730_R7_Implementation_Integrated.md",
+  "02_SBIR_Final_Submission_Master_20260730_R7_Implementation_Integrated.md",
+  "03_TIGI_Business_Plan_Master_20260730_R7_Implementation_Integrated.md",
+  "04_TIGI_White_Paper_Master_20260730_R7_Implementation_Integrated.md",
+  "StyleMatch_R7_API_Data_Contract_Annex_20260803.md",
+  "StyleMatch_R7_Program_Audit_20260803.md",
+];
 
-function normalizeText(value) {
-  return String(value || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .trim();
-}
-
-function titleFromMarkdown(markdown, fileName) {
-  const heading = markdown.match(/^#\s+(.+)$/m);
-  if (heading) return normalizeText(heading[1]);
-  return fileName.replace(/^\d+_/, "").replace(/\.md$/i, "").replace(/[_-]+/g, " ");
-}
-
-function headingsFromMarkdown(markdown) {
-  return Array.from(markdown.matchAll(/^#{1,4}\s+(.+)$/gm))
-    .map((match) => normalizeText(match[1]))
-    .filter(Boolean)
-    .slice(0, 12);
-}
+const normalizeText = (value) => String(value || "").replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
+const titleFromMarkdown = (markdown, fileName) => markdown.match(/^#\s+(.+)$/m)?.[1]?.trim() || fileName.replace(/\.md$/i, "").replace(/[_-]+/g, " ");
+const headingsFromMarkdown = (markdown) => Array.from(markdown.matchAll(/^#{1,4}\s+(.+)$/gm)).map((match) => normalizeText(match[1])).filter(Boolean).slice(0, 20);
 
 function splitIntoChunks(markdown, fallbackTitle) {
-  const lines = markdown.split("\n");
   const sections = [];
   let current = { heading: fallbackTitle, body: [] };
-
-  for (const line of lines) {
+  for (const line of markdown.split("\n")) {
     const heading = line.match(/^#{1,3}\s+(.+)$/);
     if (heading && current.body.join("\n").trim()) {
       sections.push(current);
       current = { heading: normalizeText(heading[1]), body: [] };
-      continue;
-    }
-    current.body.push(line);
+    } else current.body.push(line);
   }
   if (current.body.join("\n").trim()) sections.push(current);
-
   return sections.flatMap((section, sectionIndex) => {
-    const paragraphs = normalizeText(section.body.join("\n"))
-      .split(/\n\s*\n/)
-      .map(normalizeText)
-      .filter(Boolean);
-
-    const merged = [];
-    let buffer = "";
+    const paragraphs = section.body.join("\n").split(/\n\s*\n/).map(normalizeText).filter(Boolean);
+    const chunks = []; let buffer = "";
     for (const paragraph of paragraphs) {
-      if ((buffer + " " + paragraph).length > 1200 && buffer) {
-        merged.push(buffer);
-        buffer = paragraph;
-      } else {
-        buffer = `${buffer} ${paragraph}`.trim();
-      }
+      if (`${buffer} ${paragraph}`.length > 1200 && buffer) { chunks.push(buffer); buffer = paragraph; }
+      else buffer = `${buffer} ${paragraph}`.trim();
     }
-    if (buffer) merged.push(buffer);
-
-    return merged.map((text, chunkIndex) => ({
-      heading: section.heading || fallbackTitle,
-      sectionIndex,
-      chunkIndex,
-      text: text.slice(0, 1400),
-    }));
+    if (buffer) chunks.push(buffer);
+    return chunks.map((text, chunkIndex) => ({ heading: section.heading, sectionIndex, chunkIndex, text: text.slice(0, 1400) }));
   });
 }
 
 async function build() {
-  const latestMasterPath = path.join(latestRoot, masterName);
-  const latestManifestPath = path.join(latestRoot, manifestName);
-  const repoMasterPath = path.join(publicRoot, "sources", masterName);
-  const repoManifestPath = path.join(publicRoot, "sources", manifestName);
-  const hasExternalSources = existsSync(latestMasterPath) && existsSync(latestManifestPath);
-  const masterSourcePath = hasExternalSources ? latestMasterPath : repoMasterPath;
-  const manifestSourcePath = hasExternalSources ? latestManifestPath : repoManifestPath;
-  const master = await readFile(masterSourcePath, "utf8");
-  const manifest = await readFile(manifestSourcePath, "utf8");
-
-  if (hasExternalSources) {
-    const archivedMaster = await readFile(path.join(versionRoot, masterName), "utf8");
-    const archivedManifest = await readFile(path.join(versionRoot, manifestName), "utf8");
-    if (master !== archivedMaster || manifest !== archivedManifest) {
-      throw new Error("TIGI July 14 R4 latest/archive sources do not match");
-    }
-  }
-
-  const title = titleFromMarkdown(master, masterName);
-  const documentId = `releases/${releaseId}/${masterName}`;
-  const sourceUrl = `tigi-corpus/sources/${masterName}`;
-  const manifestUrl = `tigi-corpus/sources/${manifestName}`;
-  const documents = [{
-    id: documentId,
-    category: "consolidated-r4",
-    categoryLabel: "July 14 R4 Consolidated",
-    title,
-    fileName: masterName,
-    path: `tigi_latest/${masterName}`,
-    archivePath: `tigi_versions/${releaseId}/${masterName}`,
-    sourceUrl,
-    manifestUrl,
-    order: 0,
-    length: master.length,
-    headings: headingsFromMarkdown(master),
-  }];
-  const chunks = splitIntoChunks(master, title).map((chunk) => ({
-    id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`,
-    documentId,
-    category: "consolidated-r4",
-    categoryLabel: "July 14 R4 Consolidated",
-    title,
-    heading: chunk.heading,
-    text: chunk.text,
-    sourceUrl,
-    path: `tigi_latest/${masterName}`,
-    order: chunk.sectionIndex,
-  }));
-
-  const index = {
-    version: "2.0",
-    generatedAt: new Date().toISOString(),
-    corpus: "TIGI Official Edition 20260714 R4 Consolidated",
-    releaseId,
-    sourceRoot: "tigi_latest",
-    archiveRoot: `tigi_versions/${releaseId}`,
-    manifestUrl,
-    documentCount: documents.length,
-    chunkCount: chunks.length,
-    documents,
-    chunks,
-  };
-
   const sourcesRoot = path.join(publicRoot, "sources");
   await mkdir(sourcesRoot, { recursive: true });
-  if (hasExternalSources) {
-    await copyFileIfChanged(latestMasterPath, path.join(sourcesRoot, masterName));
-    await copyFileIfChanged(latestManifestPath, path.join(sourcesRoot, manifestName));
+  const documents = []; const chunks = [];
+  for (const [order, fileName] of sourceNames.entries()) {
+    const sourcePath = path.join(releaseRoot, fileName);
+    if (!existsSync(sourcePath)) throw new Error(`R7 knowledge source missing: ${sourcePath}`);
+    const markdown = await readFile(sourcePath, "utf8");
+    const title = titleFromMarkdown(markdown, fileName);
+    const documentId = `releases/${releaseId}/${fileName}`;
+    const sourceUrl = `tigi-corpus/sources/${fileName}`;
+    await copyFileIfChanged(sourcePath, path.join(sourcesRoot, fileName));
+    documents.push({ id: documentId, category: "r7-implementation", categoryLabel: releaseLabel, title, fileName, path: `analysis_output/${releaseId}/${fileName}`, sourceUrl, order, length: markdown.length, headings: headingsFromMarkdown(markdown) });
+    chunks.push(...splitIntoChunks(markdown, title).map((chunk) => ({ id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId, category: "r7-implementation", categoryLabel: releaseLabel, title, heading: chunk.heading, text: chunk.text, sourceUrl, path: `analysis_output/${releaseId}/${fileName}`, order: chunk.sectionIndex })));
   }
-  await writeFileIfChanged(path.join(publicRoot, "knowledge-index.json"), `${JSON.stringify(index, null, 2)}\n`);
-  console.log(`Built TIGI knowledge index: ${documents.length} documents, ${chunks.length} chunks`);
+  const index = { version: "3.0", generatedAt: new Date().toISOString(), corpus: "TIGI 20260730 R7 Implementation Integrated", releaseId, releaseStatus: "IMPLEMENTATION_INTEGRATED_BASELINE", finalOfficialAllowed: false, sourceRoot: `analysis_output/${releaseId}`, documentCount: documents.length, chunkCount: chunks.length, documents, chunks };
+  await writeFile(path.join(publicRoot, "knowledge-index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
+  console.log(`Built TIGI R7 knowledge index: ${documents.length} documents, ${chunks.length} chunks`);
 }
 
 async function copyFileIfChanged(sourcePath, destinationPath) {
   const source = await readFile(sourcePath, "utf8");
-  if (existsSync(destinationPath)) {
-    const destination = await readFile(destinationPath, "utf8");
-    if (source === destination) return;
-  }
-  await copyFile(sourcePath, destinationPath);
+  if (existsSync(destinationPath) && await readFile(destinationPath, "utf8") === source) return;
+  await writeFile(destinationPath, source, "utf8");
 }
 
-async function writeFileIfChanged(destinationPath, content) {
-  if (existsSync(destinationPath)) {
-    const destination = await readFile(destinationPath, "utf8");
-    if (destination === content) return;
-    if (path.basename(destinationPath) === "knowledge-index.json" && sameKnowledgeIndex(destination, content)) return;
-  }
-  await writeFile(destinationPath, content, "utf8");
-}
-
-function sameKnowledgeIndex(left, right) {
-  try {
-    const leftJson = JSON.parse(left);
-    const rightJson = JSON.parse(right);
-    delete leftJson.generatedAt;
-    delete rightJson.generatedAt;
-    return JSON.stringify(leftJson) === JSON.stringify(rightJson);
-  } catch {
-    return false;
-  }
-}
-
-build().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+build().catch((error) => { console.error(error); process.exit(1); });

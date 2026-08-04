@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -148,7 +148,50 @@ export default function ProposalReport() {
         </Page>
 
         <Page>
-          <p className="text-sm font-semibold text-amber-700">03 / TONE & MANNER</p>
+          <p className="text-sm font-semibold text-amber-700">03 / DETERMINISTIC ANALYSIS</p>
+          <h2 className="mt-3 text-4xl font-bold">風格與預算分析</h2>
+          <div className="mt-8 grid grid-cols-[1fr_auto] items-end gap-6 border-b border-stone-200 pb-6">
+            <div>
+              <p className="text-xs font-semibold tracking-widest text-stone-500">PRIMARY STYLE</p>
+              <p className="mt-2 text-3xl font-bold">{proposal.analysis.style.primary_style_label}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-stone-500">分析信心</p>
+              <p className="text-3xl font-black text-amber-600">{proposal.analysis.style.confidence}%</p>
+            </div>
+          </div>
+          <div className="mt-7 space-y-3">
+            {proposal.analysis.style.distribution.slice(0, 5).map((item) => (
+              <div key={item.key}>
+                <div className="mb-1 flex justify-between text-sm"><span>{item.label}</span><strong>{item.percentage}%</strong></div>
+                <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full bg-amber-500" style={{ width: `${item.percentage}%` }} /></div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-7 bg-stone-100 p-5">
+            <h3 className="font-bold">判定理由</h3>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-700">
+              {proposal.analysis.style.reasons.map((reason) => <li key={reason}>• {reason}</li>)}
+            </ul>
+          </div>
+          <div className="mt-7 border border-stone-200 p-5">
+            <div className="flex items-end justify-between gap-4">
+              <div><p className="text-xs text-stone-500">預算估算區間</p><p className="mt-1 text-2xl font-bold">{proposal.analysis.budget.formatted_range}</p></div>
+              <p className="text-sm font-semibold text-stone-600">信心 {proposal.analysis.budget.confidence}%</p>
+            </div>
+            {proposal.analysis.budget.risk_flags.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {proposal.analysis.budget.risk_flags.map((risk) => (
+                  <div key={risk.code} className="flex gap-2 text-sm text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" /><span>{risk.message}</span></div>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="mt-5 text-xs leading-5 text-stone-500">{proposal.analysis.budget.disclaimer}</p>
+        </Page>
+
+        <Page>
+          <p className="text-sm font-semibold text-amber-700">04 / TONE & MANNER</p>
           <h2 className="mt-3 text-4xl font-bold">風格意象與參考圖片</h2>
           <p className="mt-4 leading-7 text-stone-600">圖片來自專案偏好資料，用於對齊色彩、材質、光感與家具語彙，不直接等同最終成果。</p>
           <div className="mt-8"><ImageGrid images={proposal.references} emptyText="此專案尚未提供風格參考圖片" /></div>
@@ -159,7 +202,7 @@ export default function ProposalReport() {
 
         {proposal.floorPlans.length > 0 && (
           <Page>
-            <p className="text-sm font-semibold text-amber-700">04 / LAYOUT</p>
+            <p className="text-sm font-semibold text-amber-700">05 / LAYOUT</p>
             <h2 className="mt-3 text-4xl font-bold">平面配置參考</h2>
             <p className="mt-4 leading-7 text-stone-600">依使用者提供的平面資料整理；正式尺寸、牆體與設備位置仍須現場丈量及專業設計師確認。</p>
             <div className="mt-8"><ImageGrid images={proposal.floorPlans} emptyText="" /></div>
@@ -167,7 +210,7 @@ export default function ProposalReport() {
         )}
 
         <Page>
-          <p className="text-sm font-semibold text-amber-700">05 / SPACE REVIEW</p>
+          <p className="text-sm font-semibold text-amber-700">06 / SPACE REVIEW</p>
           <h2 className="mt-3 text-4xl font-bold">空間現況與規劃方向</h2>
           <div className="mt-8 grid grid-cols-2 gap-4">
             {proposal.spaces.slice(0, 4).map((space) => (
@@ -181,7 +224,7 @@ export default function ProposalReport() {
         </Page>
 
         <Page>
-          <p className="text-sm font-semibold text-amber-700">06 / MATERIAL DIRECTION</p>
+          <p className="text-sm font-semibold text-amber-700">07 / MATERIAL DIRECTION</p>
           <h2 className="mt-3 text-4xl font-bold">材料使用建議方向</h2>
           <div className="mt-9 space-y-4">
             {proposal.materials.map((material) => (

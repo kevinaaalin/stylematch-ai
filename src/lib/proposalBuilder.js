@@ -1,3 +1,5 @@
+import { ensureProjectAnalysis } from "./projectAnalysis.js";
+
 const roomLabels = {
   floor_plan: "平面配置",
   living_room: "客廳",
@@ -8,6 +10,9 @@ const roomLabels = {
   bedroom1: "臥室一",
   bedroom2: "臥室二",
   bathroom: "衛浴",
+  office: "辦公室",
+  commercial_space: "商業空間",
+  reception: "接待／門市",
 };
 
 const materialDirections = [
@@ -41,6 +46,7 @@ export function buildProposal(project) {
   const spaces = allSpaceImages(project);
   const floorPlans = project.proposal_media?.space_photos?.floor_plan || [];
   const premium = String(project.material_grade || "").includes("高");
+  const analysis = ensureProjectAnalysis(project);
   return {
     id: project.project_id || project.id,
     caseCode: project.case_code || "SM-DRAFT",
@@ -59,6 +65,7 @@ export function buildProposal(project) {
     references,
     floorPlans,
     spaces,
+    analysis,
     materials: materialDirections.map(([category, standard, high, note]) => ({
       category,
       suggestion: premium ? high : standard,

@@ -55,6 +55,7 @@ import IsafeProjects from './pages/IsafeProjects';
 import IsafeDirectIntake from './pages/IsafeDirectIntake';
 import AIProposal from './pages/AIProposal';
 import AIGenerate from './pages/AIGenerate';
+import ReferenceCanvas from './pages/ReferenceCanvas';
 import Knowledge from './pages/Knowledge';
 import MyProjects from './pages/MyProjects';
 import PricingPlans from './pages/PricingPlans';
@@ -72,6 +73,7 @@ export const PAGES = {
     "IsafeDirectIntake": IsafeDirectIntake,
     "AIProposal": AIProposal,
     "AIGenerate": AIGenerate,
+    "ReferenceCanvas": ReferenceCanvas,
     "Knowledge": Knowledge,
     "MyProjects": MyProjects,
     "PricingPlans": PricingPlans,

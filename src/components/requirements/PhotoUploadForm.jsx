@@ -16,7 +16,10 @@ const spaceTypes = [
   { id: "study_room", name: "書房", icon: "📚", description: "書桌、書櫃、辦公椅等" },
   { id: "bedroom1", name: "房間1", icon: "🚪", description: "次臥或客房" },
   { id: "bedroom2", name: "房間2", icon: "🚪", description: "兒童房或客房" },
-  { id: "bathroom", name: "衛浴", icon: "🛁", description: "洗手台、馬桶、浴缸等" }
+  { id: "bathroom", name: "衛浴", icon: "🛁", description: "洗手台、馬桶、浴缸等" },
+  { id: "office", name: "辦公室", icon: "🏢", description: "工作區、會議室、主管室與公共區域" },
+  { id: "commercial_space", name: "商業空間", icon: "🏬", description: "店面、展示、接待與服務空間" },
+  { id: "reception", name: "接待／門市", icon: "🛎️", description: "櫃台、候位、展示與顧客動線" }
 ];
 
 export default function PhotoUploadForm({ formData, onChange }) {

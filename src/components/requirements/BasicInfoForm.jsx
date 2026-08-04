@@ -40,6 +40,38 @@ export default function BasicInfoForm({ formData, onChange }) {
           </div>
         </div>
 
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <input
+              id="cultural_preference_enabled"
+              type="checkbox"
+              checked={Boolean(formData.cultural_preference_enabled)}
+              onChange={(event) => handleChange("cultural_preference_enabled", event.target.checked)}
+              className="mt-1 h-4 w-4"
+            />
+            <div className="flex-1">
+              <Label htmlFor="cultural_preference_enabled" className="font-semibold text-amber-900">納入生活性格與文化偏好參考（選填）</Label>
+              <p className="mt-1 text-xs leading-5 text-amber-800">八字與星座僅作為最高 5% 的情境偏好，不是科學、命理或風水判定，也不會取代直接選擇的風格與空間需求。</p>
+            </div>
+          </div>
+          {formData.cultural_preference_enabled && (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="birth_date">出生日期</Label>
+                <Input id="birth_date" type="date" value={formData.birth_date || ""} onChange={(event) => handleChange("birth_date", event.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="birth_time">出生時間</Label>
+                <Input id="birth_time" type="time" value={formData.birth_time || ""} onChange={(event) => handleChange("birth_time", event.target.value)} />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="zodiac_sign">星座（可自動推算或自行選擇）</Label>
+                <Input id="zodiac_sign" value={formData.zodiac_sign || ""} onChange={(event) => handleChange("zodiac_sign", event.target.value)} placeholder="例如：天秤座；留白時由生日推算" />
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <Label className="text-stone-700 font-medium">房屋類型 *</Label>
