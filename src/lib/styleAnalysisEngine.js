@@ -6,17 +6,13 @@ import {
   clamp,
   round,
 } from "./analysisSchema.js";
+import { STYLE_CATALOG, normalizeStyleId } from "../data/styleCatalog.js";
 
-const keywordSignals = {
-  modern: ["現代", "俐落", "簡潔", "都會", "明亮"],
-  classic: ["古典", "奢華", "線板", "優雅"],
-  industrial: ["工業", "水泥", "金屬", "裸露"],
-  scandinavian: ["北歐", "自然", "溫暖", "木質"],
-  minimalist: ["極簡", "簡約", "留白", "收納"],
-  bohemian: ["波希米亞", "異國", "織品", "自由"],
-  japandi: ["日式", "侘寂", "無印", "禪", "樸質"],
-  coastal: ["海岸", "度假", "藍白", "清爽"],
-};
+const keywordSignals = Object.fromEntries(STYLE_CATALOG.map((style) => [
+  style.id,
+  [...style.aliases, style.name, ...style.keywords, ...style.materials, ...style.palette]
+    .map((value) => String(value).toLowerCase()),
+]));
 
 function scoreFromText(project = {}) {
   const text = [project.atmosphere_description, project.special_requirements, project.preferred_style, project.style]
@@ -25,7 +21,7 @@ function scoreFromText(project = {}) {
     .toLowerCase();
   return Object.fromEntries(STYLE_KEYS.map((key) => [
     key,
-    keywordSignals[key].reduce((score, keyword) => score + (text.includes(keyword.toLowerCase()) ? 2 : 0), 0),
+    keywordSignals[key].reduce((score, keyword) => score + (text.includes(keyword) ? 2 : 0), 0),
   ]));
 }
 
@@ -50,7 +46,7 @@ function culturalSignal(project = {}) {
     modern: ["牡羊座", "獅子座", "天蠍座"],
     bohemian: ["雙子座", "射手座", "雙魚座"],
   };
-  const style = Object.entries(groups).find(([, signs]) => signs.includes(zodiac))?.[0] || "japandi";
+  const style = Object.entries(groups).find(([, signs]) => signs.includes(zodiac))?.[0] || "japanese";
   return { zodiac, style, weight: 0.05 };
 }
 
@@ -60,6 +56,12 @@ export class StyleAnalysisEngine {
       ? styleTest.test_score
       : null;
     const scores = { ...(testScores || scoreFromText(project)) };
+    const explicitStyle = project.primary_style || project.preferred_style || project.style;
+    if (explicitStyle) {
+      const explicitId = normalizeStyleId(explicitStyle);
+      const maximum = Math.max(1, ...Object.values(scores).map(Number));
+      scores[explicitId] = (Number(scores[explicitId]) || 0) + maximum * 2;
+    }
     const culture = culturalSignal(project);
     if (culture) {
       const maximum = Math.max(1, ...Object.values(scores).map(Number));

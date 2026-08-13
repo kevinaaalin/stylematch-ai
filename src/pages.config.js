@@ -61,6 +61,8 @@ import MyProjects from './pages/MyProjects';
 import PricingPlans from './pages/PricingPlans';
 import ProposalReport from './pages/ProposalReport';
 import ProjectDetail from './pages/ProjectDetail';
+import Workspace from './pages/Workspace';
+import FloorPlanVisualizer from './pages/FloorPlanVisualizer';
 import __Layout from './Layout.jsx';
 
 
@@ -79,6 +81,8 @@ export const PAGES = {
     "PricingPlans": PricingPlans,
     "ProposalReport": ProposalReport,
     "ProjectDetail": ProjectDetail,
+    "Workspace": Workspace,
+    "FloorPlanVisualizer": FloorPlanVisualizer,
 }
 
 export const pagesConfig = {

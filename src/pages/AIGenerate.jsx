@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  Coins,
   Cuboid,
   CreditCard,
+  Crown,
   Download,
   Eye,
   FileImage,
@@ -22,12 +24,17 @@ import { Textarea } from "@/components/ui/textarea";
 import PanoramaViewer from "@/components/ai/PanoramaViewer";
 import { styleImages } from "@/components/styletest/styleImageData";
 import { localStore } from "@/lib/localStore";
+import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan, requireBusinessPlan } from "@/lib/planAccess";
 import { Link, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { STYLE_CATALOG, getStyleById, normalizeStyleId } from "@/data/styleCatalog";
+import { analyzeImageStyleFallback } from "@/lib/imageStyleFallback";
 
 const API_BASE = "http://127.0.0.1:4180/api/v1";
 const AI_TASK_SESSION_KEY = "stylematch_ai_current_task_v1";
-const stylePresets = ["現代簡約", "北歐自然", "日式無印", "侘寂風格", "輕奢質感", "現代古典"];
+const IMAGE_GENERATION_COST = 10;
+const PANORAMA_GENERATION_COST = 15;
+const stylePresets = STYLE_CATALOG.map(({ name }) => name);
 const roomPresets = ["客廳", "餐廳", "客餐廳（開放式）", "主臥室", "次臥室", "書房", "廚房", "衛浴", "辦公室", "商業空間", "接待／門市", "其他"];
 const inputTypeOptions = ["空間實景照片", "3D 設計圖／場景", "手繪草圖", "平面配置圖", "無圖片，純文字生成"];
 const creativeModeOptions = ["維持格局與主要物件", "保留格局，重新設計家具與材質", "保留主要物件，調整風格與照明", "自由創意重新設計"];
@@ -49,23 +56,11 @@ const roomMediaKeys = {
   其他: [],
 };
 const roomStyleOffsets = { 客廳: 0, 餐廳: 1, "客餐廳（開放式）": 0, 主臥室: 2, 次臥室: 3, 書房: 4, 廚房: 5, 衛浴: 6, 辦公室: 1, 商業空間: 5, "接待／門市": 0, 其他: 7 };
-const styleKeyByPreset = {
-  現代簡約: "modern",
-  北歐自然: "scandinavian",
-  日式無印: "japandi",
-  侘寂風格: "minimalist",
-  輕奢質感: "classic",
-  現代古典: "classic",
-};
-const styleLabelByKey = {
-  modern: "現代簡約",
-  scandinavian: "北歐自然",
-  japandi: "日式無印",
-  minimalist: "侘寂風格",
-  classic: "現代古典",
-  industrial: "工業風格",
-  bohemian: "波希米亞",
-  coastal: "海岸風格",
+const readableTraditionalChineseError = (value, fallback) => {
+  const message = typeof value === "string" ? value.trim() : "";
+  const hasChinese = /[\u3400-\u9fff]/u.test(message);
+  const hasEncodingArtifacts = /�|ï¿½|Ã|Â|æ|ç|嚙|銝|鈭|憭|蝣|閬|隞|餈/u.test(message);
+  return message && hasChinese && !hasEncodingArtifacts ? message : fallback;
 };
 
 const requestHeaders = (idempotencyKey, purpose, caseAuthorization = "*") => ({
@@ -172,6 +167,7 @@ export default function AIGenerate() {
   const [material, setMaterial] = useState(materialOptions[0]);
   const [colorPalette, setColorPalette] = useState(colorOptions[0]);
   const [sourceImage, setSourceImage] = useState("");
+  const [imageStyleAnalysis, setImageStyleAnalysis] = useState(null);
   const [roomSize, setRoomSize] = useState({ length: "5.2", width: "4.0", clearHeight: "2.8" });
   const [heightNotes, setHeightNotes] = useState("FH 280 cm；如有樑位請依平面圖 BH／UBH 標示。");
   const [viewpoint, setViewpoint] = useState("空間中央，視線高度 150 cm");
@@ -189,11 +185,12 @@ export default function AIGenerate() {
   const [paymentInfoOpen, setPaymentInfoOpen] = useState(false);
   const [floorPlan, setFloorPlan] = useState("");
   const [uploadedPanorama, setUploadedPanorama] = useState("");
+  const [planId, setPlanId] = useState(readActivePlan);
   const selectedProject = projects.find((item) => item.project_id === projectId);
   const projectStyleTest = styleTests.find((test) => test.user_email && test.user_email === selectedProject?.user_email);
   const projectStyleKey = selectedProject?.primary_style
     || projectStyleTest?.primary_style
-    || styleKeyByPreset[style]
+    || normalizeStyleId(style)
     || "modern";
   const projectProposalImages = useMemo(
     () => proposalImagesFor(selectedProject, space, projectStyleKey),
@@ -207,6 +204,13 @@ export default function AIGenerate() {
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
     return localStore.subscribe(refresh);
+  }, []);
+
+  useEffect(() => {
+    const refreshPlan = () => setPlanId(readActivePlan());
+    window.addEventListener(PLAN_CHANGE_EVENT, refreshPlan);
+    window.addEventListener("storage", refreshPlan);
+    return () => { window.removeEventListener(PLAN_CHANGE_EVENT, refreshPlan); window.removeEventListener("storage", refreshPlan); };
   }, []);
 
   useEffect(() => {
@@ -234,9 +238,7 @@ export default function AIGenerate() {
       || projectStyleTest?.primary_style
       || selectedProject.preferred_style
       || selectedProject.style;
-    const matchedStyle = stylePresets.find((preset) => projectStyle?.includes(preset))
-      || styleLabelByKey[projectStyle]
-      || "現代簡約";
+    const matchedStyle = getStyleById(projectStyle).name;
     setStyle(matchedStyle);
     setRequirements(projectRequirements(selectedProject));
     setFloorPlan(importedMedia.floorPlan);
@@ -251,9 +253,11 @@ export default function AIGenerate() {
         });
         const data = await response.json();
         setTask(data.task);
-        if (data.task?.status === "failed") setError(data.task.error || "ComfyUI 生成失敗");
+        if (data.task?.status === "failed") {
+          setError(readableTraditionalChineseError(data.task.error, "AI 圖片生成失敗，請稍後再試。"));
+        }
       } catch (pollError) {
-        setError(pollError.message);
+        setError(readableTraditionalChineseError(pollError.message, "無法取得 AI 圖片生成進度，請確認服務連線後再試。"));
       }
     }, 2000);
     return () => window.clearInterval(timer);
@@ -273,11 +277,11 @@ export default function AIGenerate() {
     })
       .then(async (response) => {
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message || "無法確認付款狀態");
+        if (!response.ok) throw new Error(readableTraditionalChineseError(data.message, "無法確認付款與下載權限，請稍後再試。"));
         setEntitlement(data.entitlement);
         if (sessionId) window.history.replaceState({}, "", `${window.location.pathname}#/AIGenerate`);
       })
-      .catch((requestError) => setError(requestError.message))
+      .catch((requestError) => setError(readableTraditionalChineseError(requestError.message, "無法確認付款與下載權限，請稍後再試。")))
       .finally(() => setPaymentBusy(false));
   }, [task?.ai_task_id, task?.status]);
 
@@ -289,18 +293,41 @@ export default function AIGenerate() {
     reader.readAsDataURL(file);
   };
 
+  const sourceImageHandler = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImageStyleAnalysis(null);
+    const reader = new FileReader();
+    reader.onload = () => setSourceImage(String(reader.result || ""));
+    reader.readAsDataURL(file);
+    try {
+      setImageStyleAnalysis(await analyzeImageStyleFallback(file));
+    } catch {
+      setImageStyleAnalysis({ confidence: 0, requires_confirmation: true, candidates: [], disclaimer: "無法讀取此圖片的本地特徵，請手動選擇設計風格。" });
+    }
+  };
+
   const generate = async () => {
     setError("");
     setTask(null);
     const panorama = mode === "panorama";
+    try {
+      requireBusinessPlan(panorama ? "360° 環景生成" : "空間創意彩現");
+      if (!selectedProject) throw new Error("請先選擇 StyleMatch 專案。");
+    } catch (accessError) {
+      setError(accessError.message);
+      return;
+    }
     const openPlanNote = space === "客餐廳（開放式）"
       ? "The living and dining zones are one continuous open-plan room. Preserve a single shared ceiling, floor, wall openings, circulation axis and coherent furniture scale across both zones."
       : "";
     const geometry = `${roomSize.length}m x ${roomSize.width}m, clear height ${roomSize.clearHeight}m. ${heightNotes}`;
     const controlledDesign = `Input type: ${inputType}. Creative mode: ${creativeMode}. Lighting: ${lighting}. Material: ${material}. Color palette: ${colorPalette}.`;
+    const selectedStyleProfile = getStyleById(style);
+    const styleDirection = `${selectedStyleProfile.prompt}. Preferred palette: ${selectedStyleProfile.palette.join(", ")}. Preferred materials: ${selectedStyleProfile.materials.join(", ")}.`;
     const prompt = panorama
-      ? `A seamless 360-degree equirectangular panorama of one ${space}, ${style} interior. ${openPlanNote} ${controlledDesign} Room geometry: ${geometry}. Camera: ${viewpoint}. ${requirements}. Preserve wall openings, furniture identity, scale, material and lighting consistency around the entire room. Photorealistic architectural visualization, 2:1 projection, no people, no text, no duplicated furniture, seamless left and right edges.`
-      : `Professional interior design visualization of a ${space}, ${style} style. ${openPlanNote} ${controlledDesign} ${requirements}. Room geometry: ${geometry}. Photorealistic, practical layout, coherent lighting, wide angle, no people.`;
+      ? `A seamless 360-degree equirectangular panorama of one ${space}, ${style} interior. ${styleDirection} ${openPlanNote} ${controlledDesign} Room geometry: ${geometry}. Camera: ${viewpoint}. ${requirements}. Preserve wall openings, furniture identity, scale, material and lighting consistency around the entire room. Photorealistic architectural visualization, 2:1 projection, no people, no text, no duplicated furniture, seamless left and right edges.`
+      : `Professional interior design visualization of a ${space}, ${style} style. ${styleDirection} ${openPlanNote} ${controlledDesign} ${requirements}. Room geometry: ${geometry}. Photorealistic, practical layout, coherent lighting, wide angle, no people.`;
 
     try {
       const response = await fetch(`${API_BASE}/ai/image-tasks`, {
@@ -312,6 +339,9 @@ export default function AIGenerate() {
         ),
         body: JSON.stringify({
           prompt,
+          negative_prompt: selectedStyleProfile.negative_prompt,
+          style_id: selectedStyleProfile.id,
+          style_catalog_version: "stylematch.style-catalog.v1",
           stylematch_project_id: selectedProject?.stylematch_project_id || projectId || null,
           case_code: selectedProject?.case_code || null,
           width: panorama ? 1536 : 1024,
@@ -348,11 +378,17 @@ export default function AIGenerate() {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "無法建立 AI 任務");
+      if (!response.ok) throw new Error(readableTraditionalChineseError(data.message, "無法建立 AI 圖片生成任務，請稍後再試。"));
+      localStore.consumePoints(selectedProject.project_id, {
+        type: panorama ? "space_panorama_generation" : "space_image_generation",
+        cost: panorama ? PANORAMA_GENERATION_COST : IMAGE_GENERATION_COST,
+        detail: panorama ? "單一空間 360° 環景生成" : "單張空間創意彩現",
+        idempotencyKey: `ai-task-${data.task.ai_task_id}`,
+      });
       setTask(data.task);
       setHealth((value) => ({ ...value, comfyui: "online" }));
     } catch (requestError) {
-      setError(requestError.message);
+      setError(readableTraditionalChineseError(requestError.message, "無法建立 AI 圖片生成任務，請確認服務連線後再試。"));
     }
   };
 
@@ -381,7 +417,7 @@ export default function AIGenerate() {
       const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/download`, {
         headers: requestHeaders(`stylematch-download-${task.ai_task_id}`, "stylematch_paid_file_download", selectedProject?.case_code || "*"),
       });
-      if (!response.ok) throw new Error("download failed");
+      if (!response.ok) throw new Error("下載失敗");
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -390,7 +426,7 @@ export default function AIGenerate() {
       anchor.click();
       URL.revokeObjectURL(objectUrl);
     } catch {
-      setError("下載失敗，請重新確認付款狀態。");
+      setError("下載失敗，請確認付款與下載權限後再試一次。");
     }
   };
 
@@ -405,15 +441,15 @@ export default function AIGenerate() {
         body: JSON.stringify({}),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "無法建立付款頁面");
+      if (!response.ok) throw new Error(readableTraditionalChineseError(data.message, "無法建立安全付款頁面，請稍後再試。"));
       if (data.entitlement?.download_unlocked) {
         setEntitlement(data.entitlement);
         return;
       }
-      if (!data.checkout_url) throw new Error("付款服務未回傳Checkout網址");
+      if (!data.checkout_url) throw new Error("付款服務未回傳結帳頁面網址。");
       window.location.assign(data.checkout_url);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(readableTraditionalChineseError(requestError.message, "無法開啟安全付款頁面，請稍後再試。"));
     } finally {
       setPaymentBusy(false);
     }
@@ -430,6 +466,12 @@ export default function AIGenerate() {
           <h1 className="text-3xl font-bold text-stone-950">AI 空間設計與 360° 環景</h1>
           <p className="mt-2 max-w-3xl text-stone-600">沿用 StyleMatch 專案資料，產生單張空間創意彩現或單一空間 360°×180° 環景提案。</p>
         </header>
+
+        <div className="flex flex-wrap items-center gap-3 border border-stone-200 bg-white p-4 text-sm">
+          <span className={`rounded-md px-3 py-1.5 font-medium ${isBusinessPlan(planId) ? "bg-emerald-100 text-emerald-800" : "bg-stone-200 text-stone-700"}`}>{isBusinessPlan(planId) ? "商業方案已啟用" : "需升級商業方案"}</span>
+          <span className="text-stone-600"><Coins className="mr-1 inline h-4 w-4" />空間彩現 {IMAGE_GENERATION_COST} 點／360° 環景 {PANORAMA_GENERATION_COST} 點</span>
+          {!isBusinessPlan(planId) && <Button asChild size="sm" variant="outline"><Link to={createPageUrl("PricingPlans")}><Crown className="mr-2 h-4 w-4" />升級商業方案</Link></Button>}
+        </div>
 
         <Tabs value={mode} onValueChange={(value) => { setMode(value); setTask(null); setError(""); }}>
           <TabsList className="grid h-auto w-full max-w-md grid-cols-2">
@@ -457,7 +499,14 @@ export default function AIGenerate() {
                 </div>
 
                 <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
-                  <UploadField label="自行上傳空間圖片（或 3D 設計圖）" hint="JPG、PNG、WebP；建議 16:9 或 4:3，避免過度裁切" preview={sourceImage} onChange={fileHandler(setSourceImage)} />
+                  <UploadField label="自行上傳空間圖片（或 3D 設計圖）" hint="JPG、PNG、WebP；建議 16:9 或 4:3，避免過度裁切" preview={sourceImage} onChange={sourceImageHandler} />
+                  {imageStyleAnalysis && (
+                    <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-xs text-stone-700">
+                      <p className="font-semibold text-stone-900">圖片風格候選｜低信心 {imageStyleAnalysis.confidence}%</p>
+                      <p className="mt-1 leading-5">{imageStyleAnalysis.disclaimer}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">{imageStyleAnalysis.candidates.map((candidate) => <button type="button" key={candidate.id} onClick={() => setStyle(candidate.name)} className="border border-amber-300 bg-white px-2 py-1 hover:border-amber-600">{candidate.name} {candidate.percentage}%</button>)}</div>
+                    </div>
+                  )}
                   <p className="mt-2 text-xs leading-5 text-amber-900">上傳圖片會作為構圖與空間關係參考；若選擇「維持格局」，系統應優先保留牆體、開口與主要物件位置。</p>
                 </div>
 
@@ -505,9 +554,9 @@ export default function AIGenerate() {
                   </div>
                 )}
 
-                <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online"} onClick={generate}>
+                <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online" || !isBusinessPlan(planId) || !selectedProject} onClick={generate}>
                   {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : mode === "panorama" ? <Orbit className="mr-2 h-4 w-4" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                  {busy ? "ComfyUI 生成中" : mode === "panorama" ? "產生 2:1 環景草案" : "產生空間創意彩現"}
+                  {busy ? "ComfyUI 生成中" : mode === "panorama" ? `產生 2:1 環景草案（${PANORAMA_GENERATION_COST} 點）` : `產生空間創意彩現（${IMAGE_GENERATION_COST} 點）`}
                 </Button>
                 <StatusPill online={health?.comfyui === "online"} />
                 {error && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
@@ -560,9 +609,15 @@ export default function AIGenerate() {
                   {task?.status === "completed" && !entitlement?.download_unlocked && (
                     <p className="mt-2 text-xs text-stone-500">預覽不受影響；下載檔案必須經付款服務確認後解鎖。</p>
                   )}
+                  {task?.quality_report && (
+                    <div className={`mt-3 border-l-4 p-4 text-sm ${task.quality_report.technical_status === "passed" ? "border-emerald-500 bg-emerald-50" : "border-rose-500 bg-rose-50"}`}>
+                      <p className="font-semibold text-stone-900">圖片技術檢核：{task.quality_report.technical_status === "passed" ? "通過" : "未通過"}</p>
+                      <p className="mt-1 leading-6 text-stone-600">尺寸／格式檢查完成；風格、格局、家具變形、動線與材質照明仍須人工逐項確認。</p>
+                    </div>
+                  )}
                   {task?.status === "completed" && selectedProject && (
                     <Button asChild type="button" className="mt-3 w-full bg-amber-500 text-white hover:bg-amber-600">
-                      <Link to={`${createPageUrl("ReferenceCanvas")}?project=${selectedProject.project_id}`}><Layers3 className="mr-2 h-4 w-4" />進入自由畫布修改與確認</Link>
+                      <Link to={`${createPageUrl("ReferenceCanvas")}?project=${selectedProject.project_id}`}><Layers3 className="mr-2 h-4 w-4" />進入提案圖確認</Link>
                     </Button>
                   )}
 
@@ -571,6 +626,8 @@ export default function AIGenerate() {
                     <p>狀態：{task?.status || "待命"}</p>
                     <p>模型：{task?.checkpoint || health?.checkpoint || "待偵測"}</p>
                     <p>輸出：{mode === "panorama" ? "1536×768 2:1 預覽" : "1024×768 創意彩現"}</p>
+                    <p>Seed：{task?.seed ?? "建立任務後產生"}</p>
+                    <p>Workflow：{task?.workflow_version || health?.workflow_version || "待偵測"}</p>
                   </div>
                 </CardContent>
               </Card>

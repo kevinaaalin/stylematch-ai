@@ -192,17 +192,51 @@ export default function ProposalReport() {
 
         <Page>
           <p className="text-sm font-semibold text-amber-700">04 / TONE & MANNER</p>
-          <h2 className="mt-3 text-4xl font-bold">風格意象與參考圖片</h2>
+          <h2 className="mt-3 text-4xl font-bold">Tone &amp; Manner</h2>
+          <p className="mt-4 text-xl font-semibold text-stone-700">{proposal.styleProfile.name}</p>
+          <p className="mt-3 leading-7 text-stone-600">{proposal.styleProfile.summary}</p>
+          <div className="mt-8">
+            <p className="mb-3 text-xs font-semibold tracking-widest text-stone-500">KEYWORDS</p>
+            <div className="flex flex-wrap gap-3">{proposal.toneManner.keywords.map((item) => <span key={item} className="border border-stone-300 px-4 py-2 text-sm">{item}</span>)}</div>
+          </div>
+          <div className="mt-10">
+            <p className="mb-3 text-xs font-semibold tracking-widest text-stone-500">COLOR DIRECTION</p>
+            <div className="grid grid-cols-4 gap-3">{proposal.toneManner.palette.map((item, index) => <div key={item} className="flex h-24 items-end p-3 text-sm font-semibold" style={{ backgroundColor: ["#ede7de", "#d6cbbb", "#8a8178", "#3c3835"][index % 4], color: index > 1 ? "white" : "#292524" }}>{item}</div>)}</div>
+          </div>
+          <div className="mt-10">
+            <p className="mb-3 text-xs font-semibold tracking-widest text-stone-500">MATERIAL DIRECTION</p>
+            <div className="grid grid-cols-2 gap-3">{proposal.toneManner.materials.map((item) => <div key={item} className="bg-stone-100 px-5 py-4 text-sm font-semibold">{item}</div>)}</div>
+          </div>
+        </Page>
+
+        <Page>
+          <p className="text-sm font-semibold text-amber-700">05 / DESIGN OPTIONS</p>
+          <h2 className="mt-3 text-4xl font-bold">三種設計方案方向</h2>
+          <p className="mt-4 leading-7 text-stone-600">三案使用相同需求基礎，以風格濃度、材料配置與預算策略形成差異；確認方案後再進入圖片生成與提案定稿。</p>
+          <div className="mt-9 space-y-5">
+            {proposal.designOptions.map((option) => (
+              <article key={option.id} className={`border p-6 ${option.recommended ? "border-amber-500 bg-amber-50" : "border-stone-200"}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div><h3 className="text-xl font-bold">{option.name}</h3><p className="mt-1 text-sm font-semibold text-amber-700">{option.ratio}</p></div>
+                  {option.recommended && <span className="bg-amber-600 px-3 py-1 text-xs font-bold text-white">建議深化</span>}
+                </div>
+                <p className="mt-4 leading-7 text-stone-700">{option.description}</p>
+                <p className="mt-3 border-t border-stone-200 pt-3 text-sm text-stone-500">取捨：{option.tradeoff}</p>
+              </article>
+            ))}
+          </div>
+        </Page>
+
+        <Page>
+          <p className="text-sm font-semibold text-amber-700">06 / REFERENCES</p>
+          <h2 className="mt-3 text-4xl font-bold">風格參考圖片</h2>
           <p className="mt-4 leading-7 text-stone-600">圖片來自專案偏好資料，用於對齊色彩、材質、光感與家具語彙，不直接等同最終成果。</p>
           <div className="mt-8"><ImageGrid images={proposal.references} emptyText="此專案尚未提供風格參考圖片" /></div>
-          <div className="mt-8 grid grid-cols-3 gap-3 text-center text-sm">
-            {["自然低彩度", "材質層次", "明暗平衡"].map((item) => <div key={item} className="border border-stone-200 py-4">{item}</div>)}
-          </div>
         </Page>
 
         {proposal.floorPlans.length > 0 && (
           <Page>
-            <p className="text-sm font-semibold text-amber-700">05 / LAYOUT</p>
+            <p className="text-sm font-semibold text-amber-700">07 / LAYOUT</p>
             <h2 className="mt-3 text-4xl font-bold">平面配置參考</h2>
             <p className="mt-4 leading-7 text-stone-600">依使用者提供的平面資料整理；正式尺寸、牆體與設備位置仍須現場丈量及專業設計師確認。</p>
             <div className="mt-8"><ImageGrid images={proposal.floorPlans} emptyText="" /></div>
@@ -210,7 +244,7 @@ export default function ProposalReport() {
         )}
 
         <Page>
-          <p className="text-sm font-semibold text-amber-700">06 / SPACE REVIEW</p>
+          <p className="text-sm font-semibold text-amber-700">08 / SPACE REVIEW</p>
           <h2 className="mt-3 text-4xl font-bold">空間現況與規劃方向</h2>
           <div className="mt-8 grid grid-cols-2 gap-4">
             {proposal.spaces.slice(0, 4).map((space) => (
@@ -224,7 +258,7 @@ export default function ProposalReport() {
         </Page>
 
         <Page>
-          <p className="text-sm font-semibold text-amber-700">07 / MATERIAL DIRECTION</p>
+          <p className="text-sm font-semibold text-amber-700">09 / MATERIAL DIRECTION</p>
           <h2 className="mt-3 text-4xl font-bold">材料使用建議方向</h2>
           <div className="mt-9 space-y-4">
             {proposal.materials.map((material) => (

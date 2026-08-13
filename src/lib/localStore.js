@@ -5,6 +5,7 @@ import {
   normalizeIsafeStage,
 } from "@/lib/isafeContract";
 import { analyzeProject } from "@/lib/projectAnalysis";
+import { requireBusinessPlan } from "@/lib/planAccess";
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 4;
@@ -692,7 +693,35 @@ export const localStore = {
     return confirmedSet;
   },
 
+  consumePoints(projectId, { type, cost, idempotencyKey, detail = "" } = {}) {
+    requireBusinessPlan(detail || "扣點功能");
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
+    if (!project) throw new Error("請先選擇 StyleMatch 專案。");
+    if (!type || !Number.isFinite(cost) || cost <= 0) throw new Error("點數交易資料不完整。");
+    const key = idempotencyKey || `${type}-${project.project_id}-${crypto.randomUUID()}`;
+    const existing = (database.point_ledger || []).find((item) => item.idempotency_key === key);
+    if (existing) return { transaction: existing, balance: database.point_balance, reused: true };
+    if ((database.point_balance || 0) < cost) throw new Error(`點數不足，需要 ${cost} 點。`);
+    const transaction = {
+      transaction_id: randomId("points"),
+      idempotency_key: key,
+      project_id: project.project_id,
+      type,
+      detail,
+      points: -Math.abs(cost),
+      status: "completed",
+      created_at: nowIso(),
+    };
+    database.point_balance -= Math.abs(cost);
+    database.point_ledger.unshift(transaction);
+    project.updated_at = transaction.created_at;
+    writeDatabase(database);
+    return { transaction, balance: database.point_balance, reused: false };
+  },
+
   generateProposalWithPoints(projectId, { idempotencyKey, cost = PROPOSAL_GENERATION_COST } = {}) {
+    requireBusinessPlan("正式提案扣點生成");
     const database = readDatabase();
     const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
     if (!project) throw new Error("找不到專案。");

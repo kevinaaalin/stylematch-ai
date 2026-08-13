@@ -5,24 +5,14 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Heart, Image as ImageIcon, Sparkles, ThumbsDown, Undo2 } from "lucide-react";
 
-import { styleImages } from "../components/styletest/styleImageData";
+import { styleTestImages as styleImages, STYLE_TEST_IMAGE_MANIFEST_VERSION } from "../data/styleTestImageManifest";
+import { STYLE_KEYS } from "../data/styleCatalog";
 import ContactForm from "../components/styletest/ContactForm";
 import ResultDisplay from "../components/styletest/ResultDisplay";
 
 const QUICK_IMAGES = styleImages.slice(0, 15);
 const FULL_IMAGES = styleImages.slice(0, 30);
 const FULL_MINIMUM = 15;
-
-const STYLE_KEYS = [
-  "modern",
-  "classic",
-  "industrial",
-  "scandinavian",
-  "minimalist",
-  "bohemian",
-  "japandi",
-  "coastal",
-];
 
 const RATING_OPTIONS = [
   { value: 1, label: "不喜歡", icon: ThumbsDown, className: "hover:bg-stone-100 hover:text-stone-700" },
@@ -66,6 +56,8 @@ function calculateStyleResult(allRatings, mode, totalImages) {
     completed_count: completedCount,
     total_images: totalImages,
     confidence_score: confidenceScore,
+    style_catalog_version: "stylematch.style-catalog.v1",
+    image_manifest_version: STYLE_TEST_IMAGE_MANIFEST_VERSION,
   };
 }
 

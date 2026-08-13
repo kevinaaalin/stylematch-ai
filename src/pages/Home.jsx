@@ -129,7 +129,7 @@ const styleCards = [
 
 const pricing = [
   ["免費風格測試", "免費", ["限 1 次", "主要與次要風格分析", "基礎裝修方向建議"]],
-  ["單次購買方案", "NT$ 2,999", ["AI 室內設計提案", "裝修預算配置", "風格與材料方向"]],
+  ["單次購買方案", "NT$ 2,999", ["空間需求整理", "裝修預算配置", "設計理念、風格照片與材料方向"]],
   ["商業方案 Pro", "NT$499/月", ["無限次 AI 設計生成", "高解析度下載", "無限專案管理"]],
   ["商業方案", "NT$1,999/月", ["團隊協作（5人）", "API 接口", "專屬客服"]],
 ];
@@ -143,67 +143,40 @@ const testimonials = [
 export default function Home() {
   return (
     <div className="overflow-hidden">
-      <section className="relative bg-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_32%),linear-gradient(135deg,#fafaf9,#fff7ed)]" />
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-24">
-          <div className="flex flex-col justify-center">
-            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
+      <section className="relative min-h-[680px] bg-stone-950 text-white">
+        <img src="https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=2000&q=85" alt="現代室內設計客廳" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-stone-950/70" />
+        <div className="relative mx-auto flex min-h-[680px] max-w-7xl items-center px-4 py-16 sm:px-6 lg:px-8">
+          <div className="max-w-3xl">
+            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-amber-300 backdrop-blur">
               <Sparkles className="h-4 w-4" />
               由20年以上設計與工程團隊經驗打造
             </div>
-            <h1 className="text-4xl font-bold leading-tight text-stone-950 sm:text-5xl lg:text-6xl">
+            <h1 className="text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
               裝修前，
               <span className="block text-amber-600">先做AI規劃。</span>
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-stone-600">
+            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-stone-200">
               避免預算失控、設計錯誤與工程風險。StyleMatch AI 為您分析最適合的裝修策略與設計方向。
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link to={createPageUrl("StyleTest")}>
                 <Button size="lg" className="bg-amber-500 text-white hover:bg-amber-600">
-                  免費設計風格測試
+                  免費測出你的設計風格
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <Link to={createPageUrl("AIProposal")}>
-                <Button variant="outline" size="lg">
-                  取得AI 裝修規劃設計提案
-                </Button>
-              </Link>
+              <a href="#services"><Button variant="outline" size="lg" className="border-white bg-transparent text-white hover:bg-white hover:text-stone-950">了解服務方式</Button></a>
             </div>
-            <div className="mt-7 flex flex-wrap gap-3 text-sm text-stone-600">
-              <span className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-2">
+            <div className="mt-7 flex flex-wrap gap-3 text-sm text-stone-200">
+              <span className="inline-flex items-center gap-2 rounded-md border border-white/30 bg-stone-950/40 px-3 py-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 AI預算分析
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-2">
+              <span className="inline-flex items-center gap-2 rounded-md border border-white/30 bg-stone-950/40 px-3 py-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 可銜接 TWCID / iSAFE
               </span>
-            </div>
-          </div>
-          <div className="relative min-h-[420px] overflow-hidden rounded-lg bg-stone-900 shadow-2xl">
-            <img
-              src="https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=1400&q=80"
-              alt="現代室內設計客廳"
-              className="h-full min-h-[420px] w-full object-cover opacity-90"
-            />
-            <div className="absolute bottom-5 left-5 right-5 rounded-lg bg-white/92 p-5 shadow-xl backdrop-blur">
-              <p className="text-sm font-medium text-stone-500">AI 裝修決策摘要</p>
-              <div className="mt-3 grid grid-cols-3 gap-3">
-                <div>
-                  <p className="text-2xl font-bold text-stone-950">30%+</p>
-                  <p className="text-xs text-stone-500">可降低無效支出</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-stone-950">3</p>
-                  <p className="text-xs text-stone-500">系統串接</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-stone-950">200萬</p>
-                  <p className="text-xs text-stone-500">示範預算級距</p>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -231,7 +204,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="features" className="bg-white py-16 lg:py-20">
+      <section id="services" className="bg-white py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-10 max-w-3xl">
             <h2 className="text-3xl font-bold text-stone-950">StyleMatch AI 如何幫助你做對裝修決策？</h2>
@@ -444,8 +417,8 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-stone-950">選擇適合您的裝修規劃方案</h2>
             <p className="mt-3 text-lg text-stone-600">從免費基礎分析到完整設計媒合，依您的需求選擇最合適的服務方案。</p>
           </div>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {pricing.map(([title, price, items], index) => (
+          <div className="mx-auto grid max-w-4xl gap-5 md:grid-cols-2">
+            {pricing.slice(0, 2).map(([title, price, items], index) => (
               <Card key={title} className={`border-stone-200 shadow-sm ${index === 1 ? "ring-2 ring-amber-400" : ""}`}>
                 <CardHeader>
                   {index === 1 && (
@@ -477,11 +450,11 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-stone-50 py-16 lg:py-20">
+      <section id="cases" className="bg-stone-50 py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold text-stone-950">客戶見證</h2>
-            <p className="mt-3 text-lg text-stone-600">真實客戶，真實成果。</p>
+            <h2 className="text-3xl font-bold text-stone-950">體驗案例</h2>
+            <p className="mt-3 text-lg text-stone-600">以匿名情境展示規劃流程與可產出的決策內容。</p>
           </div>
           <div className="grid gap-5 md:grid-cols-3">
             {testimonials.map(([name, meta, quote]) => (

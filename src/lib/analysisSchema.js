@@ -1,29 +1,11 @@
 import { z } from "zod";
+import { STYLE_KEYS, STYLE_LABELS, normalizeStyleId } from "../data/styleCatalog.js";
 
-export const ANALYSIS_SCHEMA_VERSION = "stylematch.analysis.v1";
-export const ANALYSIS_ENGINE_VERSION = "deterministic-2026.08";
+export const ANALYSIS_SCHEMA_VERSION = "stylematch.analysis.v2";
+export const ANALYSIS_ENGINE_VERSION = "deterministic-30style-2026.08";
 
-export const STYLE_KEYS = [
-  "modern",
-  "classic",
-  "industrial",
-  "scandinavian",
-  "minimalist",
-  "bohemian",
-  "japandi",
-  "coastal",
-];
-
-export const STYLE_LABELS = {
-  modern: "現代風",
-  classic: "古典風",
-  industrial: "工業風",
-  scandinavian: "北歐風",
-  minimalist: "極簡風",
-  bohemian: "波希米亞風",
-  japandi: "日式侘寂",
-  coastal: "海岸休閒風",
-};
+export { STYLE_KEYS, STYLE_LABELS };
+const LEGACY_STYLE_IDS = { classic: "european_classic", japandi: "japanese" };
 
 export const StyleDistributionItemSchema = z.object({
   key: z.enum(STYLE_KEYS),
@@ -81,7 +63,12 @@ export function clamp(value, minimum, maximum) {
 }
 
 export function normalizeDistribution(scores = {}) {
-  const positive = STYLE_KEYS.map((key) => [key, Math.max(0, Number(scores[key]) || 0)]);
+  const migrated = {};
+  Object.entries(scores).forEach(([rawKey, score]) => {
+    const key = LEGACY_STYLE_IDS[rawKey] || normalizeStyleId(rawKey);
+    migrated[key] = (migrated[key] || 0) + Math.max(0, Number(score) || 0);
+  });
+  const positive = STYLE_KEYS.map((key) => [key, migrated[key] || 0]);
   const total = positive.reduce((sum, [, score]) => sum + score, 0);
   const source = total > 0 ? positive : STYLE_KEYS.map((key) => [key, key === "modern" ? 1 : 0]);
   const denominator = source.reduce((sum, [, score]) => sum + score, 0) || 1;

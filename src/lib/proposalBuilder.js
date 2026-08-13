@@ -1,4 +1,5 @@
 import { ensureProjectAnalysis } from "./projectAnalysis.js";
+import { getStyleById } from "../data/styleCatalog.js";
 
 const roomLabels = {
   floor_plan: "平面配置",
@@ -29,16 +30,44 @@ function allSpaceImages(project) {
     .flatMap(([room, images]) => images.map((url) => ({ room, label: roomLabels[room] || room, url })));
 }
 
-function inferConcept(project) {
+function inferConcept(project, style) {
   const atmosphere = project.atmosphere_description?.trim();
   return {
-    title: atmosphere ? "從生活需求延伸的空間調性" : "明亮、安定且具生活彈性的居住場景",
+    title: `${style.name}｜${style.summary}`,
     narrative: atmosphere
-      ? `以「${atmosphere}」作為設計核心，透過材質、光線與收納比例，將偏好轉化為可執行的空間語彙。`
-      : "以自然採光、清楚動線與耐用材料建立空間基礎，再用家具、織品與局部色彩形成個人化層次。",
+      ? `以「${atmosphere}」作為生活核心，採用${style.materials.join("、")}及${style.palette.join("、")}，轉化為可執行的${style.name}空間語彙。`
+      : `以${style.keywords.join("、")}建立${style.name}基礎，再透過光線、收納與家具比例形成個人化層次。`,
     planning: `針對 ${project.room_layout || "既有格局"} 整理公共與私領域關係，優先確認主要動線、日常收納及採光通風條件。`,
     requirement: project.special_requirements?.trim() || "目前未提供額外特殊需求，後續可依家庭成員、收納量與設備清單深化。",
   };
+}
+
+function buildDesignOptions(style, secondaryStyle, project) {
+  const secondary = secondaryStyle && secondaryStyle.id !== style.id ? secondaryStyle : null;
+  return [
+    {
+      id: "option-a",
+      name: `A｜純粹 ${style.name}`,
+      ratio: "主風格 90%",
+      description: `完整呈現${style.keywords.slice(0, 3).join("、")}，以${style.materials.slice(0, 2).join("與")}建立鮮明辨識度。`,
+      tradeoff: "風格表現最完整，訂製與特色材料比例可能較高。",
+    },
+    {
+      id: "option-b",
+      name: `B｜平衡生活版`,
+      ratio: secondary ? `${style.name} 70%＋${secondary.name} 30%` : `${style.name} 70%＋機能中性 30%`,
+      description: `保留主要風格特色，同時優先處理${project.room_layout || "現有格局"}的動線、收納與日常維護。`,
+      tradeoff: "風格、預算與耐用度較平衡，建議作為深化基準。",
+      recommended: true,
+    },
+    {
+      id: "option-c",
+      name: "C｜預算友善版",
+      ratio: `主風格 50%＋標準化材料 50%`,
+      description: `以${style.palette.slice(0, 3).join("、")}延續氛圍，特色材料集中在主牆、燈光及活動家具。`,
+      tradeoff: "控制固定裝修比例，未來可透過軟裝分階段升級。",
+    },
+  ];
 }
 
 export function buildProposal(project) {
@@ -47,6 +76,8 @@ export function buildProposal(project) {
   const floorPlans = project.proposal_media?.space_photos?.floor_plan || [];
   const premium = String(project.material_grade || "").includes("高");
   const analysis = ensureProjectAnalysis(project);
+  const selectedStyle = getStyleById(analysis.style.primary_style || project.primary_style || project.preferred_style);
+  const secondaryStyle = analysis.style.secondary_style ? getStyleById(analysis.style.secondary_style) : null;
   return {
     id: project.project_id || project.id,
     caseCode: project.case_code || "SM-DRAFT",
@@ -61,14 +92,22 @@ export function buildProposal(project) {
       ["預算範圍", project.budget_range || "待確認"],
       ["建材等級", project.material_grade || "待確認"],
     ],
-    concept: inferConcept(project),
+    concept: inferConcept(project, selectedStyle),
+    styleProfile: selectedStyle,
+    toneManner: {
+      keywords: selectedStyle.keywords,
+      palette: selectedStyle.palette,
+      materials: selectedStyle.materials,
+      prompt: selectedStyle.prompt,
+    },
+    designOptions: buildDesignOptions(selectedStyle, secondaryStyle, project),
     references,
     floorPlans,
     spaces,
     analysis,
-    materials: materialDirections.map(([category, standard, high, note]) => ({
+    materials: materialDirections.map(([category, standard, high, note], index) => ({
       category,
-      suggestion: premium ? high : standard,
+      suggestion: index < 3 ? `${selectedStyle.materials[index]}；${premium ? high : standard}` : premium ? high : standard,
       note,
     })),
     budgetNote: `本提案以「${project.budget_range || "預算待確認"}」作為初步規劃邊界。正式工程金額仍須依現場丈量、施工圖、材料樣品及分項估價確認。`,

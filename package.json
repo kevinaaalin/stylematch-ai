@@ -1,16 +1,22 @@
 {
   "name": "stylematch-ai-local",
   "private": true,
-  "version": "0.0.0",
+  "version": "7.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build:tigi-index": "node scripts/build-tigi-knowledge-index.mjs",
-    "prebuild": "npm run build:tigi-index",
+    "build:style-test-images": "node scripts/build-style-test-image-manifest.mjs",
+    "prebuild": "npm run build:tigi-index && npm run build:style-test-images",
     "build": "vite build",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
+    "test:style-catalog": "node scripts/validate-style-catalog.mjs",
+    "test:style-analysis": "node scripts/validate-style-analysis.mjs",
+    "test:image-style-fallback": "node scripts/validate-image-style-fallback.mjs",
+    "test:style-test-images": "node scripts/validate-style-test-images.mjs",
+    "test": "npm run test:style-catalog && npm run test:style-analysis && npm run test:image-style-fallback && npm run test:style-test-images",
     "preview": "vite preview"
   },
   "dependencies": {

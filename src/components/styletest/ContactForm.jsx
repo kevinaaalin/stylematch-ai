@@ -8,6 +8,7 @@ import { CheckCircle, Mail, User, Phone, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { StyleTest, GenerateImage, SendEmail } from "@/lib/localAdapters";
+import { getStyleById } from "@/data/styleCatalog";
 
 export default function ContactForm({ testResult, onSubmit, isSubmitting, setIsSubmitting }) {
   const navigate = useNavigate();
@@ -46,13 +47,15 @@ export default function ContactForm({ testResult, onSubmit, isSubmitting, setIsS
         test_score: testResult.test_score,
         primary_style: testResult.primary_style,
         secondary_style: testResult.secondary_style,
+        style_catalog_version: testResult.style_catalog_version,
+        image_manifest_version: testResult.image_manifest_version,
         style_images_sent: false // will be true after email sent
       };
 
       await StyleTest.create(styleTestData);
 
       // 生成風格參考圖片
-      const primaryStyleName = styleInfo[testResult.primary_style];
+      const primaryStyleName = getStyleById(testResult.primary_style).name;
       const imagePrompts = [
         `Beautiful ${testResult.primary_style} living room interior design, professional photography, bright lighting`,
         `Elegant ${testResult.primary_style} bedroom design, cozy atmosphere`,
@@ -73,7 +76,7 @@ export default function ContactForm({ testResult, onSubmit, isSubmitting, setIsS
 
 根據您的評分結果，您的風格偏好為：
 主要風格：${primaryStyleName}
-${testResult.secondary_style ? `次要風格：${styleInfo[testResult.secondary_style]}`: ''}
+${testResult.secondary_style ? `次要風格：${getStyleById(testResult.secondary_style).name}`: ''}
 
 我們為您精心挑選了4張 ${primaryStyleName} 的參考圖片：
 ${imageUrls.map((url, index) => `${index + 1}. ${url}`).join('\n')}

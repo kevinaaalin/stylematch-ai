@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Award, Crown, Sparkles, Star } from "lucide-react";
+import { getStyleById } from "@/data/styleCatalog";
 
 const styleInfo = {
   modern: {
@@ -49,8 +50,16 @@ const styleInfo = {
 };
 
 export default function ResultDisplay({ result, onNext }) {
-  const primaryStyleInfo = styleInfo[result.primary_style] || styleInfo.modern;
-  const secondaryStyleInfo = result.secondary_style ? styleInfo[result.secondary_style] : null;
+  const catalogStyleInfo = (id) => {
+    const catalog = getStyleById(id);
+    return {
+      name: catalog.name,
+      description: catalog.summary,
+      color: styleInfo[id]?.color || "from-amber-600 to-stone-700",
+    };
+  };
+  const primaryStyleInfo = catalogStyleInfo(result.primary_style);
+  const secondaryStyleInfo = result.secondary_style ? catalogStyleInfo(result.secondary_style) : null;
   const sortedScores = Object.entries(result.test_score || {}).sort(([, a], [, b]) => b - a);
   const maxScore = Math.max(1, sortedScores[0]?.[1] || 1);
   const completedCount = result.completed_count || result.ratings?.length || 0;
@@ -135,7 +144,7 @@ export default function ResultDisplay({ result, onNext }) {
                 <span className="flex items-center gap-2 font-medium text-stone-700">
                   {index === 0 && <Crown className="h-4 w-4 text-amber-500" />}
                   {index === 1 && <Star className="h-4 w-4 text-slate-500" />}
-                  {styleInfo[style]?.name || style}
+                  {catalogStyleInfo(style).name}
                 </span>
                 <span className="text-sm text-stone-500">{score} 分</span>
               </div>

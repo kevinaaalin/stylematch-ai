@@ -6,15 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { localStore } from "@/lib/localStore";
+import { readActivePlan, setActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
-
-const PLAN_KEY = "stylematch_active_plan_v1";
 
 const plans = [
   { id: "free", name: "免費體驗", price: "免費", limit: "1 個專案", features: ["風格測驗", "基礎需求保存"] },
-  { id: "single", name: "單次提案", price: "NT$ 2,999", limit: "1 個正式提案", features: ["完整設計提案", "PDF 下載", "圖片與材料建議"] },
-  { id: "pro", name: "專業方案 Pro", price: "NT$ 499 / 月", limit: "無限專案", features: ["無限專案管理", "AI 圖片生成", "高解析度下載"] },
-  { id: "business", name: "企業方案", price: "NT$ 1,999 / 月", limit: "5 位成員", features: ["團隊權限", "品牌設定", "API 與企業整合"] },
+  { id: "single", name: "單次購買方案", price: "NT$ 2,999", limit: "1 份固定範圍提案", features: ["空間需求整理", "裝修預算配置", "設計理念、風格照片與材料方向"] },
+  { id: "pro", name: "商業方案 Pro", price: "NT$ 499 / 月", limit: "無限專案", features: ["扣點功能資格", "AI 圖片生成", "高解析度下載"] },
+  { id: "business", name: "商業方案 Team", price: "NT$ 1,999 / 月", limit: "5 位成員", features: ["扣點功能資格", "團隊權限", "API 與企業整合"] },
 ];
 
 const members = [
@@ -23,14 +22,6 @@ const members = [
   { name: "Interior Designer", email: "designer@stylematch.ai", role: "Designer", scope: "需求整理、提案預覽、圖片與材料內容" },
   { name: "Client Viewer", email: "client@example.com", role: "Viewer", scope: "僅檢視指定專案及已發布提案" },
 ];
-
-function readPlan() {
-  try {
-    return window.localStorage.getItem(PLAN_KEY) || "pro";
-  } catch {
-    return "pro";
-  }
-}
 
 function serviceLabel(value) {
   if (value === "ai_proposal") return "AI 裝修規劃設計提案";
@@ -53,7 +44,7 @@ function downloadJson(payload, filename) {
 
 export default function MyProjects() {
   const [database, setDatabase] = useState(() => localStore.getAll());
-  const [planId, setPlanId] = useState(readPlan);
+  const [planId, setPlanId] = useState(readActivePlan);
   const [dataTransferStatus, setDataTransferStatus] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -71,14 +62,7 @@ export default function MyProjects() {
     auditLogs: database.auditLogs?.length || 0,
   }), [database]);
 
-  const changePlan = (nextPlan) => {
-    setPlanId(nextPlan);
-    try {
-      window.localStorage.setItem(PLAN_KEY, nextPlan);
-    } catch {
-      // The selection remains usable in memory when local storage is unavailable.
-    }
-  };
+  const changePlan = (nextPlan) => setPlanId(setActivePlan(nextPlan));
 
   const exportLocalData = () => {
     const exportPayload = localStore.exportData();

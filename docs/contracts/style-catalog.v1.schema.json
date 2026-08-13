@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stylematch.tw/contracts/style-catalog.v1.schema.json",
+  "title": "StyleMatch AI 30-style catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "styles"],
+  "properties": {
+    "schema_version": { "const": "stylematch.style-catalog.v1" },
+    "styles": {
+      "type": "array",
+      "minItems": 30,
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/style" }
+    }
+  },
+  "$defs": {
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "aliases", "summary", "palette", "materials", "keywords", "prompt", "negative_prompt"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "name": { "type": "string", "minLength": 2 },
+        "aliases": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "summary": { "type": "string", "minLength": 8 },
+        "palette": { "type": "array", "minItems": 3, "items": { "type": "string", "minLength": 1 } },
+        "materials": { "type": "array", "minItems": 3, "items": { "type": "string", "minLength": 1 } },
+        "keywords": { "type": "array", "minItems": 3, "items": { "type": "string", "minLength": 1 } },
+        "prompt": { "type": "string", "minLength": 20 },
+        "negative_prompt": { "type": "string", "minLength": 20 }
+      }
+    }
+  },
+  "x-stylematch-canonical-names": {
+    "chill": "Chill 輕鬆風",
+    "boutique_hotel": "飯店精品風"
+  },
+  "x-stylematch-compatibility": {
+    "輕鬆咖啡風": "chill",
+    "酒店式公寓風": "boutique_hotel",
+    "精品飯店風": "boutique_hotel"
+  }
+}
