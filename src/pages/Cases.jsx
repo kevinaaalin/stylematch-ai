@@ -41,7 +41,6 @@ import {
   downloadTextFile,
   governancePassportToMarkdown,
 } from "@/lib/governancePassport";
-import TigiKnowledgePanel from "@/components/knowledge/TigiKnowledgePanel";
 import { createIsafeHandoff } from "@/lib/isafeApi";
 import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 
@@ -386,12 +385,11 @@ export default function Cases() {
                 </div>
               ) : (
                 <Tabs defaultValue="overview" className="space-y-4">
-                  <TabsList className="grid h-auto w-full grid-cols-7">
+                  <TabsList className="grid h-auto w-full grid-cols-6">
                     <TabsTrigger value="overview">總覽</TabsTrigger>
                     <TabsTrigger value="timeline">時間軸</TabsTrigger>
                     <TabsTrigger value="isafe">iSAFE</TabsTrigger>
                     <TabsTrigger value="passport">PGP</TabsTrigger>
-                    <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
                     <TabsTrigger value="audit">Audit</TabsTrigger>
                     <TabsTrigger value="jobs">Jobs</TabsTrigger>
                   </TabsList>
@@ -599,10 +597,6 @@ export default function Cases() {
                         <Badge variant="outline">trace IDs</Badge>
                       </div>
                     </div>
-                  </TabsContent>
-
-                  <TabsContent value="knowledge">
-                    <TigiKnowledgePanel project={selectedProject} compact />
                   </TabsContent>
 
                   <TabsContent value="audit">

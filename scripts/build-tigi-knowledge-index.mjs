@@ -5,20 +5,21 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, "..");
-const releaseId = "20260730_R7_Implementation_Integrated";
-const releaseLabel = "R7 Implementation Integrated";
-const externalReleaseRoot = process.env.TIGI_R7_SOURCE_ROOT
-  ? path.resolve(process.env.TIGI_R7_SOURCE_ROOT)
-  : path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260730_R7_Implementation_Integrated");
-const publicRoot = path.join(appRoot, "public", "tigi-corpus");
+const isafeWebsiteRoot = path.resolve(appRoot, "..", "github_isafe2_website_work");
+const releaseVersion = "20260813_R8_StyleMatch_iSAFE_Integrated";
+const releaseId = "TIGI-GOVERNANCE-20260813-R8-SM-ISAFE";
+const releaseLabel = "R8 StyleMatch AI / iSAFE 2.0 Integrated";
+const r72Root = path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated");
+const r8Root = path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260813_R8_StyleMatch_iSAFE_Integrated");
+const publicRoot = path.join(isafeWebsiteRoot, "tigi-corpus");
 const repositorySourcesRoot = path.join(publicRoot, "sources");
-const sourceNames = [
-  "01_TIGI_Engineering_Master_20260730_R7_Implementation_Integrated.md",
-  "02_SBIR_Final_Submission_Master_20260730_R7_Implementation_Integrated.md",
-  "03_TIGI_Business_Plan_Master_20260730_R7_Implementation_Integrated.md",
-  "04_TIGI_White_Paper_Master_20260730_R7_Implementation_Integrated.md",
-  "StyleMatch_R7_API_Data_Contract_Annex_20260803.md",
-  "StyleMatch_R7_Program_Audit_20260803.md",
+const sources = [
+  [r72Root, "01_TIGI_Engineering_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
+  [r72Root, "02_SBIR_Final_Submission_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
+  [r72Root, "03_TIGI_Business_Plan_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
+  [r72Root, "04_TIGI_White_Paper_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
+  [r8Root, "README.md", releaseLabel],
+  [r8Root, "R8_API_Data_Contract_Annex.md", releaseLabel],
 ];
 
 const normalizeText = (value) => String(value || "").replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
@@ -52,24 +53,25 @@ async function build() {
   const sourcesRoot = path.join(publicRoot, "sources");
   await mkdir(sourcesRoot, { recursive: true });
   const documents = []; const chunks = [];
-  for (const [order, fileName] of sourceNames.entries()) {
-    const externalSourcePath = path.join(externalReleaseRoot, fileName);
+  for (const [order, [sourceRoot, fileName, categoryLabel]] of sources.entries()) {
+    const externalSourcePath = path.join(sourceRoot, fileName);
     const repositorySourcePath = path.join(repositorySourcesRoot, fileName);
     const sourcePath = existsSync(externalSourcePath) ? externalSourcePath : repositorySourcePath;
-    if (!existsSync(sourcePath)) throw new Error(`R7 knowledge source missing: ${sourcePath}`);
+    if (!existsSync(sourcePath)) throw new Error(`R8 knowledge source missing: ${sourcePath}`);
     const markdown = await readFile(sourcePath, "utf8");
     const title = titleFromMarkdown(markdown, fileName);
-    const documentId = `releases/${releaseId}/${fileName}`;
+    const documentId = `releases/${releaseVersion}/${fileName}`;
     const sourceUrl = `tigi-corpus/sources/${fileName}`;
     if (path.resolve(sourcePath) !== path.resolve(repositorySourcePath)) {
       await copyFileIfChanged(sourcePath, repositorySourcePath);
     }
-    documents.push({ id: documentId, category: "r7-implementation", categoryLabel: releaseLabel, title, fileName, path: `analysis_output/${releaseId}/${fileName}`, sourceUrl, order, length: markdown.length, headings: headingsFromMarkdown(markdown) });
-    chunks.push(...splitIntoChunks(markdown, title).map((chunk) => ({ id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId, category: "r7-implementation", categoryLabel: releaseLabel, title, heading: chunk.heading, text: chunk.text, sourceUrl, path: `analysis_output/${releaseId}/${fileName}`, order: chunk.sectionIndex })));
+    documents.push({ id: documentId, category: "r8-integrated", categoryLabel, title, fileName, path: `analysis_output/${releaseVersion}/${fileName}`, sourceUrl, order, length: markdown.length, headings: headingsFromMarkdown(markdown) });
+    chunks.push(...splitIntoChunks(markdown, title).map((chunk) => ({ id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId, category: "r8-integrated", categoryLabel, title, heading: chunk.heading, text: chunk.text, sourceUrl, path: `analysis_output/${releaseVersion}/${fileName}`, order: chunk.sectionIndex })));
   }
-  const index = { version: "3.0", generatedAt: new Date().toISOString(), corpus: "TIGI 20260730 R7 Implementation Integrated", releaseId, releaseStatus: "IMPLEMENTATION_INTEGRATED_BASELINE", finalOfficialAllowed: false, sourceRoot: `analysis_output/${releaseId}`, documentCount: documents.length, chunkCount: chunks.length, documents, chunks };
+  const index = { version: "4.0", generatedAt: new Date().toISOString(), corpus: "TIGI 20260813 R8 StyleMatch AI / iSAFE 2.0 Integrated", releaseVersion, releaseId, releaseStatus: "IMPLEMENTATION_QA_BASELINE", finalOfficialAllowed: false, stateContractVersion: "20260722_R5_2", sourceRoot: `analysis_output/${releaseVersion}`, manifestUrl: "tigi-corpus/sources/release-manifest.json", documentCount: documents.length, chunkCount: chunks.length, documents, chunks };
   await writeFile(path.join(publicRoot, "knowledge-index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
-  console.log(`Built TIGI R7 knowledge index: ${documents.length} documents, ${chunks.length} chunks`);
+  await copyFileIfChanged(path.join(r8Root, "release-manifest.json"), path.join(repositorySourcesRoot, "release-manifest.json"));
+  console.log(`Built TIGI R8 knowledge index: ${documents.length} documents, ${chunks.length} chunks`);
 }
 
 async function copyFileIfChanged(sourcePath, destinationPath) {

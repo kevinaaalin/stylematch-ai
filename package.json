@@ -1,13 +1,13 @@
 {
   "name": "stylematch-ai-local",
   "private": true,
-  "version": "7.2.0",
+  "version": "8.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build:tigi-index": "node scripts/build-tigi-knowledge-index.mjs",
     "build:style-test-images": "node scripts/build-style-test-image-manifest.mjs",
-    "prebuild": "npm run build:tigi-index && npm run build:style-test-images",
+    "prebuild": "npm run build:style-test-images",
     "build": "vite build",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
