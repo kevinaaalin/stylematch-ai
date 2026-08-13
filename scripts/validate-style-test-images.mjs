@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { STYLE_KEYS } from "../src/data/styleCatalog.js";
 import { styleTestImages, STYLE_TEST_IMAGE_MANIFEST_VERSION } from "../src/data/styleTestImageManifest.js";
@@ -14,4 +14,8 @@ for (const item of styleTestImages) {
   if (item.source !== "synthetic_comfyui") throw new Error(`Non-synthetic image is not allowed in the current style test: ${item.id}`);
   if (item.src.includes("/twcid/")) throw new Error(`TWCID image must not enter the current style test: ${item.id}`);
 }
+const styleTestSource = readFileSync(resolve("src/pages/StyleTest.jsx"), "utf8");
+if (!styleTestSource.includes("styleImages.slice(0, 30)")) throw new Error("Quick style test must contain all 30 images");
+if (!styleTestSource.includes('"quick_30"')) throw new Error("Quick style test mode must be versioned as quick_30");
+if (styleTestSource.includes('"quick_15"')) throw new Error("Legacy quick_15 mode must not remain in the active test flow");
 console.log(`style test image manifest validated: ${styleTestImages.length} local images (${STYLE_TEST_IMAGE_MANIFEST_VERSION})`);

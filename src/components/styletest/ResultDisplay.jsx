@@ -65,7 +65,7 @@ export default function ResultDisplay({ result, onNext }) {
   const completedCount = result.completed_count || result.ratings?.length || 0;
   const totalImages = result.total_images || completedCount;
   const confidenceScore = result.confidence_score || Math.round((completedCount / Math.max(1, totalImages)) * 100);
-  const modeName = result.test_mode === "expanded_30" ? "30張完整網頁版" : "15張快速測驗";
+  const modeName = result.test_mode === "expanded_30" ? "30張完整網頁版" : "30張逐張快速測驗";
 
   return (
     <div className="w-full space-y-6">

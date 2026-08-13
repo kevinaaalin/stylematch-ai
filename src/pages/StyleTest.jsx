@@ -10,7 +10,7 @@ import { STYLE_KEYS } from "../data/styleCatalog";
 import ContactForm from "../components/styletest/ContactForm";
 import ResultDisplay from "../components/styletest/ResultDisplay";
 
-const QUICK_IMAGES = styleImages.slice(0, 15);
+const QUICK_IMAGES = styleImages.slice(0, 30);
 const FULL_IMAGES = styleImages.slice(0, 30);
 const FULL_MINIMUM = 15;
 
@@ -113,7 +113,7 @@ export default function StyleTest() {
 
     if (nextStep === QUICK_IMAGES.length) {
       setTimeout(() => {
-        setTestResult(calculateStyleResult(nextRatings, "quick_15", QUICK_IMAGES.length));
+        setTestResult(calculateStyleResult(nextRatings, "quick_30", QUICK_IMAGES.length));
       }, 250);
     }
   };
@@ -173,7 +173,7 @@ export default function StyleTest() {
             從圖片直覺找出你的裝修風格
           </h1>
           <p className="mt-3 text-base text-stone-600 sm:text-lg">
-            網頁版可展開 30 張圖片快速瀏覽；想省時間，也可以切換成 15 張快速測驗。
+            網頁版可展開 30 張圖片一次評分；也可以切換成逐張快速測驗，依序完成同一組 30 張圖片。
           </p>
         </div>
 
@@ -196,7 +196,7 @@ export default function StyleTest() {
           >
             <div className="flex items-center justify-between gap-3">
               <span className="font-semibold text-stone-900">快速測驗</span>
-              <Badge variant="secondary">15 張</Badge>
+              <Badge variant="secondary">30 張</Badge>
             </div>
             <p className="mt-2 text-sm text-stone-600">逐張評分，適合手機或第一次快速體驗。</p>
           </button>
