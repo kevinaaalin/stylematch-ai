@@ -19,7 +19,9 @@ function statSafe(path) {
 }
 
 function publicUrl(file) {
-  return `/${relative(resolve("public"), file).split(sep).map(encodeURIComponent).join("/")}`;
+  // Keep this relative to the deployed app root. A leading slash would bypass
+  // Vite's GitHub Pages base path (`/stylematch-ai/`) and request the domain root.
+  return relative(resolve("public"), file).split(sep).map(encodeURIComponent).join("/");
 }
 
 const questions = STYLE_CATALOG.map((style, index) => {

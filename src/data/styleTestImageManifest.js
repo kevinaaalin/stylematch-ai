@@ -3,7 +3,7 @@ export const STYLE_TEST_IMAGE_MANIFEST_VERSION = "stylematch.style-test-images.r
 export const styleTestImages = [
   {
     "id": 1,
-    "src": "/style-reference-db/synthetic/comfyui/%E7%8F%BE%E4%BB%A3%E9%A2%A8_modern/bathroom_day_detail_102471092717606.png",
+    "src": "style-reference-db/synthetic/comfyui/%E7%8F%BE%E4%BB%A3%E9%A2%A8_modern/bathroom_day_detail_102471092717606.png",
     "style": [
       "modern"
     ],
@@ -16,7 +16,7 @@ export const styleTestImages = [
   },
   {
     "id": 2,
-    "src": "/style-reference-db/synthetic/comfyui/%E5%8C%97%E6%AD%90%E9%A2%A8_scandinavian/bathroom_day_wide_43805996566541.png",
+    "src": "style-reference-db/synthetic/comfyui/%E5%8C%97%E6%AD%90%E9%A2%A8_scandinavian/bathroom_day_wide_43805996566541.png",
     "style": [
       "scandinavian"
     ],
@@ -29,7 +29,7 @@ export const styleTestImages = [
   },
   {
     "id": 3,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%A5%B5%E7%B0%A1%E9%A2%A8_minimalist/bathroom_dusk_wide_207592294351470.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%A5%B5%E7%B0%A1%E9%A2%A8_minimalist/bathroom_dusk_wide_207592294351470.png",
     "style": [
       "minimalist"
     ],
@@ -42,7 +42,7 @@ export const styleTestImages = [
   },
   {
     "id": 4,
-    "src": "/style-reference-db/synthetic/comfyui/%E5%B7%A5%E6%A5%AD%E9%A2%A8_industrial/bathroom_night_detail_16186347895082.png",
+    "src": "style-reference-db/synthetic/comfyui/%E5%B7%A5%E6%A5%AD%E9%A2%A8_industrial/bathroom_night_detail_16186347895082.png",
     "style": [
       "industrial"
     ],
@@ -55,7 +55,7 @@ export const styleTestImages = [
   },
   {
     "id": 5,
-    "src": "/style-reference-db/synthetic/comfyui/%E5%A5%B6%E6%B2%B9%E9%A2%A8_cream/bedroom_day_detail_145179911673390.png",
+    "src": "style-reference-db/synthetic/comfyui/%E5%A5%B6%E6%B2%B9%E9%A2%A8_cream/bedroom_day_detail_145179911673390.png",
     "style": [
       "cream"
     ],
@@ -68,7 +68,7 @@ export const styleTestImages = [
   },
   {
     "id": 6,
-    "src": "/style-reference-db/synthetic/comfyui/%E8%BC%95%E5%A5%A2%E9%A2%A8_light_luxury/bedroom_day_wide_229986127721675.png",
+    "src": "style-reference-db/synthetic/comfyui/%E8%BC%95%E5%A5%A2%E9%A2%A8_light_luxury/bedroom_day_wide_229986127721675.png",
     "style": [
       "light_luxury"
     ],
@@ -81,7 +81,7 @@ export const styleTestImages = [
   },
   {
     "id": 7,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%96%B0%E5%8F%A4%E5%85%B8%E9%A2%A8_neoclassical/bedroom_dusk_wide_180584762862332.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%96%B0%E5%8F%A4%E5%85%B8%E9%A2%A8_neoclassical/bedroom_dusk_wide_180584762862332.png",
     "style": [
       "neoclassical"
     ],
@@ -94,7 +94,7 @@ export const styleTestImages = [
   },
   {
     "id": 8,
-    "src": "/style-reference-db/synthetic/comfyui/%E8%8B%B1%E5%BC%8F%E9%A2%A8_british/bedroom_night_detail_263189670154539.png",
+    "src": "style-reference-db/synthetic/comfyui/%E8%8B%B1%E5%BC%8F%E9%A2%A8_british/bedroom_night_detail_263189670154539.png",
     "style": [
       "british"
     ],
@@ -107,7 +107,7 @@ export const styleTestImages = [
   },
   {
     "id": 9,
-    "src": "/style-reference-db/synthetic/comfyui/%E4%B8%AD%E5%BC%8F%E5%8F%A4%E5%85%B8%E9%A2%A8_chinese_classic/commercial_day_detail_222720736591458.png",
+    "src": "style-reference-db/synthetic/comfyui/%E4%B8%AD%E5%BC%8F%E5%8F%A4%E5%85%B8%E9%A2%A8_chinese_classic/commercial_day_detail_222720736591458.png",
     "style": [
       "chinese_classic"
     ],
@@ -120,7 +120,7 @@ export const styleTestImages = [
   },
   {
     "id": 10,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%AD%90%E5%BC%8F%E5%8F%A4%E5%85%B8%E9%A2%A8_european_classic/commercial_day_wide_117248478132608.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%AD%90%E5%BC%8F%E5%8F%A4%E5%85%B8%E9%A2%A8_european_classic/commercial_day_wide_117248478132608.png",
     "style": [
       "european_classic"
     ],
@@ -133,7 +133,7 @@ export const styleTestImages = [
   },
   {
     "id": 11,
-    "src": "/style-reference-db/synthetic/comfyui/%E8%A3%9D%E9%A3%BE%E8%97%9D%E8%A1%93%E9%A2%A8_art_deco/commercial_dusk_wide_195933583045178.png",
+    "src": "style-reference-db/synthetic/comfyui/%E8%A3%9D%E9%A3%BE%E8%97%9D%E8%A1%93%E9%A2%A8_art_deco/commercial_dusk_wide_195933583045178.png",
     "style": [
       "art_deco"
     ],
@@ -146,7 +146,7 @@ export const styleTestImages = [
   },
   {
     "id": 12,
-    "src": "/style-reference-db/synthetic/comfyui/%E4%BE%98%E5%AF%82%E9%A2%A8_wabi_sabi/commercial_night_detail_92932398673731.png",
+    "src": "style-reference-db/synthetic/comfyui/%E4%BE%98%E5%AF%82%E9%A2%A8_wabi_sabi/commercial_night_detail_92932398673731.png",
     "style": [
       "wabi_sabi"
     ],
@@ -159,7 +159,7 @@ export const styleTestImages = [
   },
   {
     "id": 13,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%96%B0%E6%9D%B1%E6%96%B9%E9%A2%A8_new_oriental/dining_room_day_detail_167019528712919.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%96%B0%E6%9D%B1%E6%96%B9%E9%A2%A8_new_oriental/dining_room_day_detail_167019528712919.png",
     "style": [
       "new_oriental"
     ],
@@ -172,7 +172,7 @@ export const styleTestImages = [
   },
   {
     "id": 14,
-    "src": "/style-reference-db/synthetic/comfyui/%E4%BA%BA%E6%96%87%E9%A2%A8_humanistic/dining_room_day_wide_76753139843087.png",
+    "src": "style-reference-db/synthetic/comfyui/%E4%BA%BA%E6%96%87%E9%A2%A8_humanistic/dining_room_day_wide_76753139843087.png",
     "style": [
       "humanistic"
     ],
@@ -185,7 +185,7 @@ export const styleTestImages = [
   },
   {
     "id": 15,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%97%A5%E5%BC%8F%E9%A2%A8_japanese/dining_room_dusk_wide_124764324698374.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%97%A5%E5%BC%8F%E9%A2%A8_japanese/dining_room_dusk_wide_124764324698374.png",
     "style": [
       "japanese"
     ],
@@ -198,7 +198,7 @@ export const styleTestImages = [
   },
   {
     "id": 16,
-    "src": "/style-reference-db/synthetic/comfyui/%E7%86%B1%E5%B8%B6%E9%A2%A8_tropical/dining_room_night_detail_254958766462470.png",
+    "src": "style-reference-db/synthetic/comfyui/%E7%86%B1%E5%B8%B6%E9%A2%A8_tropical/dining_room_night_detail_254958766462470.png",
     "style": [
       "tropical"
     ],
@@ -211,7 +211,7 @@ export const styleTestImages = [
   },
   {
     "id": 17,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%99%AE%E7%BE%85%E6%97%BA%E6%96%AF%E9%A2%A8_provence/kitchen_day_detail_29858389409698.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%99%AE%E7%BE%85%E6%97%BA%E6%96%AF%E9%A2%A8_provence/kitchen_day_detail_29858389409698.png",
     "style": [
       "provence"
     ],
@@ -224,7 +224,7 @@ export const styleTestImages = [
   },
   {
     "id": 18,
-    "src": "/style-reference-db/synthetic/comfyui/%E9%84%89%E6%9D%91%E9%A2%A8_country/kitchen_day_wide_218539842832470.png",
+    "src": "style-reference-db/synthetic/comfyui/%E9%84%89%E6%9D%91%E9%A2%A8_country/kitchen_day_wide_218539842832470.png",
     "style": [
       "country"
     ],
@@ -237,7 +237,7 @@ export const styleTestImages = [
   },
   {
     "id": 19,
-    "src": "/style-reference-db/synthetic/comfyui/%E7%BE%8E%E5%BC%8F%E9%A2%A8_american/kitchen_dusk_wide_253872919207559.png",
+    "src": "style-reference-db/synthetic/comfyui/%E7%BE%8E%E5%BC%8F%E9%A2%A8_american/kitchen_dusk_wide_253872919207559.png",
     "style": [
       "american"
     ],
@@ -250,7 +250,7 @@ export const styleTestImages = [
   },
   {
     "id": 20,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%B3%A2%E5%B8%8C%E7%B1%B3%E4%BA%9E%E9%A2%A8_bohemian/kitchen_night_detail_240196360704443.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%B3%A2%E5%B8%8C%E7%B1%B3%E4%BA%9E%E9%A2%A8_bohemian/kitchen_night_detail_240196360704443.png",
     "style": [
       "bohemian"
     ],
@@ -263,7 +263,7 @@ export const styleTestImages = [
   },
   {
     "id": 21,
-    "src": "/style-reference-db/synthetic/comfyui/%E8%A6%AA%E8%87%AA%E7%84%B6%E9%A2%A8_biophilic/living_room_day_detail_255805429633353.png",
+    "src": "style-reference-db/synthetic/comfyui/%E8%A6%AA%E8%87%AA%E7%84%B6%E9%A2%A8_biophilic/living_room_day_detail_255805429633353.png",
     "style": [
       "biophilic"
     ],
@@ -276,7 +276,7 @@ export const styleTestImages = [
   },
   {
     "id": 22,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%9C%AA%E4%BE%86%E9%A2%A8_futurism/living_room_day_wide_275643028134675.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%9C%AA%E4%BE%86%E9%A2%A8_futurism/living_room_day_wide_275643028134675.png",
     "style": [
       "futurism"
     ],
@@ -289,7 +289,7 @@ export const styleTestImages = [
   },
   {
     "id": 23,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%B5%B7%E5%B2%B8%E9%A2%A8_coastal/living_room_dusk_wide_153260235705088.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%B5%B7%E5%B2%B8%E9%A2%A8_coastal/living_room_dusk_wide_153260235705088.png",
     "style": [
       "coastal"
     ],
@@ -302,7 +302,7 @@ export const styleTestImages = [
   },
   {
     "id": 24,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%91%A9%E6%B4%9B%E5%93%A5%E9%A2%A8_moroccan/living_room_night_detail_134242246103181.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%91%A9%E6%B4%9B%E5%93%A5%E9%A2%A8_moroccan/living_room_night_detail_134242246103181.png",
     "style": [
       "moroccan"
     ],
@@ -315,7 +315,7 @@ export const styleTestImages = [
   },
   {
     "id": 25,
-    "src": "/style-reference-db/synthetic/comfyui/%E4%BC%91%E9%96%92Villa%E9%A2%A8_resort_villa/bathroom_day_detail_163072749927740.png",
+    "src": "style-reference-db/synthetic/comfyui/%E4%BC%91%E9%96%92Villa%E9%A2%A8_resort_villa/bathroom_day_detail_163072749927740.png",
     "style": [
       "resort_villa"
     ],
@@ -328,7 +328,7 @@ export const styleTestImages = [
   },
   {
     "id": 26,
-    "src": "/style-reference-db/synthetic/comfyui/%E8%97%9D%E8%A1%93%E6%B7%B7%E6%90%AD%E9%A2%A8_artistic_eclectic/bathroom_day_wide_22222860753649.png",
+    "src": "style-reference-db/synthetic/comfyui/%E8%97%9D%E8%A1%93%E6%B7%B7%E6%90%AD%E9%A2%A8_artistic_eclectic/bathroom_day_wide_22222860753649.png",
     "style": [
       "artistic_eclectic"
     ],
@@ -341,7 +341,7 @@ export const styleTestImages = [
   },
   {
     "id": 27,
-    "src": "/style-reference-db/synthetic/comfyui/%E6%85%B5%E6%87%B6%E4%BC%91%E9%96%92%E9%A2%A8_chill/bathroom_dusk_wide_190094595842305.png",
+    "src": "style-reference-db/synthetic/comfyui/%E6%85%B5%E6%87%B6%E4%BC%91%E9%96%92%E9%A2%A8_chill/bathroom_dusk_wide_190094595842305.png",
     "style": [
       "chill"
     ],
@@ -354,7 +354,7 @@ export const styleTestImages = [
   },
   {
     "id": 28,
-    "src": "/style-reference-db/synthetic/comfyui/%E7%B2%BE%E5%93%81%E9%A3%AF%E5%BA%97%E9%A2%A8_boutique_hotel/bathroom_night_detail_151250984925581.png",
+    "src": "style-reference-db/synthetic/comfyui/%E7%B2%BE%E5%93%81%E9%A3%AF%E5%BA%97%E9%A2%A8_boutique_hotel/bathroom_night_detail_151250984925581.png",
     "style": [
       "boutique_hotel"
     ],
@@ -367,7 +367,7 @@ export const styleTestImages = [
   },
   {
     "id": 29,
-    "src": "/style-reference-db/synthetic/comfyui/%E5%BE%A9%E5%8F%A4%E9%A2%A8_retro/bedroom_day_detail_211782091561482.png",
+    "src": "style-reference-db/synthetic/comfyui/%E5%BE%A9%E5%8F%A4%E9%A2%A8_retro/bedroom_day_detail_211782091561482.png",
     "style": [
       "retro"
     ],
@@ -380,7 +380,7 @@ export const styleTestImages = [
   },
   {
     "id": 30,
-    "src": "/style-reference-db/synthetic/comfyui/%E8%97%9D%E5%BB%8A%E9%A2%A8_gallery/bedroom_day_wide_178980217409951.png",
+    "src": "style-reference-db/synthetic/comfyui/%E8%97%9D%E5%BB%8A%E9%A2%A8_gallery/bedroom_day_wide_178980217409951.png",
     "style": [
       "gallery"
     ],

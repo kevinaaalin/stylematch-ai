@@ -7,6 +7,7 @@ if (styleTestImages.length !== STYLE_KEYS.length) throw new Error("Style test ma
 const ids = styleTestImages.flatMap((item) => item.styles);
 if (new Set(ids).size !== STYLE_KEYS.length || STYLE_KEYS.some((id) => !ids.includes(id))) throw new Error("Style test manifest does not cover all canonical styles");
 for (const item of styleTestImages) {
+  if (item.src.startsWith("/")) throw new Error(`Style-test image must use an app-relative URL for GitHub Pages: ${item.id}`);
   const decoded = decodeURIComponent(item.src).replace(/^\//, "");
   if (!existsSync(resolve("public", decoded))) throw new Error(`Missing style-test image: ${item.src}`);
   if (!item.source || !item.primary_style) throw new Error(`Missing provenance: ${item.id}`);
