@@ -9,6 +9,19 @@ $comfyMain = Join-Path $comfyRoot "ComfyUI\main.py"
 $comfyModelConfig = Join-Path $comfyRoot "stylematch-extra-model-paths.yaml"
 $workspaceComfyModelConfig = Join-Path $projectRoot "config\comfyui-extra-model-paths.yaml"
 $logRoot = Join-Path $projectRoot ".local-logs"
+$smtpConfig = Join-Path $projectRoot "config\smtp-config.local"
+
+if (Test-Path $smtpConfig) {
+  $allowedSmtpKeys = @("SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASS", "SMTP_FROM", "SMTP_ALLOW_INSECURE")
+  Get-Content -LiteralPath $smtpConfig -Encoding UTF8 | ForEach-Object {
+    $line = $_.Trim()
+    if (-not $line -or $line.StartsWith("#") -or -not $line.Contains("=")) { return }
+    $key, $value = $line.Split("=", 2)
+    if ($allowedSmtpKeys -contains $key.Trim()) {
+      [System.Environment]::SetEnvironmentVariable($key.Trim(), $value.Trim(), [System.EnvironmentVariableTarget]::Process)
+    }
+  }
+}
 
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 $node = if ($nodeCommand) {

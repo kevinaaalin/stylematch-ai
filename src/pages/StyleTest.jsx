@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +12,7 @@ import ContactForm from "../components/styletest/ContactForm";
 import ResultDisplay from "../components/styletest/ResultDisplay";
 import { createStyleTestQuestionSet } from "../lib/styleTestSampling";
 import { scoreStyleRatings } from "../lib/styleTestScoring";
+import { createPageUrl } from "@/utils";
 
 const FULL_MINIMUM = 15;
 
@@ -45,6 +47,7 @@ function calculateStyleResult(allRatings, mode, totalImages) {
 }
 
 export default function StyleTest() {
+  const navigate = useNavigate();
   const [questionImages, setQuestionImages] = useState(() => createStyleTestQuestionSet(styleImages));
   const [mode, setMode] = useState("full");
   const [currentStep, setCurrentStep] = useState(0);
@@ -121,17 +124,7 @@ export default function StyleTest() {
     setTestResult(calculateStyleResult(fullRatings, "expanded_30", questionImages.length));
   };
 
-  if (testResult && !userInfo) {
-    return (
-      <div className="min-h-screen bg-stone-50 py-8">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <ResultDisplay result={testResult} onNext={() => setUserInfo({})} />
-        </div>
-      </div>
-    );
-  }
-
-  if (userInfo !== null) {
+  if (testResult && userInfo === null) {
     return (
       <div className="min-h-screen bg-stone-50 py-8">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
@@ -140,6 +133,20 @@ export default function StyleTest() {
             onSubmit={setUserInfo}
             isSubmitting={isSubmitting}
             setIsSubmitting={setIsSubmitting}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (testResult && userInfo !== null) {
+    return (
+      <div className="min-h-screen bg-stone-50 py-8">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <ResultDisplay
+            result={testResult}
+            delivery={userInfo.delivery}
+            onNext={() => navigate(createPageUrl("Requirements"))}
           />
         </div>
       </div>

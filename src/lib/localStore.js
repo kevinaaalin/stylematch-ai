@@ -366,7 +366,12 @@ function compactDatabase(database) {
     ...emptyDatabase,
     ...database,
   };
-  const styleTests = Array.isArray(merged.styleTests) ? merged.styleTests : [];
+  const currentTime = Date.now();
+  const styleTests = (Array.isArray(merged.styleTests) ? merged.styleTests : []).filter((test) => {
+    if (!test.retention_until) return true;
+    const retentionTime = Date.parse(test.retention_until);
+    return Number.isNaN(retentionTime) || retentionTime > currentTime;
+  });
   const projects = (merged.projects || []).map((project, index) => normalizeProject(project, index, styleTests));
   const storedIsafeCases = Array.isArray(merged.isafeCases) ? merged.isafeCases : [];
   const migratedIsafeCases = projects

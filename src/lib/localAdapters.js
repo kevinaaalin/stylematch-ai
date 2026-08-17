@@ -1,4 +1,5 @@
 import { localStore } from "./localStore.js";
+import { aiTaskHeaders } from "./aiImageTasks.js";
 
 const referenceImages = [
   "https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=1200&q=80",
@@ -33,9 +34,23 @@ export async function GenerateImage({ prompt }) {
 }
 
 export async function SendEmail(message) {
+  const response = await fetch("http://127.0.0.1:4180/api/v1/stylematch/style-test-deliveries", {
+    method: "POST",
+    headers: aiTaskHeaders({
+      idempotencyKey: `style-test-delivery-${crypto.randomUUID()}`,
+      purpose: "style_test_result_delivery",
+    }),
+    body: JSON.stringify(message),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || `寄送服務回應錯誤 (${response.status})`);
   localStore.addNotification({
     ...message,
-    delivery_status: "本地模擬完成",
+    body: undefined,
+    ai_task_ids: undefined,
+    delivery_status: payload.delivery_status,
+    delivery_id: payload.delivery_id,
+    marketing_consent: payload.marketing_consent,
   });
-  return { success: true, local: true };
+  return payload;
 }

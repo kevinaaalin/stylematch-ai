@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Award, Crown, Sparkles, Star } from "lucide-react";
+import { ArrowRight, Award, CheckCircle, Crown, Mail, Sparkles, Star } from "lucide-react";
 import { getStyleById } from "@/data/styleCatalog";
 
 const styleInfo = {
@@ -49,7 +49,7 @@ const styleInfo = {
   },
 };
 
-export default function ResultDisplay({ result, onNext }) {
+export default function ResultDisplay({ result, delivery, onNext }) {
   const catalogStyleInfo = (id) => {
     const catalog = getStyleById(id);
     return {
@@ -69,6 +69,15 @@ export default function ResultDisplay({ result, onNext }) {
 
   return (
     <div className="w-full space-y-6">
+      {delivery && (
+        <div className={`flex items-start gap-3 rounded-lg border p-4 ${delivery.delivery_status === "sent" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+          {delivery.delivery_status === "sent" ? <CheckCircle className="mt-0.5 h-5 w-5 shrink-0" /> : <Mail className="mt-0.5 h-5 w-5 shrink-0" />}
+          <div>
+            <p className="font-semibold">{delivery.delivery_status === "sent" ? "結果與 4 張參考圖已寄出" : "結果已建立於本機待寄匣"}</p>
+            <p className="mt-1 text-sm">{delivery.message}</p>
+          </div>
+        </div>
+      )}
       <div className="text-center">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
           <Award className="h-4 w-4" />
@@ -164,7 +173,7 @@ export default function ResultDisplay({ result, onNext }) {
             我們會把你的風格偏好帶入預算、空間條件與需求問卷，產生更完整的裝修規劃方向。
           </p>
           <Button onClick={onNext} size="lg" className="mt-6 bg-stone-900 px-8 text-white hover:bg-stone-800">
-            填寫聯絡資料
+            前往需求規劃
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
         </CardContent>

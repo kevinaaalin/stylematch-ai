@@ -1,0 +1,8 @@
+# Copy to smtp-config.local and fill in the mailbox used to send test results.
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=mailer@example.com
+SMTP_PASS=replace-with-an-app-password
+SMTP_FROM=mailer@example.com
+SMTP_ALLOW_INSECURE=false
