@@ -1,40 +1,28 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const appRoot = path.resolve(__dirname, "..");
-const isafeWebsiteRoot = path.resolve(appRoot, "..", "github_isafe2_website_work");
-const releaseVersion = "20260813_R8_StyleMatch_iSAFE_Integrated";
-const releaseId = "TIGI-GOVERNANCE-20260813-R8-SM-ISAFE";
-const releaseLabel = "R8 StyleMatch AI / iSAFE 2.0 Integrated";
-const r72Root = path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated");
-const r8Root = path.resolve(appRoot, "..", "analysis_output", "TIGI_4_Technical_Masters_20260813_R8_StyleMatch_iSAFE_Integrated");
-const publicRoot = path.join(isafeWebsiteRoot, "tigi-corpus");
-const repositorySourcesRoot = path.join(publicRoot, "sources");
-const sources = [
-  [r72Root, "01_TIGI_Engineering_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
-  [r72Root, "02_SBIR_Final_Submission_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
-  [r72Root, "03_TIGI_Business_Plan_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
-  [r72Root, "04_TIGI_White_Paper_Master_20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated.md", "R7.2 四母本（R8 前版）"],
-  [r8Root, "README.md", releaseLabel],
-  [r8Root, "R8_API_Data_Contract_Annex.md", releaseLabel],
-];
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const corpusRoot = path.resolve(appRoot, "..", "tigi_engineering_corpus_v1_0");
+const docsRoot = path.join(corpusRoot, "docs");
+const publicRoot = path.join(appRoot, "public", "tigi-corpus");
+const isafePublicRoot = path.resolve(appRoot, "..", "github_isafe2_website_work", "tigi-corpus");
+const sourcesRoot = path.join(publicRoot, "sources");
+const canonicalReadingOrder = ["foundation", "brs", "sad", "tgs", "sdd", "dds", "openapi", "implementation-spec", "platform-spec", "pep"];
+const releaseId = "TIGI-ENGINEERING-CORPUS-V1.0-CANONICAL";
 
 const normalizeText = (value) => String(value || "").replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
 const titleFromMarkdown = (markdown, fileName) => markdown.match(/^#\s+(.+)$/m)?.[1]?.trim() || fileName.replace(/\.md$/i, "").replace(/[_-]+/g, " ");
-const headingsFromMarkdown = (markdown) => Array.from(markdown.matchAll(/^#{1,4}\s+(.+)$/gm)).map((match) => normalizeText(match[1])).filter(Boolean).slice(0, 20);
+const headingsFromMarkdown = (markdown) => Array.from(markdown.matchAll(/^#{1,4}\s+(.+)$/gm)).map((match) => normalizeText(match[1])).filter(Boolean).slice(0, 30);
+const escapeHtml = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function splitIntoChunks(markdown, fallbackTitle) {
-  const sections = [];
-  let current = { heading: fallbackTitle, body: [] };
+  const sections = []; let current = { heading: fallbackTitle, body: [] };
   for (const line of markdown.split("\n")) {
     const heading = line.match(/^#{1,3}\s+(.+)$/);
-    if (heading && current.body.join("\n").trim()) {
-      sections.push(current);
-      current = { heading: normalizeText(heading[1]), body: [] };
-    } else current.body.push(line);
+    if (heading && current.body.join("\n").trim()) { sections.push(current); current = { heading: normalizeText(heading[1]), body: [] }; }
+    else if (heading) current.heading = normalizeText(heading[1]);
+    else current.body.push(line);
   }
   if (current.body.join("\n").trim()) sections.push(current);
   return sections.flatMap((section, sectionIndex) => {
@@ -50,34 +38,38 @@ function splitIntoChunks(markdown, fallbackTitle) {
 }
 
 async function build() {
-  const sourcesRoot = path.join(publicRoot, "sources");
+  await rm(publicRoot, { recursive: true, force: true });
   await mkdir(sourcesRoot, { recursive: true });
   const documents = []; const chunks = [];
-  for (const [order, [sourceRoot, fileName, categoryLabel]] of sources.entries()) {
-    const externalSourcePath = path.join(sourceRoot, fileName);
-    const repositorySourcePath = path.join(repositorySourcesRoot, fileName);
-    const sourcePath = existsSync(externalSourcePath) ? externalSourcePath : repositorySourcePath;
-    if (!existsSync(sourcePath)) throw new Error(`R8 knowledge source missing: ${sourcePath}`);
-    const markdown = await readFile(sourcePath, "utf8");
-    const title = titleFromMarkdown(markdown, fileName);
-    const documentId = `releases/${releaseVersion}/${fileName}`;
-    const sourceUrl = `tigi-corpus/sources/${fileName}`;
-    if (path.resolve(sourcePath) !== path.resolve(repositorySourcePath)) {
-      await copyFileIfChanged(sourcePath, repositorySourcePath);
+  for (const [categoryOrder, category] of canonicalReadingOrder.entries()) {
+    const categoryRoot = path.join(docsRoot, category);
+    let fileNames = [];
+    try { fileNames = (await readdir(categoryRoot)).filter((name) => name.toLowerCase().endsWith(".md")).sort((a, b) => a.localeCompare(b, "zh-Hant")); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    for (const [fileOrder, fileName] of fileNames.entries()) {
+      const sourcePath = path.join(categoryRoot, fileName);
+      const markdown = await readFile(sourcePath, "utf8");
+      const title = titleFromMarkdown(markdown, fileName);
+      const relativePath = `docs/${category}/${fileName}`;
+      const sourceViewName = `${fileName}.html`;
+      const sourceUrl = `tigi-corpus/sources/${category}/${sourceViewName}`;
+      const documentId = `tigi_engineering_corpus_v1_0/${relativePath}`;
+      const canonicalOrder = categoryOrder * 1000 + fileOrder;
+      await mkdir(path.join(sourcesRoot, category), { recursive: true });
+      await copyFile(sourcePath, path.join(sourcesRoot, category, fileName));
+      await writeFile(path.join(sourcesRoot, category, sourceViewName), `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{margin:0;background:#f5f5f4;color:#1c1917;font-family:system-ui,sans-serif}main{max-width:980px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #d6d3d1;padding-bottom:16px}h1{font-size:24px}p{color:#57534e}pre{margin-top:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}</style></head><body><main><header><h1>${escapeHtml(title)}</h1><p>${escapeHtml(`TIGI Engineering Corpus v1.0 · ${relativePath}`)}</p></header><pre>${escapeHtml(markdown)}</pre></main></body></html>`, "utf8");
+      documents.push({ id: documentId, category, categoryLabel: category, title, fileName, path: `tigi_engineering_corpus_v1_0/${relativePath}`, sourceUrl, canonicalOrder, categoryOrder, fileOrder, length: markdown.length, headings: headingsFromMarkdown(markdown) });
+      chunks.push(...splitIntoChunks(markdown, title).map((chunk) => ({ id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId, category, categoryLabel: category, title, heading: chunk.heading, text: chunk.text, sourceUrl, path: `tigi_engineering_corpus_v1_0/${relativePath}`, canonicalOrder, sectionOrder: chunk.sectionIndex, chunkOrder: chunk.chunkIndex })));
     }
-    documents.push({ id: documentId, category: "r8-integrated", categoryLabel, title, fileName, path: `analysis_output/${releaseVersion}/${fileName}`, sourceUrl, order, length: markdown.length, headings: headingsFromMarkdown(markdown) });
-    chunks.push(...splitIntoChunks(markdown, title).map((chunk) => ({ id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId, category: "r8-integrated", categoryLabel, title, heading: chunk.heading, text: chunk.text, sourceUrl, path: `analysis_output/${releaseVersion}/${fileName}`, order: chunk.sectionIndex })));
   }
-  const index = { version: "4.0", generatedAt: new Date().toISOString(), corpus: "TIGI 20260813 R8 StyleMatch AI / iSAFE 2.0 Integrated", releaseVersion, releaseId, releaseStatus: "IMPLEMENTATION_QA_BASELINE", finalOfficialAllowed: false, stateContractVersion: "20260722_R5_2", sourceRoot: `analysis_output/${releaseVersion}`, manifestUrl: "tigi-corpus/sources/release-manifest.json", documentCount: documents.length, chunkCount: chunks.length, documents, chunks };
+  const generatedAt = new Date().toISOString();
+  const manifest = { releaseId, corpusVersion: "1.0", generatedAt, networkDependency: false, canonicalReadingOrder, documentCount: documents.length, chunkCount: chunks.length };
+  const index = { version: "5.0", generatedAt, corpus: "TIGI Engineering Corpus v1.0", releaseVersion: "tigi_engineering_corpus_v1_0", releaseId, releaseStatus: "LOCAL_KNOWLEDGE_PLACEHOLDER", finalOfficialAllowed: false, stateContractVersion: "20260722_R5_2", sourceRoot: "tigi_engineering_corpus_v1_0/docs", manifestUrl: "tigi-corpus/release-manifest.json", networkDependency: false, canonicalReadingOrder, documentCount: documents.length, chunkCount: chunks.length, documents, chunks };
   await writeFile(path.join(publicRoot, "knowledge-index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
-  await copyFileIfChanged(path.join(r8Root, "release-manifest.json"), path.join(repositorySourcesRoot, "release-manifest.json"));
-  console.log(`Built TIGI R8 knowledge index: ${documents.length} documents, ${chunks.length} chunks`);
-}
-
-async function copyFileIfChanged(sourcePath, destinationPath) {
-  const source = await readFile(sourcePath, "utf8");
-  if (existsSync(destinationPath) && await readFile(destinationPath, "utf8") === source) return;
-  await writeFile(destinationPath, source, "utf8");
+  await writeFile(path.join(publicRoot, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  await rm(isafePublicRoot, { recursive: true, force: true });
+  await cp(publicRoot, isafePublicRoot, { recursive: true });
+  console.log(`Built canonical TIGI v1.0 index: ${documents.length} documents, ${chunks.length} chunks`);
 }
 
 build().catch((error) => { console.error(error); process.exit(1); });

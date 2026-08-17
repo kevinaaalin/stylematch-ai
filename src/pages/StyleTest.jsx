@@ -3,24 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Heart, Image as ImageIcon, Sparkles, ThumbsDown, Undo2 } from "lucide-react";
+import { CheckCircle, Sparkles, Star, Undo2 } from "lucide-react";
 
 import { styleTestImages as styleImages, STYLE_TEST_IMAGE_MANIFEST_VERSION } from "../data/styleTestImageManifest";
 import { STYLE_KEYS } from "../data/styleCatalog";
 import ContactForm from "../components/styletest/ContactForm";
 import ResultDisplay from "../components/styletest/ResultDisplay";
+import { createStyleTestQuestionSet } from "../lib/styleTestSampling";
 
-const QUICK_IMAGES = styleImages.slice(0, 30);
-const FULL_IMAGES = styleImages.slice(0, 30);
 const FULL_MINIMUM = 15;
 
 const RATING_OPTIONS = [
-  { value: 1, label: "不喜歡", icon: ThumbsDown, className: "hover:bg-stone-100 hover:text-stone-700" },
-  { value: 3, label: "普通", icon: ImageIcon, className: "hover:bg-sky-50 hover:text-sky-700" },
-  { value: 5, label: "喜歡", icon: Heart, className: "hover:bg-rose-50 hover:text-rose-700" },
-];
-
-const QUICK_RATINGS = [
   { value: 1, label: "完全不喜歡" },
   { value: 2, label: "不太喜歡" },
   { value: 3, label: "普通" },
@@ -62,6 +55,7 @@ function calculateStyleResult(allRatings, mode, totalImages) {
 }
 
 export default function StyleTest() {
+  const [questionImages, setQuestionImages] = useState(() => createStyleTestQuestionSet(styleImages));
   const [mode, setMode] = useState("full");
   const [currentStep, setCurrentStep] = useState(0);
   const [quickRatings, setQuickRatings] = useState([]);
@@ -71,19 +65,19 @@ export default function StyleTest() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fullRatings = useMemo(
-    () => FULL_IMAGES
+    () => questionImages
       .filter((image) => gridRatings[image.id])
       .map((image) => ({
         imageId: image.id,
         styles: image.style,
         rating: gridRatings[image.id],
       })),
-    [gridRatings]
+    [gridRatings, questionImages]
   );
 
   const completedFullCount = fullRatings.length;
-  const fullProgress = Math.round((completedFullCount / FULL_IMAGES.length) * 100);
-  const quickProgress = Math.round((currentStep / QUICK_IMAGES.length) * 100);
+  const fullProgress = Math.round((completedFullCount / questionImages.length) * 100);
+  const quickProgress = Math.round((currentStep / questionImages.length) * 100);
 
   const resetTest = (nextMode) => {
     setMode(nextMode);
@@ -92,12 +86,13 @@ export default function StyleTest() {
     setGridRatings({});
     setTestResult(null);
     setUserInfo(null);
+    setQuestionImages(createStyleTestQuestionSet(styleImages));
   };
 
   const handleQuickRating = (ratingValue) => {
-    if (currentStep >= QUICK_IMAGES.length) return;
+    if (currentStep >= questionImages.length) return;
 
-    const currentImage = QUICK_IMAGES[currentStep];
+    const currentImage = questionImages[currentStep];
     const nextRatings = [
       ...quickRatings,
       {
@@ -111,9 +106,9 @@ export default function StyleTest() {
     setQuickRatings(nextRatings);
     setCurrentStep(nextStep);
 
-    if (nextStep === QUICK_IMAGES.length) {
+    if (nextStep === questionImages.length) {
       setTimeout(() => {
-        setTestResult(calculateStyleResult(nextRatings, "quick_30", QUICK_IMAGES.length));
+        setTestResult(calculateStyleResult(nextRatings, "quick_30", questionImages.length));
       }, 250);
     }
   };
@@ -133,7 +128,7 @@ export default function StyleTest() {
 
   const showFullResult = () => {
     if (completedFullCount < FULL_MINIMUM) return;
-    setTestResult(calculateStyleResult(fullRatings, "expanded_30", FULL_IMAGES.length));
+    setTestResult(calculateStyleResult(fullRatings, "expanded_30", questionImages.length));
   };
 
   if (testResult && !userInfo) {
@@ -202,6 +197,25 @@ export default function StyleTest() {
           </button>
         </div>
 
+        <div className="mx-auto mt-5 max-w-3xl border-y border-stone-200 py-4">
+          <p className="text-center text-sm font-semibold text-stone-800">五星評分方式</p>
+          <div className="mt-3 grid grid-cols-5 gap-1 text-center sm:gap-3">
+            {RATING_OPTIONS.map((option) => (
+              <div key={option.value} className="min-w-0">
+                <div className="flex justify-center gap-0.5 text-amber-500">
+                  {Array.from({ length: option.value }, (_, index) => (
+                    <Star key={index} className="h-3.5 w-3.5 fill-current sm:h-4 sm:w-4" />
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-stone-600">{option.label}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-center text-xs leading-5 text-stone-500">
+            1 星代表完全不喜歡、3 星代表中立、5 星代表非常喜歡；系統各從 30 種風格抽一張，並平衡空間與光線組合後分析主要及次要偏好。
+          </p>
+        </div>
+
         {mode === "full" ? (
           <section className="mt-8">
             <Card className="border-stone-200 shadow-sm">
@@ -209,7 +223,7 @@ export default function StyleTest() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium text-stone-600">
-                      已評分 {completedFullCount} / {FULL_IMAGES.length} 張
+                      已評分 {completedFullCount} / {questionImages.length} 張
                     </p>
                     <p className="mt-1 text-xs text-stone-500">
                       評滿 {FULL_MINIMUM} 張即可看結果；完成 30 張會提高結果信心度。
@@ -228,7 +242,7 @@ export default function StyleTest() {
             </Card>
 
             <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-              {FULL_IMAGES.map((image) => {
+              {questionImages.map((image) => {
                 const selectedRating = gridRatings[image.id];
                 return (
                   <article key={image.id} className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
@@ -237,12 +251,16 @@ export default function StyleTest() {
                         src={image.src}
                         alt={`室內設計風格參考 ${image.id}`}
                         loading="lazy"
+                        onError={(event) => {
+                          if (event.currentTarget.dataset.fallbackApplied || !image.fallback_src) return;
+                          event.currentTarget.dataset.fallbackApplied = "true";
+                          event.currentTarget.src = image.fallback_src;
+                        }}
                         className="h-full w-full object-cover transition duration-300 hover:scale-105"
                       />
                     </div>
-                    <div className="grid grid-cols-3 border-t border-stone-100">
+                    <div className="grid grid-cols-5 border-t border-stone-100">
                       {RATING_OPTIONS.map((option) => {
-                        const Icon = option.icon;
                         const isSelected = selectedRating === option.value;
                         return (
                           <button
@@ -250,9 +268,9 @@ export default function StyleTest() {
                             type="button"
                             title={option.label}
                             onClick={() => handleGridRating(image.id, option.value)}
-                            className={`flex h-12 items-center justify-center text-stone-500 transition ${option.className} ${isSelected ? "bg-amber-100 text-amber-800" : ""}`}
+                            className={`flex h-12 items-center justify-center text-stone-500 transition hover:bg-amber-50 hover:text-amber-700 ${isSelected ? "bg-amber-100 text-amber-800" : ""}`}
                           >
-                            <Icon className="h-4 w-4" />
+                            <Star className={`h-4 w-4 ${isSelected ? "fill-current" : ""}`} />
                           </button>
                         );
                       })}
@@ -268,7 +286,7 @@ export default function StyleTest() {
               <CardContent className="p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-sm font-medium text-stone-600">
-                    第 {Math.min(currentStep + 1, QUICK_IMAGES.length)} / {QUICK_IMAGES.length} 張
+                    第 {Math.min(currentStep + 1, questionImages.length)} / {questionImages.length} 張
                   </span>
                   <Button variant="ghost" size="sm" onClick={handleUndo} disabled={currentStep === 0}>
                     <Undo2 className="mr-1 h-4 w-4" />
@@ -279,26 +297,33 @@ export default function StyleTest() {
               </CardContent>
             </Card>
 
-            {currentStep < QUICK_IMAGES.length ? (
+            {currentStep < questionImages.length ? (
               <>
                 <div className="overflow-hidden rounded-lg bg-white shadow-lg">
                   <div className="aspect-[4/3] bg-stone-100">
                     <img
-                      src={QUICK_IMAGES[currentStep].src}
+                      src={questionImages[currentStep].src}
                       alt={`室內設計風格參考 ${currentStep + 1}`}
+                      onError={(event) => {
+                        const image = questionImages[currentStep];
+                        if (event.currentTarget.dataset.fallbackApplied || !image.fallback_src) return;
+                        event.currentTarget.dataset.fallbackApplied = "true";
+                        event.currentTarget.src = image.fallback_src;
+                      }}
                       className="h-full w-full object-cover"
                     />
                   </div>
                 </div>
                 <div className="mt-5 grid grid-cols-5 gap-2">
-                  {QUICK_RATINGS.map((option) => (
+                  {RATING_OPTIONS.map((option) => (
                     <Button
                       key={option.value}
                       variant="outline"
                       onClick={() => handleQuickRating(option.value)}
                       className="h-auto min-h-14 px-2 py-2 text-xs sm:text-sm"
                     >
-                      {option.label}
+                      <Star className="mr-1 h-4 w-4" />
+                      {option.value} 星
                     </Button>
                   ))}
                 </div>

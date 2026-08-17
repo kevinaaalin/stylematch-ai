@@ -8,6 +8,7 @@ import { CheckCircle, Mail, User, Phone, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { StyleTest, GenerateImage, SendEmail } from "@/lib/localAdapters";
+import { createAndWaitForImageTask } from "@/lib/aiImageTasks";
 import { getStyleById } from "@/data/styleCatalog";
 
 export default function ContactForm({ testResult, onSubmit, isSubmitting, setIsSubmitting }) {
@@ -64,7 +65,18 @@ export default function ContactForm({ testResult, onSubmit, isSubmitting, setIsS
       ];
       
       const imageUrls = [];
-      const imagePromises = imagePrompts.map(prompt => GenerateImage({ prompt }));
+      const imagePromises = imagePrompts.map(async (prompt, index) => {
+        try {
+          return await createAndWaitForImageTask({
+            prompt,
+            outputType: "style_test_reference",
+            purpose: "stylematch_style_test_reference",
+            operation: { primary_style: testResult.primary_style, reference_index: index },
+          });
+        } catch {
+          return GenerateImage({ prompt });
+        }
+      });
       const results = await Promise.all(imagePromises);
       results.forEach(res => imageUrls.push(res.url));
 

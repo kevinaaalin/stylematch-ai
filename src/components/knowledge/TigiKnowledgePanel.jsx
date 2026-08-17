@@ -61,10 +61,10 @@ export default function TigiKnowledgePanel({ project = null, compact = false }) 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white"><BookOpen className="h-4 w-4" />TIGI Knowledge</div>
-            <CardTitle className="text-xl">工程知識檢索 Demo</CardTitle>
-            <p className="mt-2 text-sm leading-6 text-stone-600">從 build-time 產生的 TIGI Markdown 索引，找出與裝修專案需求最相關的工程與治理規範。</p>
+            <CardTitle className="text-xl">本地工程知識檢索</CardTitle>
+            <p className="mt-2 text-sm leading-6 text-stone-600">依 canonical reading order 建立的 TIGI Markdown 索引，針對案件需求回傳工程與治理建議及本地文件來源。</p>
           </div>
-          {indexMeta && <div className="text-right text-xs text-stone-500"><div>{indexMeta.releaseId} · {indexMeta.documentCount} doc · {indexMeta.chunkCount} chunks</div><a className="underline underline-offset-2" href={`${import.meta.env.BASE_URL || "./"}${indexMeta.manifestUrl}`} target="_blank" rel="noreferrer">Release manifest</a></div>}
+          {indexMeta && <div className="text-right text-xs text-stone-500"><Badge variant="outline" className="mb-2">無網路依賴</Badge><div>{indexMeta.releaseId} · {indexMeta.documentCount} doc · {indexMeta.chunkCount} chunks</div><a className="underline underline-offset-2" href={`${import.meta.env.BASE_URL || "./"}${indexMeta.manifestUrl}`} target="_blank" rel="noreferrer">索引清單</a></div>}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

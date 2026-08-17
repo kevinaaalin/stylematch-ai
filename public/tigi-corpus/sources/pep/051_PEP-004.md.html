@@ -1,0 +1,540 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PEP-004</title><style>body{margin:0;background:#f5f5f4;color:#1c1917;font-family:system-ui,sans-serif}main{max-width:980px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #d6d3d1;padding-bottom:16px}h1{font-size:24px}p{color:#57534e}pre{margin-top:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}</style></head><body><main><header><h1>PEP-004</h1><p>TIGI Engineering Corpus v1.0 · docs/pep/051_PEP-004.md</p></header><pre>---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 51
+category: pep
+title: &quot;PEP-004&quot;
+---
+# PEP-004
+
+# Contract &amp; Payment Production Engineering Package
+
+**Package ID：PEP-004**  
+**Status：Official Edition v1.0**
+
+---
+
+# 01 Package Scope
+
+涵蓋：
+
+- Contract Management
+- Contract Version Control
+- Electronic Signature
+- Payment Engine
+- Milestone Payment
+- Escrow / Trust Integration
+- Invoice Management
+- Change Order
+- Payment Approval Workflow
+- Financial Audit
+
+---
+
+# 02 Runtime Architecture
+
+```text
+Client
+    │
+Contract API
+    │
+Contract Service
+    ├── Contract Engine
+    ├── Payment Engine
+    ├── Escrow Adapter
+    ├── Invoice Engine
+    ├── Approval Engine
+    ├── Audit Engine
+    └── PGP Adapter
+```
+
+---
+
+# 03 Contract Aggregate
+
+Aggregate Root
+
+```text
+Contract
+```
+
+Children
+
+```text
+ContractVersion
+PaymentPlan
+Milestone
+Invoice
+PaymentRecord
+ChangeOrder
+Approval
+```
+
+---
+
+# 04 Contract Lifecycle
+
+```text
+Draft
+
+↓
+
+Internal Review
+
+↓
+
+Customer Review
+
+↓
+
+Approved
+
+↓
+
+Signed
+
+↓
+
+Activated
+
+↓
+
+Executing
+
+↓
+
+Completed
+
+↓
+
+Closed
+
+↓
+
+Archived
+```
+
+---
+
+# 05 Payment Lifecycle
+
+```text
+Planned
+
+↓
+
+Requested
+
+↓
+
+Approved
+
+↓
+
+Escrow Pending
+
+↓
+
+Paid
+
+↓
+
+Verified
+
+↓
+
+Completed
+
+↓
+
+Archived
+```
+
+---
+
+# 06 SQL
+
+```sql
+CREATE TABLE contract_master(
+
+contract_id BIGINT PRIMARY KEY,
+
+case_id BIGINT NOT NULL,
+
+contract_no VARCHAR(40) UNIQUE,
+
+contract_version INT,
+
+contract_status VARCHAR(30),
+
+signed_at TIMESTAMP,
+
+created_at TIMESTAMP
+
+);
+```
+
+---
+
+```sql
+CREATE TABLE payment_plan(
+
+payment_plan_id BIGINT PRIMARY KEY,
+
+contract_id BIGINT,
+
+milestone_no INT,
+
+payment_percent DECIMAL(5,2),
+
+planned_amount DECIMAL(18,2),
+
+status VARCHAR(30)
+
+);
+```
+
+---
+
+```sql
+CREATE TABLE payment_record(
+
+payment_id BIGINT PRIMARY KEY,
+
+contract_id BIGINT,
+
+payment_plan_id BIGINT,
+
+payment_amount DECIMAL(18,2),
+
+payment_status VARCHAR(30),
+
+paid_at TIMESTAMP
+
+);
+```
+
+---
+
+```sql
+CREATE TABLE change_order(
+
+change_order_id BIGINT PRIMARY KEY,
+
+contract_id BIGINT,
+
+change_reason TEXT,
+
+change_amount DECIMAL(18,2),
+
+approved_by BIGINT,
+
+approved_at TIMESTAMP
+
+);
+```
+
+---
+
+# 07 Milestone Definition
+
+標準節點：
+
+| Milestone | 對應治理節點 |
+|------------|-------------|
+| M1 | D1~D2 |
+| M2 | D3 |
+| M3 | D4 |
+| M4 | D5 |
+| M5 | C1 |
+| M6 | C2 |
+| M7 | C3 |
+| M8 | C4 |
+| M9 | C5 |
+
+付款節點可依專案類型配置，不限制固定次數。
+
+---
+
+# 08 Payment Engine
+
+流程：
+
+```text
+Payment Request
+
+↓
+
+Contract Validation
+
+↓
+
+Milestone Validation
+
+↓
+
+Gate Validation
+
+↓
+
+Approval
+
+↓
+
+Escrow
+
+↓
+
+Payment
+
+↓
+
+Audit
+
+↓
+
+PGP Update
+```
+
+---
+
+# 09 Escrow Adapter
+
+支援：
+
+- Trust Account
+- Escrow Bank
+- Third-party Payment Gateway
+- Internal Ledger
+
+Escrow Adapter 必須符合統一 Payment Adapter 介面。
+
+---
+
+# 10 Invoice
+
+Invoice Object
+
+```text
+Invoice ID
+
+Invoice Number
+
+Contract ID
+
+Payment ID
+
+Amount
+
+Tax
+
+Currency
+
+Status
+
+Issue Date
+```
+
+---
+
+# 11 OpenAPI
+
+```yaml
+GET /contracts
+
+POST /contracts
+
+GET /contracts/{contractId}
+
+PATCH /contracts/{contractId}
+
+POST /contracts/{contractId}/approve
+
+POST /contracts/{contractId}/sign
+
+GET /contracts/{contractId}/payments
+
+POST /payments/request
+
+POST /payments/approve
+
+POST /payments/verify
+
+GET /payments/{paymentId}
+```
+
+---
+
+# 12 PHP Structure
+
+```text
+Contract/
+
+ContractAggregate.php
+
+PaymentAggregate.php
+
+ContractRepository.php
+
+PaymentRepository.php
+
+ApprovalPolicy.php
+
+ContractValidator.php
+
+PaymentEngine.php
+
+InvoiceService.php
+```
+
+---
+
+# 13 FastAPI
+
+```text
+contract/
+
+router.py
+
+service.py
+
+payment.py
+
+invoice.py
+
+approval.py
+
+escrow.py
+
+audit.py
+```
+
+---
+
+# 14 Domain Events
+
+```text
+ContractCreated
+
+ContractApproved
+
+ContractSigned
+
+PaymentRequested
+
+PaymentApproved
+
+PaymentTransferred
+
+PaymentVerified
+
+InvoiceIssued
+
+ChangeOrderApproved
+```
+
+---
+
+# 15 Security
+
+- Contract Version 不可覆寫
+- Payment 不可直接修改
+- 所有付款均需 Audit
+- Escrow 必須保留交易流水號
+- 金額異動須經 Change Order
+
+---
+
+# 16 Performance
+
+| Operation | Target |
+|-----------|--------|
+| Create Contract | ≤300 ms |
+| Sign Contract | ≤500 ms |
+| Payment Request | ≤300 ms |
+| Payment Verify | ≤300 ms |
+| Invoice Query | ≤200 ms |
+
+---
+
+# 17 PlantUML
+
+```plantuml
+@startuml
+
+Client -&gt; ContractAPI
+
+ContractAPI -&gt; ContractEngine
+
+ContractEngine -&gt; PaymentEngine
+
+PaymentEngine -&gt; Escrow
+
+PaymentEngine -&gt; Audit
+
+Audit --&gt; Client
+
+@enduml
+```
+
+---
+
+# 18 Mermaid
+
+```mermaid
+flowchart TD
+
+Contract --&gt; Approval
+
+Approval --&gt; Payment
+
+Payment --&gt; Escrow
+
+Escrow --&gt; Audit
+
+Audit --&gt; PGP
+```
+
+---
+
+# 19 Test Cases
+
+```text
+CP-001 Create Contract
+
+CP-002 Approve Contract
+
+CP-003 Sign Contract
+
+CP-004 Request Payment
+
+CP-005 Milestone Validation
+
+CP-006 Escrow Success
+
+CP-007 Escrow Failure
+
+CP-008 Invoice Generation
+
+CP-009 Change Order
+
+CP-010 Audit Verification
+```
+
+---
+
+# 20 Cross Reference
+
+- BRS-001
+- SAD-001
+- TGS-001
+- SDD-001
+- DDS-001
+- OAS-001
+- PGP-001
+
+---
+
+**PEP-004 Part 1 完成。下一段直接接續 Payment Rule Engine、Escrow Runtime、Invoice Engine、Financial Audit、Migration Script、Runtime Metrics、PHP/FastAPI Skeleton、完整 OpenAPI YAML。**
+</pre></main></body></html>

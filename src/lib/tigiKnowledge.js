@@ -38,7 +38,7 @@ function scoreChunk(chunk, queryTokens) {
   const haystack = normalize(`${chunk.title} ${chunk.heading} ${chunk.categoryLabel} ${chunk.text}`);
   const title = normalize(`${chunk.title} ${chunk.heading}`);
   return queryTokens.reduce((score, token) => score + (title.includes(token) ? 6 : 0) + (haystack.includes(token) ? 2 : 0), 0)
-    + Math.max(0, 4 - chunk.order) * 0.15;
+    + Math.max(0, 10 - Number(chunk.categoryOrder ?? Math.floor(Number(chunk.canonicalOrder || 0) / 1000))) * 0.05;
 }
 
 function recommendation(result) {
@@ -65,7 +65,7 @@ export async function queryTigiKnowledge(query, options = {}) {
   const results = index.chunks
     .map((chunk) => ({ ...chunk, score: scoreChunk(chunk, queryTokens) }))
     .filter((chunk) => chunk.score > 0)
-    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .sort((a, b) => b.score - a.score || Number(a.canonicalOrder || 0) - Number(b.canonicalOrder || 0) || Number(a.sectionOrder || 0) - Number(b.sectionOrder || 0))
     .slice(0, limit)
     .map((chunk) => ({
       ...chunk,

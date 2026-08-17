@@ -47,21 +47,23 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import Home from './pages/Home';
-import StyleTest from './pages/StyleTest';
-import Requirements from './pages/Requirements';
-import Cases from './pages/Cases';
-import IsafeProjects from './pages/IsafeProjects';
-import IsafeDirectIntake from './pages/IsafeDirectIntake';
-import AIProposal from './pages/AIProposal';
-import AIGenerate from './pages/AIGenerate';
-import ReferenceCanvas from './pages/ReferenceCanvas';
-import MyProjects from './pages/MyProjects';
-import PricingPlans from './pages/PricingPlans';
-import ProposalReport from './pages/ProposalReport';
-import ProjectDetail from './pages/ProjectDetail';
-import Workspace from './pages/Workspace';
-import FloorPlanVisualizer from './pages/FloorPlanVisualizer';
+import { lazy } from 'react';
+const Home = lazy(() => import('./pages/Home'));
+const StyleTest = lazy(() => import('./pages/StyleTest'));
+const Requirements = lazy(() => import('./pages/Requirements'));
+const Cases = lazy(() => import('./pages/Cases'));
+const IsafeProjects = lazy(() => import('./pages/IsafeProjects'));
+const IsafeDirectIntake = lazy(() => import('./pages/IsafeDirectIntake'));
+const AIProposal = lazy(() => import('./pages/AIProposal'));
+const AIGenerate = lazy(() => import('./pages/AIGenerate'));
+const ReferenceCanvas = lazy(() => import('./pages/ReferenceCanvas'));
+const MyProjects = lazy(() => import('./pages/MyProjects'));
+const PricingPlans = lazy(() => import('./pages/PricingPlans'));
+const ProposalReport = lazy(() => import('./pages/ProposalReport'));
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
+const Workspace = lazy(() => import('./pages/Workspace'));
+const FloorPlanVisualizer = lazy(() => import('./pages/FloorPlanVisualizer'));
+const Knowledge = lazy(() => import('./pages/Knowledge'));
 import __Layout from './Layout.jsx';
 
 
@@ -81,6 +83,7 @@ export const PAGES = {
     "ProjectDetail": ProjectDetail,
     "Workspace": Workspace,
     "FloorPlanVisualizer": FloorPlanVisualizer,
+    "Knowledge": Knowledge,
 }
 
 export const pagesConfig = {

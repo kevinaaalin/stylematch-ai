@@ -1,0 +1,235 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BOOK 3</title><style>body{margin:0;background:#f5f5f4;color:#1c1917;font-family:system-ui,sans-serif}main{max-width:980px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #d6d3d1;padding-bottom:16px}h1{font-size:24px}p{color:#57534e}pre{margin-top:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}</style></head><body><main><header><h1>BOOK 3</h1><p>TIGI Engineering Corpus v1.0 · docs/dds/091_BOOK_3_-_Solution_Architecture_Document（SAD-001）.md</p></header><pre>---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 91
+category: dds
+title: &quot;BOOK 3 - Solution Architecture Document（SAD-001）&quot;
+---
+很好。
+
+從這一章開始，**SAD 不再描述平台，而是正式定義每一個 Architecture Component**。
+
+這也是後續 **SDD（Software Design）**、**DDS（Data Design）**、**OpenAPI** 的唯一 Architecture Source。
+
+---
+
+# BOOK 3
+
+# Solution Architecture Document（SAD-001）
+
+## PART C — Application Architecture
+
+**Official Edition v1.0**
+
+---
+
+# Chapter 8. Application Architecture Principles
+
+所有 Application Component 必須遵循：
+
+### AA-01 Single Responsibility
+
+每一個 Service 僅負責一種業務能力。
+
+不得混合多個 Business Capability。
+
+---
+
+### AA-02 Stateless Service
+
+Application Service 不保存 Session 狀態。
+
+所有案件狀態由 Governance Core 管理。
+
+---
+
+### AA-03 API Driven
+
+所有 Service 間互動均透過正式 API／事件介面。
+
+不得直接存取其他 Service 的內部邏輯。
+
+---
+
+### AA-04 Independent Deployment
+
+每個 Service 應具備獨立部署能力。
+
+---
+
+### AA-05 Governance Compliance
+
+所有 Service 必須遵循：
+
+- Governance Core
+- State Machine
+- Gate Engine
+- Checklist Engine
+- Audit Trail
+
+不得自行改變案件狀態。
+
+---
+
+# Chapter 9. Application Component Catalog
+
+建立正式 Architecture Component（AC）目錄。
+
+| Component ID | Component Name | Primary Responsibility |
+|--------------|----------------|------------------------|
+| AC-001 | Case Service | 案件生命週期管理 |
+| AC-002 | Workflow Service | 流程協調 |
+| AC-003 | State Machine Service | 狀態控制 |
+| AC-004 | Gate Engine | Gate 驗證 |
+| AC-005 | Checklist Engine | GS 檢核 |
+| AC-006 | Evidence Service | 證據管理 |
+| AC-007 | Contract Service | 合約管理 |
+| AC-008 | Payment Service | 付款治理 |
+| AC-009 | Inspection Service | 驗收管理 |
+| AC-010 | Warranty Service | 保固管理 |
+| AC-011 | Risk Engine | 風險分析 |
+| AC-012 | PGP Engine | 治理封裝 |
+| AC-013 | Knowledge Graph Service | 知識圖譜 |
+| AC-014 | AI Agent Service | AI Agent |
+| AC-015 | Notification Service | 通知中心 |
+| AC-016 | Identity Service | 身分驗證 |
+| AC-017 | Audit Service | 稽核紀錄 |
+| AC-018 | File Service | 檔案管理 |
+| AC-019 | Integration Service | 外部整合 |
+| AC-020 | Reporting Service | 報表分析 |
+
+---
+
+# Chapter 10. Component Responsibilities
+
+每個 Component 皆定義唯一責任。
+
+例如：
+
+### AC-001 Case Service
+
+負責：
+
+- 建立案件
+- 更新案件基本資料
+- 查詢案件
+- 結案
+
+不得：
+
+- 控制流程
+- 驗證 Gate
+- 修改 Checklist
+
+上述能力由其他 Component 負責。
+
+---
+
+### AC-004 Gate Engine
+
+負責：
+
+- Gate 驗證
+- Gate 規則執行
+- Gate 通過判定
+
+不得：
+
+- 修改 Case
+- 執行付款
+- 建立文件
+
+---
+
+### AC-006 Evidence Service
+
+負責：
+
+- 上傳 Evidence
+- 驗證 Evidence
+- Evidence 版本管理
+- Evidence 查詢
+
+不得：
+
+- 驗收
+- 合約管理
+- Workflow 控制
+
+---
+
+### AC-012 PGP Engine
+
+負責：
+
+- 建立 PGP
+- 封裝治理資訊
+- PGP 驗證
+- PGP 匯出
+
+不得：
+
+- 控制 Workflow
+- 修改案件
+- 執行 Gate
+
+---
+
+# Chapter 11. Component Interaction Rules
+
+所有 Component 必須遵循以下互動規則：
+
+- 僅透過公開介面互動。
+- 不得直接存取其他 Component 的資料庫。
+- 不得跨越 Governance Core 修改狀態。
+- 所有重要事件須產生 Audit Record。
+- 所有跨 Component 呼叫均須具備 Trace ID。
+
+---
+
+# Chapter 12. Architecture Dependency
+
+建立正式依賴方向：
+
+```
+Experience Layer
+        │
+Application Services
+        │
+Governance Core
+        │
+AI Platform
+        │
+Data Services
+        │
+Infrastructure
+```
+
+依賴方向僅能由上而下。
+
+禁止反向依賴。
+
+禁止跨層直接呼叫。
+
+---
+
+# Chapter 13. Cross Reference
+
+Application Component 與其他文件建立正式對應：
+
+- **BRS-001**：需求來源
+- **TGS-001**：治理規則
+- **SDD-001**：元件內部設計
+- **DDS-001**：資料模型
+- **OpenAPI-001**：介面規格
+- **GS-01～GS-24**：治理標準
+
+任何 Component 的修改，均須同步更新對應文件，並維持追溯鏈完整。
+
+---
+
+至此，**SAD-001 Application Architecture** 已建立完整的 Application Component 基線。
+
+下一階段將進入 **PART D：Integration Architecture**，正式定義平台間（StyleMatch AI、TWCID、iSAFE 2.0）、共享服務與外部系統的整合模式、事件流與介面邊界，作為後續 OpenAPI 與 Integration Specification 的架構依據。
+</pre></main></body></html>

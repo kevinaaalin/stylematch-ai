@@ -16,6 +16,12 @@ dist
 dist-ssr
 *.local
 
+# Full local image corpora stay on the workstation. GitHub carries only the
+# explicitly staged representative images used as browser fallbacks.
+public/style-reference-db/synthetic/comfyui/**/*.png
+public/style-reference-db/synthetic/comfyui-taiwan-25/**/*.png
+public/style-reference-db/twcid/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

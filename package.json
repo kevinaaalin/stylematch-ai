@@ -1,13 +1,13 @@
 {
   "name": "stylematch-ai-local",
   "private": true,
-  "version": "8.0.0",
+  "version": "8.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build:tigi-index": "node scripts/build-tigi-knowledge-index.mjs",
     "build:style-test-images": "node scripts/build-style-test-image-manifest.mjs",
-    "prebuild": "npm run build:style-test-images",
+    "prebuild": "npm run build:style-test-images && npm run build:tigi-index",
     "build": "vite build",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
@@ -16,7 +16,9 @@
     "test:style-analysis": "node scripts/validate-style-analysis.mjs",
     "test:image-style-fallback": "node scripts/validate-image-style-fallback.mjs",
     "test:style-test-images": "node scripts/validate-style-test-images.mjs",
-    "test": "npm run test:style-catalog && npm run test:style-analysis && npm run test:image-style-fallback && npm run test:style-test-images",
+    "test:unified-image-tasks": "node scripts/validate-unified-image-tasks.mjs",
+    "test:tigi-knowledge": "node scripts/validate-tigi-knowledge-index.mjs",
+    "test": "npm run test:style-catalog && npm run test:style-analysis && npm run test:image-style-fallback && npm run test:style-test-images && npm run test:unified-image-tasks && npm run test:tigi-knowledge",
     "preview": "vite preview"
   },
   "dependencies": {

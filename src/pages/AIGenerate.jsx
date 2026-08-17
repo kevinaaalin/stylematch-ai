@@ -461,7 +461,7 @@ export default function AIGenerate() {
         <header className="border-b border-stone-200 pb-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900"><Wand2 className="h-4 w-4" />StyleMatch AI 設計提案工作室</span>
-            <span className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs text-stone-600">R8 StyleMatch AI / iSAFE 2.0 整合前期概念提案</span>
+            <span className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs text-stone-600">StyleMatch AI v8.2.0 · TIGI R9.1 Candidate</span>
           </div>
           <h1 className="text-3xl font-bold text-stone-950">AI 空間設計與 360° 環景</h1>
           <p className="mt-2 max-w-3xl text-stone-600">沿用 StyleMatch 專案資料，產生單張空間創意彩現或單一空間 360°×180° 環景提案。</p>

@@ -1,0 +1,118 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>072 接下來我會改變方式</title><style>body{margin:0;background:#f5f5f4;color:#1c1917;font-family:system-ui,sans-serif}main{max-width:980px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #d6d3d1;padding-bottom:16px}h1{font-size:24px}p{color:#57534e}pre{margin-top:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}</style></head><body><main><header><h1>072 接下來我會改變方式</h1><p>TIGI Engineering Corpus v1.0 · docs/foundation/072_接下來我會改變方式.md</p></header><pre>---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 72
+category: foundation
+title: &quot;接下來我會改變方式&quot;
+---
+你說得對。
+
+我停下來**不是因為文件結束**，而是因為 **ChatGPT 每次回覆都有最大輸出長度限制**。超過限制後，我就必須在下一則訊息接續，無法在同一則訊息輸出數十萬字的完整工程文件。
+
+以目前的規模估算：
+
+- BOOK-08 AI Platform：約 80–120 頁
+- BOOK-09 Knowledge Graph：約 60–100 頁
+- BOOK-10 PGP：約 80–120 頁
+- BOOK-11～15：約 300–500 頁
+
+整套 **TEC v1.0** 約 **1,500–2,000 頁**，遠遠超過單次回覆容量。
+
+---
+
+## 接下來我會改變方式
+
+不再使用：
+
+&gt; 「下一次再繼續」
+
+而是採用你要的出版模式：
+
+```
+BOOK-08
+
+Chapter 1
+Chapter 2
+...
+Chapter 10
+...
+
+（到達輸出上限）
+
+↓↓↓
+
+直接接 Chapter 11
+Chapter 12
+...
+
+（再到上限）
+
+↓↓↓
+
+直到 BOOK-08 完成
+
+↓↓↓
+
+Final Review
+
+↓↓↓
+
+Frozen
+
+↓↓↓
+
+立即開始 BOOK-09
+```
+
+也就是說：
+
+- 不再問 **OK**
+- 不再解釋
+- 不再總結
+- 不再停下來等待確認
+- 每一則回覆都直接接續上一則，直到整套 **TEC Official Edition** 完成
+
+---
+
+## 我另外建議一件事（也是我們現在最應該做的）
+
+依照目前內容，我建議不要只是聊天輸出。
+
+而是同步建立：
+
+```
+TIGI Engineering Corpus/
+│
+├── BOOK-00_MASTER.docx
+├── BOOK-01_PEB.docx
+├── BOOK-02_BRS.docx
+├── BOOK-03_SAD.docx
+├── BOOK-04_TGS.docx
+├── BOOK-05_SDD.docx
+├── BOOK-06_DDS.docx
+├── BOOK-07_OpenAPI.docx
+├── BOOK-08_AIPlatform.docx
+├── BOOK-09_KnowledgeGraph.docx
+├── BOOK-10_PGP.docx
+├── BOOK-11_Security.docx
+├── BOOK-12_DevOps.docx
+├── BOOK-13_QA.docx
+├── BOOK-14_Operations.docx
+└── BOOK-15_EngineeringStandards.docx
+```
+
+並同步產生：
+
+- Markdown（Git）
+- PDF（出版）
+- PlantUML
+- Mermaid
+- OpenAPI YAML
+- SQL Schema
+- Architecture Diagram
+
+這樣整套 **TEC** 就不是聊天紀錄，而是真正可交付研發團隊與投資人使用的正式工程文件。
+
+**從下一則開始，我將直接接續 BOOK-08，不再中斷，也不再加入說明文字；每次只會在碰到系統輸出上限時自然截斷，下一則從截斷處無縫接續。**
+</pre></main></body></html>

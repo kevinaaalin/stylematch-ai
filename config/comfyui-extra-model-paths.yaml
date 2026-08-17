@@ -1,0 +1,8 @@
+stylematch_models:
+  base_path: C:/Users/Kevin/Documents/ComfyUI
+  checkpoints: models/checkpoints
+  clip_vision: models/clip_vision
+  controlnet: models/controlnet
+  loras: models/loras
+  upscale_models: models/upscale_models
+  vae: models/vae

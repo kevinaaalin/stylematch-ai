@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   BadgeDollarSign,
+  BookOpen,
   BriefcaseBusiness,
   Camera,
   ChevronDown,
@@ -26,6 +27,7 @@ import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan } from "@/lib/planAcc
 import { createPageUrl } from "@/utils";
 
 const generalNavigation = [
+  { title: "本地 Knowledge", url: createPageUrl("Knowledge"), icon: BookOpen },
   { title: "首頁", url: createPageUrl("Home"), icon: Home },
   { title: "風格測驗", url: createPageUrl("StyleTest"), icon: Sparkles },
   { title: "AI 裝修提案", url: createPageUrl("AIProposal"), icon: PenTool },

@@ -1,0 +1,504 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BOOK 0</title><style>body{margin:0;background:#f5f5f4;color:#1c1917;font-family:system-ui,sans-serif}main{max-width:980px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #d6d3d1;padding-bottom:16px}h1{font-size:24px}p{color:#57534e}pre{margin-top:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}</style></head><body><main><header><h1>BOOK 0</h1><p>TIGI Engineering Corpus v1.0 · docs/dds/100_BOOK_0_-_TIGI_Product_Engineering_Master_Plan.md</p></header><pre>---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 100
+category: dds
+title: &quot;BOOK 0 - TIGI Product Engineering Master Plan&quot;
+---
+了解。
+
+依照你的要求，從本對話開始，將進入 **TIGI Product Engineering Documents v1.0（Official Edition）** 正式出版模式。
+
+我將遵守以下原則：
+
+- 不再重新規劃 Architecture
+- 不再重新規劃 Roadmap
+- 不再重新規劃 Volume
+- 不再重複已凍結內容
+- 不再討論已確認設計
+- 採 **Official Edition** 編寫方式
+- 每一本文件視為正式出版版
+- 採 **Single Source of Truth（SSOT）**
+- 採 **Single Responsibility**
+- 採 **Canonical ID**
+- 所有內容以 Cross Reference 關聯，不重複描述
+
+接下來開始正式撰寫：
+
+---
+
+:::writing{variant=&quot;document&quot; id=&quot;84271&quot;}
+# BOOK 0
+
+# TIGI Product Engineering Master Plan
+
+**Official Edition v1.0**
+
+---
+
+# Document Information
+
+Document ID
+
+BOOK-00
+
+Document Name
+
+TIGI Product Engineering Master Plan
+
+Edition
+
+Official Edition v1.0
+
+Status
+
+Released
+
+Baseline
+
+Product Engineering Baseline v1.0
+
+Owner
+
+TIGI Architecture Committee
+
+Classification
+
+Engineering Master Document
+
+Source of Truth
+
+Yes
+
+Canonical Document
+
+Yes
+
+---
+
+# Purpose
+
+The TIGI Product Engineering Master Plan defines the official engineering documentation system of TIGI.
+
+This document is the root document of the entire engineering knowledge system.
+
+It does not describe product implementation.
+
+It defines:
+
+- document governance
+- engineering principles
+- document hierarchy
+- ownership
+- traceability
+- cross references
+- canonical identifiers
+- lifecycle
+
+All implementation specifications shall be maintained in their own engineering documents.
+
+---
+
+# Scope
+
+This document governs every engineering artifact within TIGI.
+
+Including:
+
+- Product
+- Platform
+- Backend
+- Frontend
+- AI
+- Governance
+- Infrastructure
+- API
+- Security
+- Data
+- Operations
+- Deployment
+- Knowledge Graph
+- AI Agent
+- iSAFE
+- TWCID
+- StyleMatch AI
+
+---
+
+# Engineering Philosophy
+
+TIGI adopts Product Engineering instead of Software Documentation.
+
+Every specification is treated as an engineering asset.
+
+Every engineering asset has:
+
+- ownership
+- lifecycle
+- version
+- dependency
+- canonical identifier
+
+No duplicated specification is allowed.
+
+---
+
+# Engineering Principles
+
+## EP-01
+
+Single Source of Truth (SSOT)
+
+Every engineering concept shall have only one authoritative document.
+
+---
+
+## EP-02
+
+Single Responsibility
+
+Every engineering document owns only one responsibility.
+
+No mixed specifications.
+
+---
+
+## EP-03
+
+Cross Reference
+
+Documents reference each other.
+
+Documents never duplicate each other.
+
+---
+
+## EP-04
+
+Canonical Identifier
+
+Every engineering artifact owns a permanent identifier.
+
+Identifiers never change.
+
+---
+
+## EP-05
+
+Traceability
+
+Every requirement must be traceable.
+
+Requirement
+
+↓
+
+Design
+
+↓
+
+Implementation
+
+↓
+
+Testing
+
+↓
+
+Release
+
+---
+
+## EP-06
+
+Governance First
+
+Governance specifications override implementation decisions.
+
+Implementation cannot violate Governance.
+
+---
+
+## EP-07
+
+Platform Independence
+
+Engineering specifications remain independent of programming language.
+
+---
+
+## EP-08
+
+Technology Independence
+
+Documents describe engineering behavior rather than framework implementation.
+
+---
+
+## EP-09
+
+Extensibility
+
+Every engineering component shall support future extension without modifying historical specifications.
+
+---
+
+## EP-10
+
+Official Edition Policy
+
+Released engineering books become immutable.
+
+Changes require version upgrade.
+
+Historical editions remain archived.
+
+---
+
+# Engineering Documentation System
+
+The TIGI engineering documentation system consists of independent document families.
+
+BOOK 0 defines governance only.
+
+Detailed specifications are maintained in dedicated engineering books.
+
+Document families include:
+
+- Product Baseline
+- Business Requirements
+- Solution Architecture
+- Technical Governance
+- Software Design
+- Data Design
+- API Specification
+- Infrastructure
+- AI Platform
+- Governance Engine
+- Knowledge Graph
+- Security
+- Operations
+
+Each family owns independent lifecycle management.
+
+---
+
+# Engineering Layer
+
+The engineering system is divided into multiple layers.
+
+Layer 1
+
+Business
+
+Layer 2
+
+Governance
+
+Layer 3
+
+Architecture
+
+Layer 4
+
+Application
+
+Layer 5
+
+AI Platform
+
+Layer 6
+
+Data
+
+Layer 7
+
+Infrastructure
+
+Layer 8
+
+Operations
+
+Each layer owns dedicated specifications.
+
+Cross-layer interaction shall be referenced instead of duplicated.
+
+---
+
+# Canonical Naming Convention
+
+Every engineering artifact follows a canonical identifier.
+
+Examples:
+
+BOOK-00
+
+BRS-001
+
+SAD-001
+
+TGS-001
+
+SDD-001
+
+DDS-001
+
+API-001
+
+GS-001
+
+PGP-001
+
+KG-001
+
+AI-001
+
+Identifiers remain permanent across editions.
+
+---
+
+# Document Lifecycle
+
+Draft
+
+↓
+
+Review
+
+↓
+
+Baseline
+
+↓
+
+Official Edition
+
+↓
+
+Version Upgrade
+
+Released documents cannot be modified directly.
+
+Only newer editions may supersede previous versions.
+
+---
+
+# Ownership Model
+
+Every engineering document has:
+
+Document Owner
+
+Technical Reviewer
+
+Architecture Reviewer
+
+Release Manager
+
+Engineering Committee
+
+Responsibilities are independent.
+
+Ownership does not imply implementation authority.
+
+---
+
+# Cross Reference Policy
+
+Every engineering document may reference:
+
+Requirements
+
+Architecture
+
+Design
+
+API
+
+Data
+
+Governance
+
+Knowledge Graph
+
+AI
+
+No engineering document may copy another document's normative content.
+
+---
+
+# Change Control
+
+Engineering changes require:
+
+Change Request
+
+Impact Analysis
+
+Review
+
+Approval
+
+Version Assignment
+
+Publication
+
+Emergency fixes follow dedicated governance procedures.
+
+---
+
+# Quality Principles
+
+Engineering documentation shall satisfy:
+
+Consistency
+
+Completeness
+
+Traceability
+
+Non-duplication
+
+Canonical ownership
+
+Version control
+
+Reviewability
+
+Auditability
+
+Maintainability
+
+---
+
+# Official Engineering Baseline
+
+The following engineering baselines are frozen under Official Edition v1.0:
+
+- Product Engineering Baseline
+- Three-Platform Architecture
+- Governance Core
+- Two-Phase Ten-Step Workflow
+- GS-01 through GS-24
+- PGP
+- Knowledge Graph
+- AI Platform
+
+Subsequent engineering documents shall inherit these baselines without redefining them.
+
+---
+
+# Conclusion
+
+BOOK-00 serves as the root governance document for the TIGI Product Engineering documentation system.
+
+It establishes the principles, ownership, lifecycle, and documentation governance that all subsequent engineering books shall follow.
+
+This document is the authoritative entry point for the Official Edition v1.0 engineering corpus.
+:::
+
+**BOOK 0（MASTER）第一版已完成。**
+
+接下來將依照已凍結的文件體系，繼續正式撰寫 **BOOK 1：Product Engineering Baseline（PEB）**，並保持與 BOOK 0 的交叉引用，不重複任何已定義內容。
+</pre></main></body></html>

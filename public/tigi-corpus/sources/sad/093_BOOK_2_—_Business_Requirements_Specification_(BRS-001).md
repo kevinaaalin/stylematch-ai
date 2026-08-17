@@ -1,0 +1,184 @@
+---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 93
+category: sad
+title: "BOOK 2 — Business Requirements Specification (BRS-001)"
+---
+很好。
+
+接下來正式進入 **BRS-001 最核心的章節**。
+
+從這裡開始，每一項需求都將成為整個 TIGI 的 **Canonical Requirement**，後續 **SAD、TGS、SDD、DDS、OpenAPI、Test Specification** 都只能引用這裡，不得自行新增或改寫業務需求。
+
+---
+
+# BOOK 2 — Business Requirements Specification (BRS-001)
+
+## PART D — Business Requirements Catalog
+
+**Official Edition v1.0**
+
+---
+
+# Chapter 16. Business Requirement Structure
+
+每一項業務需求均採用固定結構：
+
+- **Requirement ID**：唯一識別（BR-xxxx）
+- **Requirement Name**：需求名稱
+- **Business Objective**：業務目的
+- **Description**：需求描述
+- **Priority**：Critical / High / Medium / Low
+- **Business Owner**：需求責任單位
+- **Source**：需求來源
+- **Acceptance Criteria**：驗收條件
+- **Cross References**：關聯文件（PEB、GS、SAD、TGS、SDD、DDS、OpenAPI 等）
+
+---
+
+# Chapter 17. Core Business Requirements
+
+以下為第一批核心需求（Official Edition Baseline）。
+
+---
+
+## BR-0001 — Case Lifecycle Management
+
+**Business Objective**  
+建立完整案件生命週期管理能力。
+
+**Description**  
+系統應能建立、維護、查詢與結束案件，並以 Case 作為所有治理活動的核心單位。
+
+**Priority**  
+Critical
+
+**Business Owner**  
+iSAFE 2.0
+
+**Acceptance Criteria**
+
+- 每個案件具有唯一 Case ID。
+- 案件生命週期可完整追蹤。
+- 案件狀態符合 Governance Core 規範。
+
+**Cross References**
+
+- PEB-001
+- GS-01～GS-24
+- Governance Core
+- SAD
+- SDD
+- DDS
+
+---
+
+## BR-0002 — Workflow Governance
+
+**Business Objective**  
+建立標準化治理流程。
+
+**Description**  
+所有案件均須依二階段十步驟治理流程執行，不得任意跳過必要節點。
+
+**Priority**  
+Critical
+
+**Business Owner**  
+Governance Core
+
+**Acceptance Criteria**
+
+- 所有流程均由 State Machine 控制。
+- 每次狀態轉換均需符合 Gate 條件。
+- 流程異常均須留下 Audit Trail。
+
+---
+
+## BR-0003 — Evidence Traceability
+
+**Business Objective**  
+確保所有治理活動均具備可驗證證據。
+
+**Description**  
+系統應保存文件、照片、簽核與相關佐證資料，支援完整追溯。
+
+**Priority**  
+Critical
+
+**Business Owner**  
+Governance Core
+
+**Acceptance Criteria**
+
+- 每項 Evidence 具唯一識別。
+- Evidence 不可任意覆寫。
+- 可追溯至對應案件與流程節點。
+
+---
+
+## BR-0004 — AI Decision Support
+
+**Business Objective**  
+提供 AI 輔助分析與建議。
+
+**Description**  
+AI 可分析需求、風格、風險與知識，但不得直接改變案件狀態或取代人工核准。
+
+**Priority**  
+High
+
+**Business Owner**  
+AI Platform
+
+**Acceptance Criteria**
+
+- AI 建議需標示來源與版本。
+- 人工可接受、修改或拒絕建議。
+- 所有 AI 建議均須保留紀錄。
+
+---
+
+## BR-0005 — Governance Package (PGP)
+
+**Business Objective**  
+建立完整 Project Governance Package。
+
+**Description**  
+案件於關鍵節點及結案時，應產生 PGP 封裝，整合治理資訊供查驗、移交與保固使用。
+
+**Priority**  
+High
+
+**Business Owner**  
+Governance Core
+
+**Acceptance Criteria**
+
+- PGP 包含案件、流程、Evidence、Checklist、Gate 與簽核資訊。
+- PGP 可供後續查詢與驗證。
+- PGP 內容具一致性與完整性。
+
+---
+
+# Chapter 18. Requirement Traceability Matrix
+
+所有需求均須建立正式追溯矩陣：
+
+| Requirement | GS | SAD | TGS | SDD | DDS | OpenAPI | Test |
+|-------------|----|-----|-----|-----|-----|----------|------|
+| BR-0001 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| BR-0002 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| BR-0003 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| BR-0004 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| BR-0005 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+後續將持續擴充至完整需求目錄，但所有新增需求皆須遵循相同結構與追溯規則，並經正式版本控管。
+
+---
+
+至此，**BRS-001** 已完成需求目錄的正式基線建立。
+
+下一步將開始 **BOOK 3：Solution Architecture Document（SAD-001）**，所有架構內容將以 **BRS-001** 的需求為唯一來源，正式建立 TIGI 的系統架構，而不重新定義任何業務需求。

@@ -1,0 +1,88 @@
+---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 95
+category: brs
+title: "BOOK 2 — Business Requirements Specification（BRS-001）"
+---
+很好，接下來正式進入 **BOOK 2（BRS-001）** 的核心內容。
+
+---
+
+# BOOK 2 — Business Requirements Specification（BRS-001）
+## PART B — Business Capability Model
+**Official Edition v1.0**
+
+---
+
+# Chapter 8. Business Capability Catalog
+
+本章定義 TIGI 的正式業務能力（Business Capabilities）。每一項能力皆為獨立、可追溯、可管理的業務單元，並以 **Business Capability ID（BC-xxx）** 作為唯一識別。
+
+本章僅定義能力，不描述流程、介面或技術實作。
+
+| Capability ID | Capability Name | 說明 | 主要平台 |
+|---|---|---|---|
+| BC-001 | Demand Management | 建立與管理專案需求 | StyleMatch AI |
+| BC-002 | Style Intelligence | AI 風格分析與推薦 | StyleMatch AI |
+| BC-003 | Space Planning | 空間規劃與方案管理 | StyleMatch AI |
+| BC-004 | Member Management | 會員與身分管理 | TWCID |
+| BC-005 | Partner Matching | 設計師／廠商媒合 | TWCID |
+| BC-006 | Case Management | 專案生命週期管理 | iSAFE 2.0 |
+| BC-007 | Workflow Governance | 二階段十步驟治理 | iSAFE 2.0 |
+| BC-008 | State Machine | 狀態機控制 | Governance Core |
+| BC-009 | Gate Management | Gate 條件驗證 | Governance Core |
+| BC-010 | Checklist Management | GS-01～GS-24 檢核 | Governance Core |
+| BC-011 | Evidence Management | 證據管理 | Governance Core |
+| BC-012 | Contract Management | 合約管理 | iSAFE 2.0 |
+| BC-013 | Payment Governance | 付款節點治理 | iSAFE 2.0 |
+| BC-014 | Inspection Management | 驗收與缺失管理 | iSAFE 2.0 |
+| BC-015 | Warranty Management | 保固管理 | iSAFE 2.0 |
+| BC-016 | Risk Management | 風險評估與預警 | Governance Core |
+| BC-017 | PGP Management | Project Governance Package 管理 | Governance Core |
+| BC-018 | Knowledge Graph | 知識圖譜管理 | AI Platform |
+| BC-019 | AI Decision Support | AI 輔助分析與決策 | AI Platform |
+| BC-020 | Notification Service | 通知與事件推播 | Shared Service |
+| BC-021 | Audit Trail | 稽核軌跡 | Shared Service |
+| BC-022 | Reporting & Analytics | 報表與分析 | Shared Service |
+| BC-023 | Integration Service | 外部系統整合 | Platform Service |
+| BC-024 | Administration | 平台管理 | Platform Service |
+
+---
+
+# Chapter 9. Capability Ownership
+
+每項業務能力均指定唯一責任單位（Capability Owner），避免重複定義與責任重疊。
+
+例如：
+
+- BC-001～BC-003：StyleMatch AI
+- BC-004～BC-005：TWCID
+- BC-006～BC-017：iSAFE 2.0／Governance Core
+- BC-018～BC-019：AI Platform
+- BC-020～BC-024：Shared / Platform Services
+
+---
+
+# Chapter 10. Capability Traceability
+
+每項 Capability 必須建立完整追溯鏈：
+
+**Business Capability（BC）**
+→ **Business Requirement（BR）**
+→ **Governance Standard（GS）**
+→ **Solution Architecture（SAD）**
+→ **Software Design（SDD）**
+→ **Data Design（DDS）**
+→ **OpenAPI**
+→ **Test Specification**
+→ **Release**
+
+任何能力不得跳過上述追溯鏈直接實作。
+
+---
+
+至此，**Business Capability Catalog（BC-001～BC-024）** 已正式建立，成為 TIGI Official Edition 的標準能力清單。
+
+下一節將進入 **PART C：Business Process Model**，正式定義業務流程、Business Events、Business Rules，以及與「二階段十步驟」的正式引用關係（採 Cross Reference，不重複 GS 內容）。

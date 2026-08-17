@@ -1,0 +1,454 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PEP-003（續）</title><style>body{margin:0;background:#f5f5f4;color:#1c1917;font-family:system-ui,sans-serif}main{max-width:980px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #d6d3d1;padding-bottom:16px}h1{font-size:24px}p{color:#57534e}pre{margin-top:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}</style></head><body><main><header><h1>PEP-003（續）</h1><p>TIGI Engineering Corpus v1.0 · docs/pep/052_PEP-003（續）.md</p></header><pre>---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 52
+category: pep
+title: &quot;PEP-003（續）&quot;
+---
+# PEP-003（續）
+
+# Evidence Management Production Engineering Package
+
+**Package ID：PEP-003**  
+**Part 2：Evidence Vault &amp; Integrity Framework**
+
+---
+
+# 19 Evidence Vault Architecture
+
+```text id=&quot;v1o2w3&quot;
+Evidence API
+        │
+        ▼
+Evidence Service
+        │
+ ┌──────┼─────────────┐
+ ▼      ▼             ▼
+Hash    EXIF      Version Engine
+Engine  Engine
+        │
+        ▼
+Evidence Vault
+        │
+ ┌──────┼─────────────┐
+ ▼      ▼             ▼
+MinIO   Archive    Backup
+Storage Storage
+        │
+        ▼
+PGP Engine
+```
+
+---
+
+# 20 Immutable Evidence Policy
+
+所有 Evidence 建立後：
+
+- 原始檔不得覆寫。
+- 不得修改 SHA-256。
+- 不得修改 EXIF。
+- 不得修改建立時間。
+- 僅允許新增版本（Version）。
+- 所有版本均保留完整追溯鏈。
+
+---
+
+# 21 Evidence Chain
+
+Evidence Chain 定義：
+
+```text id=&quot;evchain01&quot;
+Evidence
+
+↓
+
+SHA-256
+
+↓
+
+Metadata
+
+↓
+
+Version
+
+↓
+
+Audit
+
+↓
+
+PGP Reference
+
+↓
+
+Archive
+```
+
+任何節點遺失即視為鏈結中斷。
+
+---
+
+# 22 Digital Signature
+
+Evidence 可支援數位簽章。
+
+Signature Object：
+
+```text id=&quot;evsign01&quot;
+Signature ID
+
+Evidence ID
+
+Algorithm
+
+Signer
+
+Signature Value
+
+Signed Time
+
+Certificate Reference
+```
+
+支援後續電子簽章整合。
+
+---
+
+# 23 Storage Adapter Interface
+
+```text id=&quot;storage01&quot;
+StorageAdapter
+
+upload()
+
+download()
+
+exists()
+
+delete()
+
+archive()
+
+restore()
+
+generateSignedUrl()
+```
+
+所有 Storage Provider 必須實作相同介面。
+
+---
+
+# 24 Object Storage Structure
+
+```text id=&quot;storage02&quot;
+/case/
+
+case_id/
+
+workflow/
+
+stage/
+
+evidence/
+
+version/
+
+file
+```
+
+不得直接以檔名作為永久識別。
+
+---
+
+# 25 Archive Strategy
+
+Archive 分層：
+
+```text id=&quot;archive01&quot;
+Hot Storage
+
+↓
+
+Warm Storage
+
+↓
+
+Cold Storage
+
+↓
+
+Long-term Archive
+```
+
+Archive Policy 由 Operations Specification 管理。
+
+---
+
+# 26 Migration Script
+
+```sql id=&quot;migration01&quot;
+ALTER TABLE evidence_master
+ADD COLUMN signature_id BIGINT;
+
+ALTER TABLE evidence_master
+ADD COLUMN archive_flag BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE evidence_master
+ADD COLUMN trace_id VARCHAR(100);
+
+CREATE INDEX idx_evidence_case
+ON evidence_master(case_id);
+
+CREATE INDEX idx_evidence_hash
+ON evidence_master(sha256);
+```
+
+---
+
+# 27 Integrity Verification
+
+定期執行：
+
+- SHA-256 Recheck
+- Missing File Detection
+- Metadata Validation
+- Version Consistency
+- Storage Consistency
+
+驗證結果寫入 Audit。
+
+---
+
+# 28 Performance Benchmark
+
+| Operation | Target |
+|-----------|--------|
+| Upload | ≤ 500 ms（Metadata 完成） |
+| SHA-256 | ≤ 2 秒（100 MB 以下） |
+| EXIF | ≤ 300 ms |
+| Download Metadata | ≤ 200 ms |
+| Version Query | ≤ 200 ms |
+
+---
+
+# 29 Runtime Metrics
+
+監測指標：
+
+```text id=&quot;metric01&quot;
+Upload Count
+
+Upload Success Rate
+
+Hash Failure Rate
+
+Storage Failure Rate
+
+Version Count
+
+Archive Count
+
+Average Upload Time
+```
+
+---
+
+# 30 Audit Record
+
+每次操作均須記錄：
+
+```text id=&quot;audit01&quot;
+Evidence ID
+
+Case ID
+
+Version
+
+Operator
+
+Operation
+
+Storage Provider
+
+Hash
+
+Result
+
+Trace ID
+
+Timestamp
+```
+
+---
+
+# 31 PHP Domain Skeleton
+
+```php
+final class EvidenceAggregate
+{
+    public function upload(){}
+    public function verify(){}
+    public function archive(){}
+    public function restore(){}
+    public function createVersion(){}
+}
+```
+
+---
+
+# 32 FastAPI Service Skeleton
+
+```text
+evidence/
+
+integrity.py
+
+signature.py
+
+archive.py
+
+metrics.py
+
+audit.py
+
+storage_adapter.py
+```
+
+---
+
+# 33 Deployment Configuration
+
+Storage 預設：
+
+- Development：Local File System
+- Testing：MinIO
+- Production：MinIO（S3 Compatible）
+- Backup：Object Storage Replication
+
+---
+
+# 34 PlantUML Sequence
+
+```plantuml
+@startuml
+
+Client -&gt; EvidenceAPI
+
+EvidenceAPI -&gt; HashEngine
+
+HashEngine --&gt; EvidenceAPI
+
+EvidenceAPI -&gt; EXIFEngine
+
+EXIFEngine --&gt; EvidenceAPI
+
+EvidenceAPI -&gt; StorageAdapter
+
+StorageAdapter --&gt; EvidenceAPI
+
+EvidenceAPI -&gt; Audit
+
+Audit --&gt; Client
+
+@enduml
+```
+
+---
+
+# 35 Mermaid Flow
+
+```mermaid
+flowchart TD
+
+Upload --&gt; Hash
+
+Hash --&gt; EXIF
+
+EXIF --&gt; Storage
+
+Storage --&gt; Audit
+
+Audit --&gt; PGP
+```
+
+---
+
+# 36 Test Specification
+
+```text
+EV-011 Digital Signature
+
+EV-012 Archive File
+
+EV-013 Restore Archive
+
+EV-014 Storage Replication
+
+EV-015 Hash Recheck
+
+EV-016 Missing File Detection
+
+EV-017 Version Integrity
+
+EV-018 Metadata Consistency
+
+EV-019 Signed URL
+
+EV-020 Backup Recovery
+```
+
+---
+
+# 37 Deliverables
+
+完成交付：
+
+- Evidence Vault
+- Immutable Storage
+- Storage Adapter
+- Digital Signature
+- Archive Strategy
+- SQL Migration
+- OpenAPI Contract
+- PHP Skeleton
+- FastAPI Skeleton
+- PlantUML
+- Mermaid
+- Performance Benchmark
+- Test Specification
+
+---
+
+# 38 PEP-003 Status
+
+**PEP-003 Evidence Management Production Engineering Package**
+
+**Status：Completed**
+
+**Frozen：Yes**
+
+---
+
+# PEP-004
+
+## Contract &amp; Payment Production Engineering Package
+
+下一段直接開始：
+
+- Contract Aggregate
+- Payment Engine
+- Milestone Payment
+- Escrow / Trust Integration
+- Invoice
+- Approval Workflow
+- Payment OpenAPI
+- SQL Schema
+- PHP Domain
+- FastAPI Service
+- UML
+- Mermaid
+- Test Specification
+</pre></main></body></html>

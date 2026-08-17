@@ -1,0 +1,271 @@
+---
+source: chatgpt-share-6a423bca
+source_title: TIGI Engineering Documents v1.0
+extracted_at: 2026-06-29
+sequence: 75
+category: dds
+title: "BOOK 06 - Data Design Specification（DDS-001）"
+---
+收到。
+
+依照 **Official Edition**，以下直接接續 **BOOK-06：DDS-001** 正式內容。
+
+---
+
+# BOOK 06
+
+# Data Design Specification（DDS-001）
+
+## PART C — Entity Specification
+
+**Official Edition v1.0**
+
+---
+
+# Chapter 8. Entity Specification Framework
+
+所有 Entity 採用統一規格描述：
+
+- **Entity ID**
+- **Entity Name**
+- **Business Purpose**
+- **Aggregate**
+- **Owner**
+- **Mandatory Attributes**
+- **Relationships**
+- **Lifecycle**
+- **Version Policy**
+- **Governance Constraints**
+- **Cross References**
+
+本章定義資料實體，不重複 API、資料庫欄位或程式物件設計。
+
+---
+
+# Chapter 9. EN-001 Case
+
+## Business Purpose
+
+Case 為 TIGI 治理核心實體，用於代表一個完整案件，並作為所有治理活動、流程、Evidence 與 PGP 的關聯根節點（Aggregate Root）。
+
+## Aggregate
+
+AG-001 Case Aggregate
+
+## Owner
+
+iSAFE 2.0
+
+## Mandatory Attributes
+
+- Case ID
+- Case Number
+- Case Type
+- Case Status
+- Project ID
+- Organization ID
+- Current State ID
+- Created Time
+- Last Updated Time
+
+## Relationships
+
+- Project（1:1）
+- Workflow（1:N）
+- Evidence（1:N）
+- Audit（1:N）
+- PGP（1:N）
+
+## Lifecycle
+
+Registered → Active → Suspended → Closed → Archived
+
+## Governance Constraints
+
+- Case ID 不可變更。
+- 案件狀態僅可由 State Machine 更新。
+- 結案後不得重新啟用，應建立新治理事件處理。
+
+---
+
+# Chapter 10. EN-002 User
+
+## Business Purpose
+
+代表平台使用者，提供身分識別、角色與授權依據。
+
+## Owner
+
+TWCID
+
+## Mandatory Attributes
+
+- User ID
+- Display Name
+- Identity Status
+- Organization ID
+- Role Set
+- Account Status
+
+## Relationships
+
+- Organization
+- Case Assignment
+- Audit
+- Decision Log
+
+## Lifecycle
+
+Registered → Verified → Active → Suspended → Deactivated
+
+## Governance Constraints
+
+- User ID 永久唯一。
+- 身分驗證狀態須可追溯。
+- 停用後不得刪除歷史治理紀錄。
+
+---
+
+# Chapter 11. EN-003 Organization
+
+## Business Purpose
+
+代表法人、公司、設計團隊、施工單位或其他組織實體。
+
+## Mandatory Attributes
+
+- Organization ID
+- Organization Name
+- Organization Type
+- Certification Status
+- Status
+
+## Relationships
+
+- Users
+- Projects
+- Cases
+- Contracts
+
+---
+
+# Chapter 12. EN-004 Project
+
+## Business Purpose
+
+Project 為專案管理實體，用於管理案件所屬工程或設計專案。
+
+## Mandatory Attributes
+
+- Project ID
+- Project Name
+- Project Type
+- Start Date
+- End Date（如適用）
+- Project Status
+
+## Relationships
+
+- Organization
+- Case
+- Contract
+- Payment
+- Inspection
+- Warranty
+
+---
+
+# Chapter 13. EN-005 Workflow
+
+## Business Purpose
+
+Workflow 定義案件於治理流程中的執行軌跡。
+
+## Mandatory Attributes
+
+- Workflow ID
+- Case ID
+- Workflow Type
+- Current Stage
+- Current State
+- Version
+
+## Relationships
+
+- State
+- Gate
+- Checklist
+
+## Governance Constraints
+
+Workflow 不直接控制狀態，由 State Machine 執行。
+
+---
+
+# Chapter 14. EN-006 State
+
+## Business Purpose
+
+State 為案件唯一正式治理狀態。
+
+## Mandatory Attributes
+
+- State ID
+- State Code
+- State Name
+- State Category
+- State Version
+
+## Governance Constraints
+
+- State 僅能由 Governance Runtime 更新。
+- 所有狀態變更須產生 Audit Record。
+- 不允許未經授權之狀態跳轉。
+
+---
+
+# Chapter 15. Entity Version Policy
+
+所有 Entity 均須遵循一致版本政策：
+
+- Canonical ID 永不變更。
+- Schema 變更採版本升級。
+- 歷史版本須可查詢。
+- 不得覆寫正式歷史資料。
+- 重大結構變更應建立新版本並維持相容性策略。
+
+---
+
+# Chapter 16. Cross References
+
+本章引用：
+
+- **BRS-001**：Business Requirements
+- **SAD-001**：Architecture Components
+- **TGS-001**：Governance Rules
+- **SDD-001**：Software Components
+- **OpenAPI-001**：資料交換契約
+- **Knowledge Graph Specification**：知識實體映射
+
+---
+
+## DDS-001 目前進度
+
+已完成：
+
+- **PART A：Data Architecture Foundation**
+- **PART B：Canonical Data Model**
+- **PART C：Entity Specification（EN-001～EN-006 基線）**
+
+下一階段將正式出版 **PART D — Relationship & Persistence Model**，定義：
+
+- Entity Relationship 規範
+- Aggregate Boundary
+- Referential Integrity
+- Persistence Mapping
+- Versioned Storage
+- Archive Strategy
+- Data Lifecycle
+- Data Governance Rules
+
+完成後，DDS-001 將成為 TIGI 所有資料模型、資料庫設計、API 契約與 Knowledge Graph 的唯一正式資料基線。

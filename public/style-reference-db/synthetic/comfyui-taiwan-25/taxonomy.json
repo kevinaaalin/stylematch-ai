@@ -1,0 +1,177 @@
+[
+  {
+    "sourceId": "13",
+    "sourceLabel": "新東方風",
+    "id": "new_oriental",
+    "label": "新東方風",
+    "folder": "新東方風_new_oriental"
+  },
+  {
+    "sourceId": "25",
+    "sourceLabel": "法式風格",
+    "id": "french",
+    "label": "法式風格",
+    "folder": "法式風格_french"
+  },
+  {
+    "sourceId": "24",
+    "sourceLabel": "英式風格",
+    "id": "british",
+    "label": "英式風格",
+    "folder": "英式風格_british"
+  },
+  {
+    "sourceId": "23",
+    "sourceLabel": "歐式古典風格",
+    "id": "european_classic",
+    "label": "歐式古典風格",
+    "folder": "歐式古典風格_european_classic"
+  },
+  {
+    "sourceId": "21",
+    "sourceLabel": "輕古典風",
+    "id": "light_luxury",
+    "label": "輕奢風",
+    "folder": "輕奢風_light_luxury"
+  },
+  {
+    "sourceId": "20",
+    "sourceLabel": "現代人文風",
+    "id": "humanistic",
+    "label": "人文風",
+    "folder": "人文風_humanistic"
+  },
+  {
+    "sourceId": "18",
+    "sourceLabel": "禪風",
+    "id": "wabi_sabi",
+    "label": "侘寂風",
+    "folder": "侘寂風_wabi_sabi"
+  },
+  {
+    "sourceId": "17",
+    "sourceLabel": "前衛風",
+    "id": "avant_garde",
+    "label": "前衛風",
+    "folder": "前衛風_avant_garde"
+  },
+  {
+    "sourceId": "16",
+    "sourceLabel": "日式風格",
+    "id": "japanese",
+    "label": "日式風格",
+    "folder": "日式風格_japanese"
+  },
+  {
+    "sourceId": "15",
+    "sourceLabel": "地中海風",
+    "id": "mediterranean",
+    "label": "地中海風",
+    "folder": "地中海風_mediterranean"
+  },
+  {
+    "sourceId": "22",
+    "sourceLabel": "中式古典風格",
+    "id": "chinese_classic",
+    "label": "中式古典風格",
+    "folder": "中式古典風格_chinese_classic"
+  },
+  {
+    "sourceId": "1",
+    "sourceLabel": "現代風",
+    "id": "modern",
+    "label": "現代風",
+    "folder": "現代風_modern"
+  },
+  {
+    "sourceId": "12",
+    "sourceLabel": "混搭風",
+    "id": "artistic_eclectic",
+    "label": "混搭風",
+    "folder": "混搭風_artistic_eclectic"
+  },
+  {
+    "sourceId": "11",
+    "sourceLabel": "LOFT風",
+    "id": "loft",
+    "label": "LOFT風",
+    "folder": "LOFT風_loft"
+  },
+  {
+    "sourceId": "10",
+    "sourceLabel": "簡約風",
+    "id": "minimalist",
+    "label": "簡約風",
+    "folder": "簡約風_minimalist"
+  },
+  {
+    "sourceId": "9",
+    "sourceLabel": "美式風",
+    "id": "american",
+    "label": "美式風",
+    "folder": "美式風_american"
+  },
+  {
+    "sourceId": "8",
+    "sourceLabel": "休閒villa風",
+    "id": "resort_villa",
+    "label": "休閒villa風",
+    "folder": "休閒villa風_resort_villa"
+  },
+  {
+    "sourceId": "7",
+    "sourceLabel": "鄉村風",
+    "id": "country",
+    "label": "鄉村風",
+    "folder": "鄉村風_country"
+  },
+  {
+    "sourceId": "6",
+    "sourceLabel": "低調奢華風",
+    "id": "art_deco",
+    "label": "裝飾藝術風",
+    "folder": "裝飾藝術風_art_deco"
+  },
+  {
+    "sourceId": "5",
+    "sourceLabel": "工業風",
+    "id": "industrial",
+    "label": "工業風",
+    "folder": "工業風_industrial"
+  },
+  {
+    "sourceId": "4",
+    "sourceLabel": "北歐風",
+    "id": "scandinavian",
+    "label": "北歐風",
+    "folder": "北歐風_scandinavian"
+  },
+  {
+    "sourceId": "3",
+    "sourceLabel": "古典風",
+    "id": "retro",
+    "label": "復古風",
+    "folder": "復古風_retro"
+  },
+  {
+    "sourceId": "2",
+    "sourceLabel": "新古典風",
+    "id": "neoclassical",
+    "label": "新古典風",
+    "folder": "新古典風_neoclassical"
+  },
+  {
+    "sourceId": "",
+    "sourceLabel": "",
+    "id": "boutique_hotel",
+    "label": "精品飯店風",
+    "folder": "精品飯店風_boutique_hotel"
+  },
+  {
+    "sourceId": "",
+    "sourceLabel": "",
+    "id": "cream",
+    "label": "奶油風",
+    "folder": "奶油風_cream"
+  }
+]
