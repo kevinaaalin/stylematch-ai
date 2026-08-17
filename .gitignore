@@ -21,6 +21,7 @@ dist-ssr
 public/style-reference-db/synthetic/comfyui/**/*.png
 public/style-reference-db/synthetic/comfyui-taiwan-25/**/*.png
 public/style-reference-db/twcid/
+public/style-reference-db/synthetic/**/manifest.jsonl
 
 # Editor directories and files
 .vscode/*
