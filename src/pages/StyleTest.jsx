@@ -10,6 +10,7 @@ import { STYLE_KEYS } from "../data/styleCatalog";
 import ContactForm from "../components/styletest/ContactForm";
 import ResultDisplay from "../components/styletest/ResultDisplay";
 import { createStyleTestQuestionSet } from "../lib/styleTestSampling";
+import { scoreStyleRatings } from "../lib/styleTestScoring";
 
 const FULL_MINIMUM = 15;
 
@@ -22,29 +23,18 @@ const RATING_OPTIONS = [
 ];
 
 function calculateStyleResult(allRatings, mode, totalImages) {
-  const scores = Object.fromEntries(STYLE_KEYS.map((key) => [key, 0]));
-  const ratingWeights = { 5: 2, 4: 1, 3: 0, 2: -1, 1: -2 };
-
-  allRatings.forEach((item) => {
-    const weight = ratingWeights[item.rating] || 0;
-    item.styles.forEach((styleKey) => {
-      if (Object.prototype.hasOwnProperty.call(scores, styleKey)) {
-        scores[styleKey] += weight;
-      }
-    });
-  });
-
-  const sortedScores = Object.entries(scores).sort(([, a], [, b]) => b - a);
-  const primaryStyle = sortedScores[0][0];
-  const secondaryStyle = sortedScores[1] && sortedScores[1][1] > 0 ? sortedScores[1][0] : null;
+  const scoring = scoreStyleRatings(allRatings, STYLE_KEYS);
   const completedCount = allRatings.length;
   const confidenceScore = Math.min(100, Math.round((completedCount / totalImages) * 100));
 
   return {
     ratings: allRatings,
-    test_score: scores,
-    primary_style: primaryStyle,
-    secondary_style: secondaryStyle,
+    test_score: scoring.scores,
+    test_score_details: scoring.details,
+    ranked_style_ids: scoring.ranked_style_ids,
+    primary_style: scoring.primary_style,
+    secondary_style: scoring.secondary_style,
+    scoring_method: "direct_star_sum_v1",
     test_mode: mode,
     completed_count: completedCount,
     total_images: totalImages,
@@ -212,7 +202,7 @@ export default function StyleTest() {
             ))}
           </div>
           <p className="mt-3 text-center text-xs leading-5 text-stone-500">
-            1 星代表完全不喜歡、3 星代表中立、5 星代表非常喜歡；系統各從 30 種風格抽一張，並平衡空間與光線組合後分析主要及次要偏好。
+            1 星就是 1 分、5 星就是 5 分；同一風格的所有圖片分數直接加總後排名，總分最高為主要風格、第二名為次要風格。
           </p>
         </div>
 
