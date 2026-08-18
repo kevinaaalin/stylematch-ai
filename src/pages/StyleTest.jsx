@@ -9,7 +9,7 @@ import { CheckCircle, Sparkles, Star, Undo2 } from "lucide-react";
 import { styleTestImages as styleImages, STYLE_TEST_IMAGE_MANIFEST_VERSION } from "../data/styleTestImageManifest";
 import { STYLE_KEYS } from "../data/styleCatalog";
 import ContactForm from "../components/styletest/ContactForm";
-import ResultDisplay from "../components/styletest/ResultDisplay";
+import ServiceIntroduction from "../components/requirements/ServiceIntroduction";
 import { createStyleTestQuestionSet } from "../lib/styleTestSampling";
 import { scoreStyleRatings } from "../lib/styleTestScoring";
 import { createPageUrl } from "@/utils";
@@ -142,11 +142,15 @@ export default function StyleTest() {
   if (testResult && userInfo !== null) {
     return (
       <div className="min-h-screen bg-stone-50 py-8">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <ResultDisplay
-            result={testResult}
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <ServiceIntroduction
             delivery={userInfo.delivery}
-            onNext={() => navigate(createPageUrl("Requirements"))}
+            onNext={(preferredService) => navigate(createPageUrl("Requirements"), {
+              state: {
+                preferred_service: preferredService,
+                user_email: userInfo.email,
+              },
+            })}
           />
         </div>
       </div>

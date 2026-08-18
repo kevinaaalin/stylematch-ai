@@ -39,7 +39,7 @@ const options = [
 ];
 
 export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting }) {
-  const [selectedOption, setSelectedOption] = useState("");
+  const [selectedOption, setSelectedOption] = useState(formData.preferred_service || "");
   const [completedProject, setCompletedProject] = useState(null);
   const [error, setError] = useState("");
 
@@ -98,12 +98,15 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {options.map((option) => (
-          <Card key={option.id} className={`flex flex-col border-stone-200 shadow-sm ${option.highlighted ? "ring-2 ring-amber-400" : ""}`}>
+        {options.map((option) => {
+          const isPreferred = formData.preferred_service === option.id;
+          return (
+          <Card key={option.id} className={`flex flex-col border-stone-200 shadow-sm ${option.highlighted || isPreferred ? "ring-2 ring-amber-400" : ""}`}>
             <CardHeader>
               <div className={`mb-3 flex h-11 w-11 items-center justify-center rounded-md ${option.highlighted ? "bg-amber-500 text-white" : "bg-stone-100 text-stone-700"}`}>
                 <option.icon className="h-5 w-5" />
               </div>
+              {isPreferred && <p className="text-xs font-semibold text-amber-700">風格測驗後預選</p>}
               <CardTitle className="text-lg">{option.title}</CardTitle>
               <p className="font-semibold text-amber-700">{option.price}</p>
               <p className="text-sm leading-6 text-stone-600">{option.description}</p>
@@ -144,7 +147,8 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
               )}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

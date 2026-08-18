@@ -34,6 +34,13 @@ export async function GenerateImage({ prompt }) {
 }
 
 export async function SendEmail(message) {
+  if (!message.lead || !Array.isArray(message.ai_task_ids)) {
+    localStore.addNotification({
+      ...message,
+      delivery_status: "本機待寄",
+    });
+    return { success: true, local: true, delivery_status: "outbox_only" };
+  }
   const response = await fetch("http://127.0.0.1:4180/api/v1/stylematch/style-test-deliveries", {
     method: "POST",
     headers: aiTaskHeaders({

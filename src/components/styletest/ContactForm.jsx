@@ -9,7 +9,7 @@ import { StyleTest, SendEmail } from "@/lib/localAdapters";
 import { createAndWaitForImageTask } from "@/lib/aiImageTasks";
 import { getStyleById } from "@/data/styleCatalog";
 
-const PRIVACY_NOTICE_VERSION = "stylematch-style-test-20260817-v1";
+const PRIVACY_NOTICE_VERSION = "stylematch-style-test-20260818-v2";
 
 function retentionUntil(marketingConsent) {
   const date = new Date();
@@ -36,6 +36,10 @@ export default function ContactForm({ testResult, onSubmit, isSubmitting, setIsS
     setError("");
     if (!formData.result_delivery_consent) {
       setError("請先確認結果寄送與個人資料蒐集告知。行銷同意不是必填。");
+      return;
+    }
+    if (!/^[0-9+()\-\s]{8,20}$/.test(formData.phone.trim())) {
+      setError("請輸入有效的聯絡電話，限 8 至 20 位數字及常用電話符號。");
       return;
     }
     setIsSubmitting(true);
@@ -170,10 +174,10 @@ StyleMatch AI 團隊`;
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">聯絡電話（選填）</Label>
+            <Label htmlFor="phone">聯絡電話 *</Label>
             <div className="relative">
               <Phone className="absolute left-3 top-3 h-4 w-4 text-stone-400" />
-              <Input id="phone" type="tel" value={formData.phone} onChange={(event) => handleInputChange("phone", event.target.value)} className="pl-10" autoComplete="tel" />
+              <Input id="phone" type="tel" value={formData.phone} onChange={(event) => handleInputChange("phone", event.target.value)} required minLength={8} maxLength={20} className="pl-10" autoComplete="tel" placeholder="例如 0912 345 678" />
             </div>
           </div>
 
@@ -182,9 +186,9 @@ StyleMatch AI 團隊`;
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
               <div>
                 <p className="font-semibold text-stone-900">個人資料蒐集告知</p>
-                <p className="mt-1 leading-6">蒐集者為 StyleMatch AI；蒐集姓名、Email、選填電話及測驗結果，用於寄送本次分析、客服與您另行同意的行銷聯絡。資料在本機保存：僅寄結果者 90 天；同意行銷者最長 24 個月或撤回為止。</p>
+                <p className="mt-1 leading-6">蒐集者為 StyleMatch AI；蒐集姓名、Email、聯絡電話及測驗結果，用於寄送本次分析、客服與您另行同意的行銷聯絡。資料在本機保存：僅寄結果者 90 天；同意行銷者最長 24 個月或撤回為止。</p>
                 <p className="mt-1 leading-6">利用地區為本機服務所在地及所設定郵件服務商的處理地區；利用對象為 StyleMatch AI 營運者與寄信所必要的郵件服務商，方式為本機儲存、自動分析及電子郵件寄送。</p>
-                <p className="mt-1 leading-6">您可向營運者請求查詢、更正、停止使用、撤回行銷同意或刪除。不提供姓名與 Email 將無法寄送及顯示完整結果，但不影響重新測驗。正式上線前須在隱私權頁面補入營運者法定名稱與聯絡方式。</p>
+                <p className="mt-1 leading-6">您可向營運者請求查詢、更正、停止使用、撤回行銷同意或刪除。不提供姓名、Email 與聯絡電話將無法完成結果寄送，但不影響重新測驗。正式上線前須在隱私權頁面補入營運者法定名稱與聯絡方式。</p>
               </div>
             </div>
 
@@ -199,8 +203,8 @@ StyleMatch AI 團隊`;
             </label>
           </div>
 
-          <Button type="submit" size="lg" disabled={isSubmitting || !formData.name.trim() || !formData.email.trim() || !formData.result_delivery_consent} className="w-full bg-stone-900 text-white hover:bg-stone-800">
-            {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />正在產生並寄送 4 張圖片</> : <><CheckCircle className="mr-2 h-5 w-5" />寄送並查看完整結果</>}
+          <Button type="submit" size="lg" disabled={isSubmitting || !formData.name.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.result_delivery_consent} className="w-full bg-stone-900 text-white hover:bg-stone-800">
+            {isSubmitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />正在產生並寄送 4 張圖片</> : <><CheckCircle className="mr-2 h-5 w-5" />寄送結果並查看服務選項</>}
           </Button>
         </form>
       </CardContent>

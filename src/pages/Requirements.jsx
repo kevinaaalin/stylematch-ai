@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,9 +19,11 @@ const steps = [
 ];
 
 export default function Requirements() {
+  const location = useLocation();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
-    user_email: "",
+    user_email: location.state?.user_email || "",
+    preferred_service: location.state?.preferred_service || "",
     house_type: "",
     house_age: "",
     square_footage: 0,

@@ -1,174 +1,121 @@
 import React from "react";
+import { ArrowRight, CheckCircle2, ExternalLink, Mail, Sparkles, UserCheck, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Sparkles, 
-  Users, 
-  ExternalLink,
-  UserCheck,
-  CheckCircle,
-  ArrowRight
-} from "lucide-react";
 
-export default function ServiceIntroduction({ onNext }) {
-  const serviceOptions = [
-    {
-      id: "ai_proposal",
-      icon: Sparkles,
-      title: "付費生成設計提案",
-      description: "AI 基於您的需求生成個人化設計提案，包含 3D 效果圖、材料建議、預算分析",
-      price: "NT$ 2,999",
-      highlights: ["專業 AI 分析", "3-5 個風格提案", "包含 3D 效果圖", "7 天內交付"],
-      action: "選擇 NT$2,999 提案",
-      color: "from-amber-500 to-orange-500",
-      bgColor: "from-amber-50 to-orange-50",
-      recommended: true
-    },
-    {
-      id: "platform_matching", 
-      icon: UserCheck,
-      title: "系統自動媒合設計師",
-      description: "填寫詳細表單，由我們的專業團隊為您匹配最適合的室內設計師",
-      price: "免費媒合",
-      highlights: ["專業團隊人工媒合", "推薦 3-5 位設計師", "作品集展示", "3-5 天完成媒合"],
-      action: "選擇免費媒合",
-      color: "from-blue-500 to-blue-600",
-      bgColor: "from-blue-50 to-blue-50"
-    },
-    {
-      id: "twcid_platform",
-      icon: ExternalLink,
-      title: "TWCID 平台招標媒合",
-      description: "直接使用 TWCID 平台的招標系統，讓多位設計師為您提案競標",
-      price: "依招標規則",
-      highlights: ["開放式招標競爭", "多位設計師提案", "透明化報價", "自主選擇合作對象"],
-      action: "選擇 TWCID 招標",
-      color: "from-purple-500 to-purple-600", 
-      bgColor: "from-purple-50 to-purple-50"
-    }
-  ];
+const serviceOptions = [
+  {
+    id: "ai_proposal",
+    icon: Sparkles,
+    title: "AI 裝修規劃設計提案",
+    description: "依格局、照片、風格與預算，產生個人化空間規劃、參考圖、材料及預算摘要。",
+    price: "NT$ 2,999",
+    highlights: ["AI 需求與風格分析", "3 至 5 組空間方向", "材料與配色建議", "預算配置摘要"],
+    action: "選擇 AI 設計提案",
+    recommended: true,
+  },
+  {
+    id: "platform_matching",
+    icon: UserCheck,
+    title: "專業設計師媒合",
+    description: "由平台整理完整需求，媒合適合的專業設計師進一步確認、報價與實作。",
+    price: "免費提出需求",
+    highlights: ["依需求條件媒合", "設計師資料比較", "後續洽談安排", "以需求資料協助溝通"],
+    action: "選擇設計師媒合",
+  },
+  {
+    id: "twcid_platform",
+    icon: ExternalLink,
+    title: "TWCID 平台服務",
+    description: "將需求整理後銜接 TWCID 平台，進行會員確認、設計服務媒合或後續招標。",
+    price: "依平台規則",
+    highlights: ["會員與資格確認", "正式需求登錄", "設計服務媒合", "保留案件治理銜接"],
+    action: "選擇 TWCID 服務",
+  },
+];
+
+export default function ServiceIntroduction({ delivery, onNext }) {
+  const delivered = delivery?.delivery_status === "sent";
+  const deliveryTone = delivered
+    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+    : "border-amber-200 bg-amber-50 text-amber-900";
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center">
-        <div className="inline-flex items-center space-x-2 bg-amber-100 text-amber-800 px-4 py-2 rounded-full text-sm font-medium mb-4">
-          <Users className="w-4 h-4" />
-          <span>選擇服務方案</span>
+      <div className={"flex items-start gap-3 rounded-md border p-4 " + deliveryTone}>
+        {delivered ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /> : <Mail className="mt-0.5 h-5 w-5 shrink-0" />}
+        <div>
+          <p className="font-semibold">{delivered ? "風格結果與 4 張參考圖已寄出" : "風格結果已建立於本機待寄匣"}</p>
+          <p className="mt-1 text-sm">{delivery?.message || "寄送作業已完成，請選擇下一步服務方向。"}</p>
         </div>
-        <h1 className="text-3xl lg:text-4xl font-bold text-stone-800 mb-4">
-          三種裝修規劃服務選項
-        </h1>
-        <p className="text-stone-600 text-lg max-w-2xl mx-auto">
-          從 AI 付費提案到設計師媒合，先選擇適合的服務方向，
-          再填寫需求，讓後續規劃更精準。
-        </p>
       </div>
 
-      {/* Service Options */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {serviceOptions.map((option) => (
-          <Card key={option.id} className={`border-none shadow-lg overflow-hidden ${
-            option.recommended ? "ring-2 ring-amber-300" : ""
-          }`}>
-            {option.recommended && (
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center py-2">
-                <Badge className="bg-white text-amber-600 font-semibold">
-                  🔥 推薦選項
-                </Badge>
-              </div>
-            )}
-            
-            <CardHeader className={`bg-gradient-to-r ${option.bgColor} p-6`}>
-              <div className="text-center">
-                <div className={`w-16 h-16 mx-auto mb-4 bg-gradient-to-r ${option.color} rounded-2xl flex items-center justify-center`}>
-                  <option.icon className="w-8 h-8 text-white" />
-                </div>
-                <CardTitle className="text-xl font-bold text-stone-800 mb-2">
-                  {option.title}
-                </CardTitle>
-                <p className="text-2xl font-bold text-stone-700">
-                  {option.price}
-                </p>
-              </div>
-            </CardHeader>
-            
-            <CardContent className="p-6">
-              <p className="text-stone-600 mb-4 text-sm leading-relaxed">
-                {option.description}
-              </p>
-              
-              <div className="space-y-2">
-                {option.highlights.map((highlight, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span className="text-sm text-stone-700">{highlight}</span>
-                  </div>
-                ))}
-              </div>
+      <header className="text-center">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white">
+          <Users className="h-4 w-4" />
+          後續服務選項
+        </div>
+        <h1 className="text-3xl font-bold text-stone-900 sm:text-4xl">選擇適合你的裝修規劃方式</h1>
+        <p className="mx-auto mt-3 max-w-2xl text-stone-600">
+          先了解三種服務的交付方式與費用，再進入需求填寫。現在的選擇會預先帶入，完成需求前仍可調整。
+        </p>
+      </header>
 
+      <div className="grid gap-5 lg:grid-cols-3">
+        {serviceOptions.map((option) => (
+          <Card key={option.id} className={"flex flex-col border-stone-200 shadow-sm " + (option.recommended ? "ring-2 ring-amber-400" : "")}>
+            <CardHeader>
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className={"flex h-11 w-11 items-center justify-center rounded-md " + (option.recommended ? "bg-amber-500 text-white" : "bg-stone-100 text-stone-700")}>
+                  <option.icon className="h-5 w-5" />
+                </div>
+                {option.recommended && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100">推薦</Badge>}
+              </div>
+              <CardTitle className="text-xl">{option.title}</CardTitle>
+              <p className="font-semibold text-amber-700">{option.price}</p>
+              <p className="text-sm leading-6 text-stone-600">{option.description}</p>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col">
+              <ul className="space-y-2">
+                {option.highlights.map((highlight) => (
+                  <li key={highlight} className="flex items-start gap-2 text-sm text-stone-700">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <span>{highlight}</span>
+                  </li>
+                ))}
+              </ul>
               <Button
                 type="button"
-                onClick={onNext}
-                className={`w-full mt-6 bg-gradient-to-r ${option.color} hover:opacity-90 text-white`}
+                onClick={() => onNext(option.id)}
+                className={"mt-6 w-full " + (option.recommended ? "bg-amber-500 text-white hover:bg-amber-600" : "")}
+                variant={option.recommended ? "default" : "outline"}
               >
                 {option.action}
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Process Flow Explanation */}
-      <Card className="border-none shadow-lg bg-gradient-to-r from-stone-50 to-stone-100">
-        <CardContent className="p-8">
-          <h3 className="text-xl font-bold text-stone-800 text-center mb-6">
-            接下來的流程
-          </h3>
-          
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-            {[
-              { step: "1", title: "基本資料", desc: "房屋類型與預算" },
-              { step: "2", title: "空間照片", desc: "上傳各空間照片" },
-              { step: "3", title: "喜好描述", desc: "氛圍與參考圖片" },
-              { step: "4", title: "預算案例", desc: "付費後提供完整評估" },
-              { step: "5", title: "選擇服務", desc: "確認服務方案" }
-            ].map((item, index) => (
-              <div key={index} className="text-center">
-                <div className="w-12 h-12 mx-auto mb-3 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold">
-                  {item.step}
-                </div>
-                <h4 className="font-semibold text-stone-800 mb-1">{item.title}</h4>
-                <p className="text-sm text-stone-600">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-          
-          <div className="text-center mt-8">
-            <Button 
-              onClick={onNext}
-              size="lg"
-              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-8 py-3"
-            >
-              填寫需求
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Additional Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h4 className="font-semibold text-blue-800 mb-3">溫馨提醒：</h4>
-        <ul className="text-sm text-blue-700 space-y-2">
-          <li>• 填寫越詳細的需求，我們能為您提供越精準的服務</li>
-          <li>• 所有個人資料均受到隱私保護，不會外洩給第三方</li>
-          <li>• 您可以先填寫需求，後續再決定是否付費提案或媒合設計師</li>
-          <li>• 如有任何疑問，歡迎隨時與我們的客服團隊聯繫</li>
-        </ul>
-      </div>
+      <section className="border-y border-stone-200 py-6">
+        <h2 className="text-center text-lg font-semibold text-stone-900">接下來的流程</h2>
+        <div className="mt-5 grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
+          {[
+            ["1", "住宅資料", "格局、坪數與預算"],
+            ["2", "現況資料", "平面圖與空間照片"],
+            ["3", "需求分析", "機能、材質與生活偏好"],
+            ["4", "確認方案", "檢視分析後正式送出"],
+          ].map(([step, title, description]) => (
+            <div key={step}>
+              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-stone-900 text-sm font-bold text-white">{step}</div>
+              <h3 className="mt-2 font-semibold text-stone-800">{title}</h3>
+              <p className="mt-1 text-xs text-stone-500">{description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
