@@ -1,0 +1,29 @@
+{
+  "version": "5.0",
+  "generatedAt": "2026-08-18T04:39:38.521Z",
+  "corpus": "TIGI Engineering Corpus v1.0",
+  "releaseVersion": "tigi_engineering_corpus_v1_0",
+  "releaseId": "TIGI-ENGINEERING-CORPUS-V1.0-CANONICAL",
+  "releaseStatus": "LOCAL_KNOWLEDGE_PLACEHOLDER",
+  "finalOfficialAllowed": false,
+  "stateContractVersion": "20260722_R5_2",
+  "sourceRoot": "tigi_engineering_corpus_v1_0/docs",
+  "manifestUrl": "tigi-corpus/release-manifest.json",
+  "networkDependency": false,
+  "canonicalReadingOrder": [
+    "foundation",
+    "brs",
+    "sad",
+    "tgs",
+    "sdd",
+    "dds",
+    "openapi",
+    "implementation-spec",
+    "platform-spec",
+    "pep"
+  ],
+  "documentCount": 0,
+  "chunkCount": 0,
+  "documents": [],
+  "chunks": []
+}
