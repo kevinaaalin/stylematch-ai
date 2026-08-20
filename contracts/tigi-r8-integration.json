@@ -1,0 +1,87 @@
+{
+  "$schema": "https://tigi.tw/schemas/governance-release/v1.0",
+  "version": "20260813_R8_StyleMatch_iSAFE_Integrated",
+  "release_id": "TIGI-GOVERNANCE-20260813-R8-SM-ISAFE",
+  "document_set_id": "TIGI-4MASTER-20260813-R8-SM-ISAFE-01",
+  "status": "IMPLEMENTATION_QA_BASELINE",
+  "final_official": "NO_GO",
+  "final_official_allowed": false,
+  "source_baseline": "20260810_R7_2_Style_Proposal_Vision_Commercial_QA_Integrated",
+  "state_contract_version": "20260722_R5_2",
+  "state_contract_file": "isafe-state-machine-r5.2.json",
+  "legacy_parity_version": "20260723_R5_2_PARITY_1",
+  "compatibility": {
+    "breaking_contract_change_approved": false,
+    "state_machine_mode": "R5.2_CANONICAL_COMPATIBILITY",
+    "registry_mode": "R6.1_CARRY_FORWARD",
+    "offline_development_fallback": true
+  },
+  "integrated_products": {
+    "stylematch_ai": {
+      "capabilities": [
+        "30_style_catalog",
+        "deterministic_style_analysis",
+        "budget_engine",
+        "proposal_report",
+        "reference_canvas",
+        "clip_vision_embedding",
+        "points_ledger",
+        "case_console"
+      ]
+    },
+    "isafe_2_0": {
+      "capabilities": [
+        "r5_2_two_phase_ten_stage_workflow",
+        "pre_execution_checklist_confirmation",
+        "case_timeline",
+        "audit_log",
+        "evidence_gate",
+        "waiver",
+        "payment_eligibility"
+      ]
+    }
+  },
+  "case_contract": {
+    "identifiers": ["case_code", "twcid_match_id", "isafe_case_id"],
+    "required_fields": ["stage_status", "timeline", "audit_log"],
+    "authorization_headers": ["X-Server-Role", "X-Case-Role", "X-Case-Authorization"],
+    "local_api_origin": "http://127.0.0.1:4180",
+    "offline_fallback": "localStorage"
+  },
+  "ai_image_task_contract": {
+    "endpoint": "http://127.0.0.1:4180/api/v1/ai/image-tasks",
+    "operations": [
+      "perspective_draft",
+      "reference_image_revision",
+      "floorplan_birdseye",
+      "floorplan_region_redraw",
+      "floorplan_room_view",
+      "style_test_reference"
+    ],
+    "trace_fields": [
+      "ai_task_id",
+      "trace_id",
+      "workflow_version",
+      "checkpoint",
+      "seed",
+      "source_media_count",
+      "operation",
+      "output_sha256",
+      "quality_report"
+    ],
+    "authorization_headers": ["X-Server-Role", "X-Case-Role", "X-Case-Authorization"],
+    "runtime": "ComfyUI@127.0.0.1:8188",
+    "development_fallback": {
+      "allowed": true,
+      "generation_source": "local_sdk_fallback",
+      "authoritative": false
+    }
+  },
+  "release_blockers": [
+    "production_identity",
+    "production_artifact_storage",
+    "production_ai_trace_registry",
+    "governance_approval",
+    "production_deployment_acceptance"
+  ]
+}

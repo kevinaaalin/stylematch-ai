@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.stylematch.ai/contracts/external-scene-reference-v1.schema.json",
+  "title": "StyleMatch External Scene Reference",
+  "type": "object",
+  "required": ["schema_version", "artifact_id", "stylematch_project_id", "revision", "status", "local_ref", "checksum"],
+  "properties": {
+    "schema_version": { "const": "StyleMatch.ExternalSceneReference/1.0" },
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "stylematch_project_id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["candidate", "approved", "superseded"] },
+    "local_ref": { "type": "string", "minLength": 1 },
+    "checksum": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": true
+}

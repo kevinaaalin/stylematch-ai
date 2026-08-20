@@ -1,0 +1,136 @@
+{
+  "contract_version": "20260722_R5_2",
+  "status": "release_candidate",
+  "source_authority": [
+    "TWCID iSAFE legacy design monitoring flow",
+    "TWCID iSAFE legacy engineering monitoring flow",
+    "TIGI R4.1 section 7 iSAFE 2.0 governance model",
+    "iSAFE.jpg supplied 2026-07-22"
+  ],
+  "pre_governance_states": [
+    {
+      "key": "INTAKE_pending",
+      "name": "進案審查",
+      "description": "直接進案、媒合或交接資料尚未核准進入 iSAFE 治理。"
+    }
+  ],
+  "stages": [
+    {
+      "sequence": "S1",
+      "code": "D1",
+      "key": "D1_design_preparation",
+      "phase": "design",
+      "name": "前置作業",
+      "description": "確認權利人、需求、設計範圍、法規、費用、付款方式與設計契約。",
+      "required_evidence": ["design_parties_confirmation", "design_requirements", "design_fee_terms", "design_contract"]
+    },
+    {
+      "sequence": "S2",
+      "code": "D2",
+      "key": "D2_floor_plan_design",
+      "phase": "design",
+      "name": "平面設計規劃",
+      "description": "完成現場丈量、平面配置、動線與家具配置確認。",
+      "required_evidence": ["site_measurement", "floor_plan_draft", "floor_plan_approval"]
+    },
+    {
+      "sequence": "S3",
+      "code": "D3",
+      "key": "D3_basic_design_finalization",
+      "phase": "design",
+      "name": "基本設計規劃定案",
+      "description": "完成色彩、天花、水電、燈光、建材與預算等基本設計定案。",
+      "required_evidence": ["basic_design_package", "materials_plan", "budget_review", "basic_design_approval"]
+    },
+    {
+      "sequence": "S4",
+      "code": "D4",
+      "key": "D4_elevation_design_finalization",
+      "phase": "design",
+      "name": "立面設計定案",
+      "description": "完成各空間立面、材質與相關設計成果確認。",
+      "required_evidence": ["elevation_drawings", "elevation_approval"]
+    },
+    {
+      "sequence": "S5",
+      "code": "D5",
+      "key": "D5_construction_detail_agreements",
+      "phase": "design",
+      "name": "施工大樣及其他約定事項",
+      "description": "完成施工大樣、材質表、施工說明、預算標單與完整施工圖說。",
+      "required_evidence": ["construction_details", "material_schedule", "bill_of_quantities", "issued_for_construction_set"]
+    },
+    {
+      "sequence": "S6",
+      "code": "C1",
+      "key": "C1_construction_preparation",
+      "phase": "construction",
+      "name": "前置作業",
+      "description": "確認工程圖說、材質樣品、工程項目、法規、費用、付款檢核與工程契約。",
+      "required_evidence": ["construction_contract", "construction_drawings", "material_samples", "payment_schedule", "work_checklist"]
+    },
+    {
+      "sequence": "S7",
+      "code": "C2",
+      "key": "C2_phase_one_construction",
+      "phase": "construction",
+      "name": "第一期工程施工",
+      "description": "依契約期別執行第一期工程、檢核、驗收與進度證據。",
+      "required_evidence": ["phase_1_checklist", "phase_1_progress_evidence", "phase_1_acceptance"]
+    },
+    {
+      "sequence": "S8",
+      "code": "C3",
+      "key": "C3_phase_two_construction",
+      "phase": "construction",
+      "name": "第二期工程施工",
+      "description": "依契約期別執行第二期工程、追加減、檢核與驗收。",
+      "required_evidence": ["phase_2_checklist", "phase_2_progress_evidence", "phase_2_acceptance"]
+    },
+    {
+      "sequence": "S9",
+      "code": "C4",
+      "key": "C4_phase_three_construction",
+      "phase": "construction",
+      "name": "第三期工程施工",
+      "description": "依契約期別執行第三期工程、完工及交屋前檢核。",
+      "required_evidence": ["phase_3_checklist", "completion_evidence", "handover_inspection"]
+    },
+    {
+      "sequence": "S10",
+      "code": "C5",
+      "key": "C5_warranty_aftercare",
+      "phase": "construction",
+      "name": "保固修繕及售後服務",
+      "description": "管理交屋清單、保固、修繕與售後服務紀錄。",
+      "required_evidence": ["handover_list", "warranty_record", "service_contact"]
+    }
+  ],
+  "terminal_states": [
+    {
+      "key": "CLOSED",
+      "name": "結案",
+      "description": "C5 完成後的案件生命週期狀態，不占用治理階段。"
+    }
+  ],
+  "gate_outcomes": ["Passed", "Failed", "Conditional", "Waived"],
+  "advance_outcomes": ["Passed", "Waived"],
+  "waiver_authorities": ["governance_admin", "headquarter"],
+  "payment_policy": {
+    "automatic_on_gate": false,
+    "requires_separate_evaluation": true,
+    "required_fields": ["milestone_id", "contract_baseline_ref", "gate_decision_id", "evidence_refs", "confirmed_by", "reason"]
+  },
+  "legacy_stage_mapping": {
+    "D1_intake": "D1_design_preparation",
+    "D2_requirement_review": "D2_floor_plan_design",
+    "D3_design_match": "D3_basic_design_finalization",
+    "D4_proposal_review": "D4_elevation_design_finalization",
+    "D5_contract_ready": "D5_construction_detail_agreements",
+    "C1_contract_start": "C1_construction_preparation",
+    "C2_site_execution": "C2_phase_one_construction",
+    "C3_change_control": "C3_phase_two_construction",
+    "C4_acceptance": "C4_phase_three_construction",
+    "C5_warranty_closed": "C5_warranty_aftercare"
+  }
+}

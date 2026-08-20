@@ -901,6 +901,48 @@ export const localStore = {
     return project;
   },
 
+  markProjectPayment(projectId, data = {}) {
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
+    if (!project) throw new Error("找不到要付款的 StyleMatch 專案。");
+    const at = nowIso();
+    const traceId = makeTraceId();
+    project.payment = {
+      status: data.status || "paid_test",
+      plan_id: data.plan_id || "single",
+      amount: data.amount ?? 2999,
+      currency: data.currency || "TWD",
+      provider: data.provider || "local_mvp_test",
+      reference: data.reference || `local-pay-${crypto.randomUUID()}`,
+      paid_at: at,
+    };
+    project.updated_at = at;
+    project.timeline = [
+      ...(project.timeline || []),
+      makeTimelineEvent({
+        title: "單次提案付款確認",
+        status: project.payment.status,
+        actor: "StyleMatch AI 本機付款測試",
+        detail: `方案 ${project.payment.plan_id}，金額 ${project.payment.currency} ${project.payment.amount}；本機測試不會實際扣款。`,
+        at,
+        traceId,
+      }),
+    ];
+    const auditLog = makeAuditLog({
+      action: "project.payment.confirm_test",
+      targetType: "project",
+      targetId: project.project_id,
+      userId: project.user_email || "anonymous",
+      detail: `本機測試付款確認：${project.case_code}`,
+      traceId,
+      at,
+    });
+    project.audit_log_ids = [...(project.audit_log_ids || []), auditLog.id];
+    database.auditLogs.unshift(auditLog);
+    writeDatabase(database);
+    return project;
+  },
+
   createTwcidMatch(projectId) {
     const database = readDatabase();
     const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);

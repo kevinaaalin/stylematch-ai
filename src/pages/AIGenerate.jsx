@@ -41,6 +41,12 @@ const creativeModeOptions = ["維持格局與主要物件", "保留格局，重�
 const lightingOptions = ["自然光", "自然光＋室內燈具", "明亮均勻照明", "溫暖情境照明", "商業展示照明", "維持原圖光線"];
 const materialOptions = ["不指定", "自然木質", "石材與金屬", "清水模與灰泥", "玻璃與霧面金屬", "織品與藤編", "維持原圖材質"];
 const colorOptions = ["不指定", "米白與暖灰", "大地色系", "黑白灰", "自然木色", "低飽和莫蘭迪", "品牌識別色", "維持原圖色彩"];
+const panoramaCaptureDirections = [
+  { id: "front", label: "前方 0°", yaw: 0 },
+  { id: "right", label: "右方 90°", yaw: 90 },
+  { id: "back", label: "後方 180°", yaw: 180 },
+  { id: "left", label: "左方 270°", yaw: 270 },
+];
 const roomMediaKeys = {
   客廳: ["living_room"],
   餐廳: ["dining_room"],
@@ -167,6 +173,7 @@ export default function AIGenerate() {
   const [material, setMaterial] = useState(materialOptions[0]);
   const [colorPalette, setColorPalette] = useState(colorOptions[0]);
   const [sourceImage, setSourceImage] = useState("");
+  const [panoramaSources, setPanoramaSources] = useState({ front: "", right: "", back: "", left: "" });
   const [imageStyleAnalysis, setImageStyleAnalysis] = useState(null);
   const [roomSize, setRoomSize] = useState({ length: "5.2", width: "4.0", clearHeight: "2.8" });
   const [heightNotes, setHeightNotes] = useState("FH 280 cm；如有樑位請依平面圖 BH／UBH 標示。");
@@ -307,6 +314,16 @@ export default function AIGenerate() {
     }
   };
 
+  const panoramaSourceHandler = (directionId) => (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPanoramaSources((current) => ({ ...current, [directionId]: String(reader.result || "") }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const generate = async () => {
     setError("");
     setTask(null);
@@ -318,6 +335,14 @@ export default function AIGenerate() {
       setError(accessError.message);
       return;
     }
+    const panoramaSourceEntries = panoramaCaptureDirections.map((direction) => ({
+      ...direction,
+      media_url: panoramaSources[direction.id],
+    }));
+    if (panorama && panoramaSourceEntries.some((entry) => !entry.media_url)) {
+      setError("請依序上傳前、右、後、左四個方向的空間照片，再生成 360° 環景圖。");
+      return;
+    }
     const openPlanNote = space === "客餐廳（開放式）"
       ? "The living and dining zones are one continuous open-plan room. Preserve a single shared ceiling, floor, wall openings, circulation axis and coherent furniture scale across both zones."
       : "";
@@ -326,7 +351,7 @@ export default function AIGenerate() {
     const selectedStyleProfile = getStyleById(style);
     const styleDirection = `${selectedStyleProfile.prompt}. Preferred palette: ${selectedStyleProfile.palette.join(", ")}. Preferred materials: ${selectedStyleProfile.materials.join(", ")}.`;
     const prompt = panorama
-      ? `A seamless 360-degree equirectangular panorama of one ${space}, ${style} interior. ${styleDirection} ${openPlanNote} ${controlledDesign} Room geometry: ${geometry}. Camera: ${viewpoint}. ${requirements}. Preserve wall openings, furniture identity, scale, material and lighting consistency around the entire room. Photorealistic architectural visualization, 2:1 projection, no people, no text, no duplicated furniture, seamless left and right edges.`
+      ? `Create one seamless 360-degree equirectangular panorama of one ${space}, ${style} interior from four ordered source photos: front 0 degrees, right 90 degrees, back 180 degrees, and left 270 degrees. Calibrate the shared camera center and horizon before perspective-to-ERP projection; stitch geometry first, then fill only missing ceiling or floor regions and inpaint seams. ${styleDirection} ${openPlanNote} ${controlledDesign} Room geometry: ${geometry}. Camera: ${viewpoint}. ${requirements}. Preserve wall openings, furniture identity, scale, material and lighting consistency around the entire room. Photorealistic architectural visualization, exact 2:1 projection, no people, no text, no duplicated furniture, seamless left and right edges.`
       : `Professional interior design visualization of a ${space}, ${style} style. ${styleDirection} ${openPlanNote} ${controlledDesign} ${requirements}. Room geometry: ${geometry}. Photorealistic, practical layout, coherent lighting, wide angle, no people.`;
 
     try {
@@ -351,18 +376,18 @@ export default function AIGenerate() {
           room: space,
           room_geometry: { ...roomSize, height_notes: heightNotes },
           viewpoint,
-          source_media_urls: [...new Set([
+          source_media_urls: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : [
             ...importedMedia.referenceImages,
             sourceImage,
             floorPlan,
             ...importedMedia.all,
-          ].filter(Boolean))],
-          source_media_count: [...new Set([
+          ]).filter(Boolean))],
+          source_media_count: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : [
             ...importedMedia.referenceImages,
             sourceImage,
             floorPlan,
             ...importedMedia.all,
-          ].filter(Boolean))].length,
+          ]).filter(Boolean))].length,
           source_content: {
             atmosphere_description: selectedProject?.atmosphere_description || null,
             special_requirements: selectedProject?.special_requirements || null,
@@ -374,6 +399,18 @@ export default function AIGenerate() {
             lighting,
             material,
             color_palette: colorPalette,
+            panorama_capture: panorama ? {
+              input_mode: "four_direction_photos",
+              ordered_sources: panoramaSourceEntries,
+              processing_order: [
+                "camera_calibration",
+                "perspective_to_equirectangular_projection",
+                "four_direction_stitching",
+                "missing_area_fill",
+                "seam_inpainting",
+              ],
+              output_projection: "equirectangular_2_1",
+            } : null,
           },
         }),
       });
@@ -498,17 +535,41 @@ export default function AIGenerate() {
                   </select>
                 </div>
 
-                <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
-                  <UploadField label="自行上傳空間圖片（或 3D 設計圖）" hint="JPG、PNG、WebP；建議 16:9 或 4:3，避免過度裁切" preview={sourceImage} onChange={sourceImageHandler} />
-                  {imageStyleAnalysis && (
-                    <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-xs text-stone-700">
-                      <p className="font-semibold text-stone-900">圖片風格候選｜低信心 {imageStyleAnalysis.confidence}%</p>
-                      <p className="mt-1 leading-5">{imageStyleAnalysis.disclaimer}</p>
-                      <div className="mt-2 flex flex-wrap gap-2">{imageStyleAnalysis.candidates.map((candidate) => <button type="button" key={candidate.id} onClick={() => setStyle(candidate.name)} className="border border-amber-300 bg-white px-2 py-1 hover:border-amber-600">{candidate.name} {candidate.percentage}%</button>)}</div>
+                {mode === "panorama" ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-stone-900">四方向空間照片</p>
+                        <p className="mt-1 text-xs leading-5 text-stone-600">站在同一位置、同一相機高度，依前、右、後、左順序拍攝，相鄰畫面需保留重疊區域。</p>
+                      </div>
+                      <span className="shrink-0 text-xs font-semibold text-amber-800">{Object.values(panoramaSources).filter(Boolean).length}/4</span>
                     </div>
-                  )}
-                  <p className="mt-2 text-xs leading-5 text-amber-900">上傳圖片會作為構圖與空間關係參考；若選擇「維持格局」，系統應優先保留牆體、開口與主要物件位置。</p>
-                </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {panoramaCaptureDirections.map((direction) => (
+                        <UploadField
+                          key={direction.id}
+                          label={direction.label}
+                          hint="JPG、PNG、WebP"
+                          preview={panoramaSources[direction.id]}
+                          onChange={panoramaSourceHandler(direction.id)}
+                        />
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-amber-900">系統會先校正與投影，再接合四方向照片並修補缺口與接縫；不是把四張照片當成切換選項。手機錄影與掃描資料之後也會轉成相同方向影格後進入此流程。</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
+                    <UploadField label="自行上傳空間圖片（或 3D 設計圖）" hint="JPG、PNG、WebP；建議 16:9 或 4:3，避免過度裁切" preview={sourceImage} onChange={sourceImageHandler} />
+                    {imageStyleAnalysis && (
+                      <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-xs text-stone-700">
+                        <p className="font-semibold text-stone-900">圖片風格候選｜低信心 {imageStyleAnalysis.confidence}%</p>
+                        <p className="mt-1 leading-5">{imageStyleAnalysis.disclaimer}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">{imageStyleAnalysis.candidates.map((candidate) => <button type="button" key={candidate.id} onClick={() => setStyle(candidate.name)} className="border border-amber-300 bg-white px-2 py-1 hover:border-amber-600">{candidate.name} {candidate.percentage}%</button>)}</div>
+                      </div>
+                    )}
+                    <p className="mt-2 text-xs leading-5 text-amber-900">上傳圖片會作為構圖與空間關係參考；若選擇「維持格局」，系統應優先保留牆體、開口與主要物件位置。</p>
+                  </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <div><label className="mb-2 block text-sm font-medium">輸入類型</label><select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={inputType} onChange={(event) => setInputType(event.target.value)}>{inputTypeOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
@@ -554,7 +615,7 @@ export default function AIGenerate() {
                   </div>
                 )}
 
-                <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online" || !isBusinessPlan(planId) || !selectedProject} onClick={generate}>
+                <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online" || !isBusinessPlan(planId) || !selectedProject || (mode === "panorama" && Object.values(panoramaSources).some((image) => !image))} onClick={generate}>
                   {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : mode === "panorama" ? <Orbit className="mr-2 h-4 w-4" /> : <Wand2 className="mr-2 h-4 w-4" />}
                   {busy ? "ComfyUI 生成中" : mode === "panorama" ? `產生 2:1 環景草案（${PANORAMA_GENERATION_COST} 點）` : `產生空間創意彩現（${IMAGE_GENERATION_COST} 點）`}
                 </Button>

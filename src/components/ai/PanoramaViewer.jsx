@@ -1,158 +1,154 @@
 import React, { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
 import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function PanoramaViewer({ imageUrl, title }) {
+let pannellumLoader;
+
+function loadPannellum() {
+  if (window.pannellum) return Promise.resolve(window.pannellum);
+  if (pannellumLoader) return pannellumLoader;
+
+  pannellumLoader = new Promise((resolve, reject) => {
+    if (!document.getElementById("pannellum-local-css")) {
+      const stylesheet = document.createElement("link");
+      stylesheet.id = "pannellum-local-css";
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = "/vendor/pannellum/pannellum.css";
+      document.head.appendChild(stylesheet);
+    }
+
+    const existingScript = document.getElementById("pannellum-local-script");
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(window.pannellum), { once: true });
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "pannellum-local-script";
+    script.src = "/vendor/pannellum/pannellum.js";
+    script.async = true;
+    script.addEventListener("load", () => resolve(window.pannellum), { once: true });
+    script.addEventListener("error", reject, { once: true });
+    document.head.appendChild(script);
+  });
+
+  return pannellumLoader;
+}
+
+export default function PanoramaViewer({
+  imageUrl,
+  title,
+  initialLongitude = 0,
+  initialLatitude = 0,
+  initialFov = 100,
+  minFov = 35,
+  maxFov = 120,
+}) {
+  const viewerRef = useRef(null);
   const containerRef = useRef(null);
-  const cameraRef = useRef(null);
+  const instanceRef = useRef(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !imageUrl) return undefined;
-
-    setError("");
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 1100);
-    camera.position.set(0, 0, 0.1);
-    cameraRef.current = camera;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    container.appendChild(renderer.domElement);
-
-    const geometry = new THREE.SphereGeometry(500, 64, 40);
-    geometry.scale(-1, 1, 1);
-    let material;
-    let mesh;
     let disposed = false;
+    let instance;
 
-    new THREE.TextureLoader().load(
-      imageUrl,
-      (texture) => {
-        if (disposed) {
-          texture.dispose();
-          return;
+    setLoading(true);
+    setError("");
+
+    loadPannellum()
+      .then((pannellum) => {
+        if (disposed || !containerRef.current || !pannellum) return;
+
+        instance = pannellum.viewer(containerRef.current, {
+          type: "equirectangular",
+          panorama: imageUrl,
+          autoLoad: true,
+          pitch: initialLatitude,
+          yaw: initialLongitude,
+          hfov: initialFov,
+          minHfov: minFov,
+          maxHfov: maxFov,
+          showZoomCtrl: false,
+          showFullscreenCtrl: false,
+          keyboardZoom: true,
+          compass: false,
+          backgroundColor: [17, 19, 15],
+        });
+        instanceRef.current = instance;
+        instance.on("load", () => {
+          if (!disposed) setLoading(false);
+        });
+        instance.on("error", () => {
+          if (!disposed) {
+            setLoading(false);
+            setError("環景載入失敗，請重新整理後再試。");
+          }
+        });
+      })
+      .catch(() => {
+        if (!disposed) {
+          setLoading(false);
+          setError("互動檢視器載入失敗。");
         }
-        texture.colorSpace = THREE.SRGBColorSpace;
-        material = new THREE.MeshBasicMaterial({ map: texture });
-        mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
-      },
-      undefined,
-      () => setError("環景圖載入失敗，請確認圖片格式或重新產生。")
-    );
+      });
 
-    let longitude = 0;
-    let latitude = 0;
-    let pointerDown = false;
-    let startX = 0;
-    let startY = 0;
-    let startLongitude = 0;
-    let startLatitude = 0;
-    let animationFrame;
-
-    const resize = () => {
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      camera.aspect = width / Math.max(height, 1);
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
-    };
-
-    const onPointerDown = (event) => {
-      pointerDown = true;
-      startX = event.clientX;
-      startY = event.clientY;
-      startLongitude = longitude;
-      startLatitude = latitude;
-      renderer.domElement.setPointerCapture(event.pointerId);
-    };
-
-    const onPointerMove = (event) => {
-      if (!pointerDown) return;
-      longitude = startLongitude + (startX - event.clientX) * 0.12;
-      latitude = Math.max(-80, Math.min(80, startLatitude + (event.clientY - startY) * 0.12));
-    };
-
-    const onPointerUp = () => {
-      pointerDown = false;
-    };
-
-    const onWheel = (event) => {
-      event.preventDefault();
-      camera.fov = Math.max(35, Math.min(90, camera.fov + event.deltaY * 0.04));
-      camera.updateProjectionMatrix();
-    };
-
-    const animate = () => {
-      const phi = THREE.MathUtils.degToRad(90 - latitude);
-      const theta = THREE.MathUtils.degToRad(longitude);
-      camera.lookAt(
-        500 * Math.sin(phi) * Math.cos(theta),
-        500 * Math.cos(phi),
-        500 * Math.sin(phi) * Math.sin(theta)
-      );
-      renderer.render(scene, camera);
-      animationFrame = requestAnimationFrame(animate);
-    };
-
-    const observer = new ResizeObserver(resize);
-    observer.observe(container);
-    renderer.domElement.addEventListener("pointerdown", onPointerDown);
-    renderer.domElement.addEventListener("pointermove", onPointerMove);
-    renderer.domElement.addEventListener("pointerup", onPointerUp);
-    renderer.domElement.addEventListener("pointercancel", onPointerUp);
-    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
-    resize();
-    animate();
+    const resizeViewer = () => instanceRef.current?.resize();
+    document.addEventListener("fullscreenchange", resizeViewer);
 
     return () => {
       disposed = true;
-      cancelAnimationFrame(animationFrame);
-      observer.disconnect();
-      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
-      renderer.domElement.removeEventListener("pointermove", onPointerMove);
-      renderer.domElement.removeEventListener("pointerup", onPointerUp);
-      renderer.domElement.removeEventListener("pointercancel", onPointerUp);
-      renderer.domElement.removeEventListener("wheel", onWheel);
-      geometry.dispose();
-      material?.map?.dispose();
-      material?.dispose();
-      renderer.dispose();
-      renderer.domElement.remove();
+      document.removeEventListener("fullscreenchange", resizeViewer);
+      instanceRef.current = null;
+      instance?.destroy();
     };
-  }, [imageUrl]);
+  }, [imageUrl, initialFov, initialLatitude, initialLongitude, maxFov, minFov]);
 
   const changeZoom = (amount) => {
-    const camera = cameraRef.current;
-    if (!camera) return;
-    camera.fov = Math.max(35, Math.min(90, camera.fov + amount));
-    camera.updateProjectionMatrix();
+    const instance = instanceRef.current;
+    if (!instance) return;
+    instance.setHfov(Math.max(minFov, Math.min(maxFov, instance.getHfov() + amount)), 250);
   };
 
   const resetView = () => {
-    if (cameraRef.current) {
-      cameraRef.current.fov = 70;
-      cameraRef.current.updateProjectionMatrix();
-    }
+    instanceRef.current?.lookAt(initialLatitude, initialLongitude, initialFov, 400);
   };
 
-  const enterFullscreen = () => containerRef.current?.requestFullscreen?.();
+  const enterFullscreen = async () => {
+    if (!viewerRef.current?.requestFullscreen) return;
+    await viewerRef.current.requestFullscreen();
+  };
 
   return (
-    <div className="relative h-[clamp(320px,58vh,640px)] w-full overflow-hidden rounded-md bg-stone-950">
-      <div ref={containerRef} className="h-full w-full cursor-grab touch-none active:cursor-grabbing" aria-label={title} />
-      <div className="absolute bottom-3 right-3 flex gap-1 rounded-md bg-stone-950/75 p-1 backdrop-blur">
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/15 hover:text-white" onClick={() => changeZoom(-8)} title="放大"><Plus className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/15 hover:text-white" onClick={() => changeZoom(8)} title="縮小"><Minus className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/15 hover:text-white" onClick={resetView} title="重設視角"><RotateCcw className="h-4 w-4" /></Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/15 hover:text-white" onClick={enterFullscreen} title="全螢幕"><Maximize2 className="h-4 w-4" /></Button>
+    <div ref={viewerRef} className="relative aspect-[4/3] w-full overflow-hidden rounded-md bg-[#11130f]">
+      <div ref={containerRef} className="h-full w-full" aria-label={title} />
+
+      <p className="pointer-events-none absolute left-16 top-5 rounded bg-stone-950/60 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
+        {title}
+      </p>
+      <p className="pointer-events-none absolute right-4 top-5 hidden rounded bg-stone-950/45 px-3 py-1.5 text-xs text-white backdrop-blur-sm sm:block">
+        拖曳觀看，滾輪縮放
+      </p>
+
+      <div className="absolute left-3 top-3 flex flex-col gap-1 rounded-md bg-white/90 p-1 shadow backdrop-blur">
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-stone-950 hover:bg-stone-200" onClick={() => changeZoom(-10)} title="放大">
+          <Plus className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-stone-950 hover:bg-stone-200" onClick={() => changeZoom(10)} title="縮小">
+          <Minus className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-stone-950 hover:bg-stone-200" onClick={resetView} title="重設視角">
+          <RotateCcw className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-stone-950 hover:bg-stone-200" onClick={enterFullscreen} title="全螢幕">
+          <Maximize2 className="h-4 w-4" />
+        </Button>
       </div>
-      <p className="absolute bottom-3 left-3 rounded bg-stone-950/75 px-2 py-1 text-xs text-white">拖曳環視 · 滾輪縮放</p>
-      {error && <div className="absolute inset-0 grid place-items-center bg-stone-950/90 p-6 text-center text-sm text-rose-200">{error}</div>}
+
+      {loading && <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#11130f] text-sm text-white/70">正在載入空間</div>}
+      {error && <div className="absolute inset-0 grid place-items-center bg-[#11130f] p-6 text-center text-sm text-rose-200">{error}</div>}
     </div>
   );
 }

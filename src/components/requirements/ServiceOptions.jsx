@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CheckCircle2, CreditCard, ExternalLink, FileText, Loader2, Sparkles, UserCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, CreditCard, ExternalLink, FolderKanban, Loader2, Sparkles, UserCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -54,13 +54,18 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
         completion_status: "需求已完成",
         service_option: option.id,
       });
-      await SendEmail({
-        to: formData.user_email,
-        subject: `${option.title}－需求已登記`,
-        body: `您的StyleMatch AI需求已完成登記。\n\n案件代碼：${project.case_code}\n選擇方案：${option.title}\n\n後續將依方案內容進行通知。`,
-        from_name: "StyleMatch AI",
-      });
-      setCompletedProject(project);
+      let notificationWarning = "";
+      try {
+        await SendEmail({
+          to: formData.user_email,
+          subject: `${option.title}－需求已登記`,
+          body: `您的StyleMatch AI需求已完成登記。\n\n案件代碼：${project.case_code}\n選擇方案：${option.title}\n\n後續將依方案內容進行通知。`,
+          from_name: "StyleMatch AI",
+        });
+      } catch (notificationError) {
+        notificationWarning = notificationError.message || "案件已建立，但通知尚未送出。";
+      }
+      setCompletedProject({ ...project, notification_warning: notificationWarning });
     } catch (requestError) {
       setError(requestError.message || "需求登記失敗，請稍後再試。");
     } finally {
@@ -69,19 +74,61 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
   };
 
   if (completedProject) {
+    const selectedService = options.find((option) => option.id === completedProject.service_option);
+    const completionCopy = {
+      ai_proposal: {
+        title: "AI 規劃設計提案案件已建立",
+        description: "下一步先進入單次方案付費頁；完成付款確認後，再到我的專案查看提案結果。",
+      },
+      platform_matching: {
+        title: "專業設計師媒合需求已建立",
+        description: "案件已進入 TWCID 媒合待處理；平台建立正式媒合後才會產生 TWCID 媒合識別碼。",
+      },
+      twcid_platform: {
+        title: "TWCID 平台需求草稿已建立",
+        description: "StyleMatch AI 已保存需求與案件代碼；前往 TWCID 後仍須完成會員確認及正式媒合或招標程序。",
+      },
+    }[completedProject.service_option];
+
     return (
       <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
         <CardContent className="p-8 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
-          <h2 className="mt-4 text-2xl font-bold text-stone-900">需求已完成登記</h2>
+          <p className="mt-4 text-sm font-semibold text-emerald-800">{selectedService?.title}</p>
+          <h2 className="mt-1 text-2xl font-bold text-stone-900">{completionCopy?.title || "需求已完成登記"}</h2>
           <p className="mt-2 text-stone-600">案件代碼：{completedProject.case_code}</p>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-stone-600">{completionCopy?.description}</p>
+          {completedProject.notification_warning && (
+            <Alert className="mt-5 border-amber-200 bg-amber-50 text-left text-amber-900">
+              <AlertDescription>案件已成功建立；通知寄送待處理：{completedProject.notification_warning}</AlertDescription>
+            </Alert>
+          )}
           {completedProject.service_option === "ai_proposal" && (
-              <Link to={`${createPageUrl("AIGenerate")}?project=${completedProject.project_id}`}>
-                <Button className="mt-5 bg-stone-900 text-white hover:bg-stone-800">
-                <FileText className="mr-2 h-4 w-4" />生成設計參考圖片
+            <Link to={`${createPageUrl("PricingPlans")}?checkout=single&project=${completedProject.project_id}`}>
+              <Button className="mt-5 bg-stone-900 text-white hover:bg-stone-800">
+                <CreditCard className="mr-2 h-4 w-4" />前往單次方案付費頁
               </Button>
             </Link>
           )}
+          {completedProject.service_option === "platform_matching" && (
+            <Link to={createPageUrl("MyProjects")}>
+              <Button className="mt-5 bg-stone-900 text-white hover:bg-stone-800">
+                <FolderKanban className="mr-2 h-4 w-4" />查看媒合案件進度
+              </Button>
+            </Link>
+          )}
+          {completedProject.service_option === "twcid_platform" && (
+            <a href="https://twcid.net" target="_blank" rel="noopener noreferrer">
+              <Button className="mt-5 bg-stone-900 text-white hover:bg-stone-800">
+                前往 TWCID 平台<ExternalLink className="ml-2 h-4 w-4" />
+              </Button>
+            </a>
+          )}
+          <div className="mt-4">
+            <Link to={createPageUrl("MyProjects")} className="inline-flex items-center text-sm font-medium text-stone-600 hover:text-stone-950">
+              查看我的專案<ArrowRight className="ml-1 h-4 w-4" />
+            </Link>
+          </div>
         </CardContent>
       </Card>
     );
@@ -120,31 +167,24 @@ export default function ServiceOptions({ formData, isSubmitting, setIsSubmitting
                   </li>
                 ))}
               </ul>
-              {option.id === "twcid_platform" ? (
-                <Button asChild type="button" className="mt-6 w-full" variant="outline">
-                  <a href="https://twcid.net" target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    {option.action}
-                  </a>
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  className={`mt-6 w-full ${option.highlighted ? "bg-amber-500 text-white hover:bg-amber-600" : ""}`}
-                  variant={option.highlighted ? "default" : "outline"}
-                  disabled={isSubmitting}
-                  onClick={() => handleOptionSelect(option)}
-                >
-                  {isSubmitting && selectedOption === option.id ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : option.id === "ai_proposal" ? (
-                    <CreditCard className="mr-2 h-4 w-4" />
-                  ) : (
-                    <UserCheck className="mr-2 h-4 w-4" />
-                  )}
-                  {option.action}
-                </Button>
-              )}
+              <Button
+                type="button"
+                className={`mt-6 w-full ${option.highlighted ? "bg-amber-500 text-white hover:bg-amber-600" : ""}`}
+                variant={option.highlighted ? "default" : "outline"}
+                disabled={isSubmitting}
+                onClick={() => handleOptionSelect(option)}
+              >
+                {isSubmitting && selectedOption === option.id ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : option.id === "ai_proposal" ? (
+                  <CreditCard className="mr-2 h-4 w-4" />
+                ) : option.id === "twcid_platform" ? (
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                ) : (
+                  <UserCheck className="mr-2 h-4 w-4" />
+                )}
+                {option.action}
+              </Button>
             </CardContent>
           </Card>
           );

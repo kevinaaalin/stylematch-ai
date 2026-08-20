@@ -48,9 +48,12 @@ function recommendation(result) {
 
 export async function loadTigiKnowledgeIndex() {
   if (!indexPromise) {
-    indexPromise = fetch(INDEX_URL).then((response) => {
+    indexPromise = fetch(INDEX_URL).then(async (response) => {
       if (!response.ok) throw new Error(`無法載入 TIGI 索引（${response.status}）`);
-      return response.json();
+      const index = await response.json();
+      if (index.ragActiveVersion !== "R9.2" || index.activeBaseline !== true) throw new Error("Knowledge 索引不是目前唯一活動基線 R9.2，已停止查詢以避免舊版內容混入。");
+      if (index.documents?.some((document) => document.baselineStatus !== "active" || document.releaseVersion !== "R9.2")) throw new Error("Knowledge 索引含有非活動版本來源，已停止查詢。");
+      return index;
     });
   }
   return indexPromise;
@@ -63,6 +66,7 @@ export async function queryTigiKnowledge(query, options = {}) {
   if (!queryTokens.length) return { index, query, answer: "請輸入更具體的專案需求。", results: [] };
 
   const results = index.chunks
+    .filter((chunk) => chunk.baselineStatus === "active" && chunk.releaseVersion === "R9.2")
     .map((chunk) => ({ ...chunk, score: scoreChunk(chunk, queryTokens) }))
     .filter((chunk) => chunk.score > 0)
     .sort((a, b) => b.score - a.score || Number(a.canonicalOrder || 0) - Number(b.canonicalOrder || 0) || Number(a.sectionOrder || 0) - Number(b.sectionOrder || 0))

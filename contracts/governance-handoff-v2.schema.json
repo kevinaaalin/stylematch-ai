@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.stylematch.ai/contracts/governance-handoff-v2.schema.json",
+  "title": "StyleMatch Governance Handoff Object V2",
+  "type": "object",
+  "required": ["schema_version", "handoff_id", "stylematch_project_id", "status", "artifacts", "evidence_manifest", "assumptions", "unresolved_risks", "manifest_checksum"],
+  "properties": {
+    "schema_version": { "const": "StyleMatch.GovernanceHandoff/2.0" },
+    "handoff_id": { "type": "string", "minLength": 1 },
+    "stylematch_project_id": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["ready_for_intake", "intake_received", "rejected"] },
+    "artifacts": {
+      "type": "object",
+      "required": ["structured_space_ref", "approved_layout_ref"],
+      "properties": {
+        "structured_space_ref": { "$ref": "#/$defs/artifactRef" },
+        "approved_layout_ref": { "$ref": "#/$defs/artifactRef" },
+        "approved_viewset_refs": { "type": "array", "items": { "$ref": "#/$defs/artifactRef" } },
+        "material_selection_refs": { "type": "array", "items": { "$ref": "#/$defs/artifactRef" } },
+        "external_scene_refs": { "type": "array", "items": { "$ref": "#/$defs/artifactRef" } },
+        "asset_revision_refs": { "type": "array", "items": { "$ref": "#/$defs/artifactRef" } }
+      },
+      "additionalProperties": false
+    },
+    "evidence_manifest": { "type": "array" },
+    "assumptions": { "type": "array" },
+    "unresolved_risks": { "type": "array" },
+    "manifest_checksum": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "$defs": {
+    "artifactRef": {
+      "type": "object",
+      "required": ["id", "revision", "checksum", "approval_status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 1 },
+        "checksum": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "approval_status": { "const": "approved" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

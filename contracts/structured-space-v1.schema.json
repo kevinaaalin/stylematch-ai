@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.stylematch.ai/contracts/structured-space-v1.schema.json",
+  "title": "StyleMatch StructuredSpace Snapshot",
+  "type": "object",
+  "required": ["schema_version", "floorplan_version", "status", "confidence", "requires_confirmation", "structured_space"],
+  "properties": {
+    "schema_version": { "const": "StyleMatch.StructuredSpace/1.0" },
+    "floorplan_version": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["candidate", "approved", "superseded"] },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "requires_confirmation": { "type": "boolean" },
+    "parser": {
+      "type": "object",
+      "required": ["adapter", "adapter_version", "mode"],
+      "properties": {
+        "adapter": { "type": "string" },
+        "adapter_version": { "type": "string" },
+        "mode": { "enum": ["offline_fallback", "local_vision", "vision_provider", "human_seed"] }
+      },
+      "additionalProperties": true
+    },
+    "structured_space": {
+      "type": "object",
+      "required": ["units", "coordinate_system", "source_assets", "rooms", "walls", "openings", "dimensions", "fixtures", "furniture", "zones", "circulation_graph"],
+      "properties": {
+        "units": { "enum": ["mm", "cm", "m"] },
+        "coordinate_system": { "type": "string", "minLength": 1 },
+        "source_assets": { "type": "array", "items": { "type": "object", "required": ["asset_id"], "properties": { "asset_id": { "type": "string", "minLength": 1 }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } }, "additionalProperties": true } },
+        "rooms": { "$ref": "#/$defs/entities" },
+        "walls": { "$ref": "#/$defs/entities" },
+        "openings": { "$ref": "#/$defs/entities" },
+        "dimensions": { "$ref": "#/$defs/entities" },
+        "fixtures": { "$ref": "#/$defs/entities" },
+        "furniture": { "$ref": "#/$defs/entities" },
+        "zones": { "$ref": "#/$defs/entities" },
+        "circulation_graph": {
+          "type": "object",
+          "required": ["nodes", "edges"],
+          "properties": { "nodes": { "type": "array" }, "edges": { "type": "array" } },
+          "additionalProperties": false
+        },
+        "clearance_profiles": {
+          "type": "object",
+          "properties": {
+            "opening_depth_mm": { "type": "number", "exclusiveMinimum": 0 },
+            "circulation_width_mm": { "type": "number", "exclusiveMinimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "source": { "enum": ["offline_fallback", "local_vision", "vision_provider", "human_seed", "human_correction"] }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

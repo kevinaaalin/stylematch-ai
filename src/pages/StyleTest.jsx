@@ -1,15 +1,14 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Sparkles, Star, Undo2 } from "lucide-react";
+import { ArrowRight, CheckCircle, Loader2, MailCheck, Sparkles, Star, Undo2 } from "lucide-react";
 
 import { styleTestImages as styleImages, STYLE_TEST_IMAGE_MANIFEST_VERSION } from "../data/styleTestImageManifest";
 import { STYLE_KEYS } from "../data/styleCatalog";
 import ContactForm from "../components/styletest/ContactForm";
-import ServiceIntroduction from "../components/requirements/ServiceIntroduction";
 import { createStyleTestQuestionSet } from "../lib/styleTestSampling";
 import { scoreStyleRatings } from "../lib/styleTestScoring";
 import { createPageUrl } from "@/utils";
@@ -56,6 +55,18 @@ export default function StyleTest() {
   const [testResult, setTestResult] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [postSubmitStep, setPostSubmitStep] = useState("confirmation");
+
+  useEffect(() => {
+    if (!userInfo || postSubmitStep !== "confirmation") return undefined;
+    const timer = window.setTimeout(() => navigate(createPageUrl("StyleTestServices"), {
+      state: {
+        delivery: userInfo.delivery,
+        user_email: userInfo.email,
+      },
+    }), 3000);
+    return () => window.clearTimeout(timer);
+  }, [navigate, postSubmitStep, userInfo]);
 
   const fullRatings = useMemo(
     () => questionImages
@@ -79,7 +90,14 @@ export default function StyleTest() {
     setGridRatings({});
     setTestResult(null);
     setUserInfo(null);
+    setPostSubmitStep("confirmation");
     setQuestionImages(createStyleTestQuestionSet(styleImages));
+  };
+
+  const handleContactSubmit = (submittedUserInfo) => {
+    setUserInfo(submittedUserInfo);
+    setPostSubmitStep("confirmation");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleQuickRating = (ratingValue) => {
@@ -130,7 +148,7 @@ export default function StyleTest() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <ContactForm
             testResult={testResult}
-            onSubmit={setUserInfo}
+            onSubmit={handleContactSubmit}
             isSubmitting={isSubmitting}
             setIsSubmitting={setIsSubmitting}
           />
@@ -140,21 +158,55 @@ export default function StyleTest() {
   }
 
   if (testResult && userInfo !== null) {
-    return (
-      <div className="min-h-screen bg-stone-50 py-8">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <ServiceIntroduction
-            delivery={userInfo.delivery}
-            onNext={(preferredService) => navigate(createPageUrl("Requirements"), {
-              state: {
-                preferred_service: preferredService,
-                user_email: userInfo.email,
-              },
-            })}
-          />
+    if (postSubmitStep === "confirmation") {
+      const delivered = userInfo.delivery?.delivery_status === "sent";
+      return (
+        <div className="min-h-screen bg-stone-50 py-10 sm:py-16">
+          <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <Card className={`border shadow-lg ${delivered ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+              <CardContent className="p-8 text-center sm:p-10">
+                <div className={`mx-auto grid h-16 w-16 place-items-center rounded-full ${delivered ? "bg-emerald-600" : "bg-amber-600"}`}>
+                  <MailCheck className="h-8 w-8 text-white" />
+                </div>
+                <h1 className="mt-5 text-2xl font-bold text-stone-900 sm:text-3xl">
+                  {delivered ? "寄送完成" : "結果已完成並保存"}
+                </h1>
+                <p className="mt-4 text-lg leading-8 text-stone-700">
+                  {delivered
+                    ? "您的喜好風格排名以及 4 張參考照片已經寄到您的信箱"
+                    : "您的喜好風格排名以及 4 張參考照片已保存至本機待寄匣"}
+                </p>
+                <p className="mt-2 break-all font-semibold text-stone-950">{userInfo.email}</p>
+                {!delivered && (
+                  <p className="mt-3 text-sm leading-6 text-amber-900">
+                    尚未設定 SMTP 郵件帳號；完成設定後即可寄送到上述信箱。
+                  </p>
+                )}
+                <div className="mt-7 flex items-center justify-center gap-2 text-sm text-stone-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  接下來將進入裝修規劃與服務說明頁
+                </div>
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={() => navigate(createPageUrl("StyleTestServices"), {
+                    state: {
+                      delivery: userInfo.delivery,
+                      user_email: userInfo.email,
+                    },
+                  })}
+                  className="mt-6 w-full bg-stone-900 text-white hover:bg-stone-800"
+                >
+                  立即進入說明頁
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+
   }
 
   return (

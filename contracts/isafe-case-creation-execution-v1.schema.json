@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.stylematch.ai/contracts/isafe-case-creation-execution-v1.schema.json",
+  "title": "iSAFE Case Creation Execution Receipt",
+  "type": "object",
+  "required": ["schema_version", "execution_id", "proposal_id", "handoff_id", "isafe_case_id", "initial_state", "authority_boundary", "execution_checksum"],
+  "properties": {
+    "schema_version": { "const": "iSAFE.CaseCreationExecution/1.0" },
+    "execution_id": { "type": "string", "minLength": 1 },
+    "proposal_id": { "type": "string", "minLength": 1 },
+    "handoff_id": { "type": "string", "minLength": 1 },
+    "isafe_case_id": { "type": "string", "minLength": 1 },
+    "initial_state": {
+      "type": "object",
+      "properties": {
+        "current_stage": { "const": "INTAKE_pending" },
+        "gate_status": { "const": "intake_pending" }
+      },
+      "required": ["current_stage", "gate_status"]
+    },
+    "authority_boundary": {
+      "type": "object",
+      "properties": {
+        "case_created": { "const": true },
+        "gate_decision": { "const": false },
+        "r5_2_state_transition": { "const": false }
+      },
+      "required": ["case_created", "gate_decision", "r5_2_state_transition"]
+    },
+    "execution_checksum": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": true
+}

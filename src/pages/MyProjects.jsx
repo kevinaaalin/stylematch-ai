@@ -239,6 +239,11 @@ export default function MyProjects() {
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-bold text-stone-900">{project.case_code}</h3>
                           <Badge variant="outline">{serviceLabel(project.service_option)}</Badge>
+                          {["paid", "paid_test"].includes(project.payment?.status) && (
+                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                              {project.payment.status === "paid_test" ? "本機測試付款完成" : "付款完成"}
+                            </Badge>
+                          )}
                           {project.isafe_case_id && <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">已銜接 iSAFE</Badge>}
                         </div>
                         <p className="mt-2 text-sm text-stone-600">

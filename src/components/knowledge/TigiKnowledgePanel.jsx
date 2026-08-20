@@ -16,7 +16,7 @@ function ResultCard({ result }) {
   return (
     <div id={`source-${encodeURIComponent(result.documentId)}`} className="scroll-mt-24 rounded-md border border-stone-200 bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline">{result.categoryLabel}</Badge>
+        <Badge variant="outline">{result.categoryLabel}</Badge><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">R9.2 活動來源</Badge>
         <span className="text-xs font-mono text-stone-500">score {result.score.toFixed(1)}</span>
       </div>
       <h3 className="mt-2 font-semibold text-stone-950">{result.title}</h3>
@@ -64,7 +64,7 @@ export default function TigiKnowledgePanel({ project = null, compact = false }) 
             <CardTitle className="text-xl">本地工程知識檢索</CardTitle>
             <p className="mt-2 text-sm leading-6 text-stone-600">依 canonical reading order 建立的 TIGI Markdown 索引，針對案件需求回傳工程與治理建議及本地文件來源。</p>
           </div>
-          {indexMeta && <div className="text-right text-xs text-stone-500"><Badge variant="outline" className="mb-2">無網路依賴</Badge><div>{indexMeta.releaseId} · {indexMeta.documentCount} doc · {indexMeta.chunkCount} chunks</div><a className="underline underline-offset-2" href={`${import.meta.env.BASE_URL || "./"}${indexMeta.manifestUrl}`} target="_blank" rel="noreferrer">索引清單</a></div>}
+          {indexMeta && <div className="text-right text-xs text-stone-500"><div className="mb-2 flex justify-end gap-2"><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">R9.2 唯一活動母本</Badge><Badge variant="outline">無網路依賴</Badge></div><div>{indexMeta.releaseId} · {indexMeta.documentCount} doc · {indexMeta.chunkCount} chunks</div><div className="mt-1">R8／R9／R9.1 已封存並排除於一般檢索</div><a className="underline underline-offset-2" href={`${import.meta.env.BASE_URL || "./"}${indexMeta.manifestUrl}`} target="_blank" rel="noreferrer">索引清單</a></div>}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

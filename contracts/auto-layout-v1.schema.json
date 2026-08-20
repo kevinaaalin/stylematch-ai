@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.stylematch.ai/contracts/auto-layout-v1.schema.json",
+  "title": "StyleMatch Auto Layout Candidate",
+  "type": "object",
+  "required": ["schema_version", "structured_space_ref", "status", "conceptual", "placements", "validation"],
+  "properties": {
+    "schema_version": { "const": "StyleMatch.AutoLayout/1.0" },
+    "structured_space_ref": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["candidate", "valid", "invalid", "approved", "superseded"] },
+    "conceptual": { "type": "boolean" },
+    "placements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "room_id", "x", "y", "width", "depth"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "room_id": { "type": "string", "minLength": 1 },
+          "x": { "type": "number" }, "y": { "type": "number" },
+          "width": { "type": "number", "exclusiveMinimum": 0 },
+          "depth": { "type": "number", "exclusiveMinimum": 0 },
+          "rotation": { "type": "number" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["valid", "hard_violations", "warnings", "rule_version"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "hard_violations": { "type": "array" },
+        "warnings": { "type": "array" },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "rule_version": { "const": "AL01-rules-1.1" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

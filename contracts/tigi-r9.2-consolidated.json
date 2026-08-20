@@ -1,0 +1,27 @@
+{
+  "$schema": "https://tigi.tw/schemas/governance-release/v1.0",
+  "release_id": "TIGI-GOVERNANCE-20260820-R9.2-CONSOLIDATED",
+  "version": "20260820_R9_2_Consolidated",
+  "status": "APPROVED_SPECIFICATION_BASELINE_CANDIDATE_IMPLEMENTATION",
+  "active_baseline": true,
+  "rag_active_version": "R9.2",
+  "archived_predecessors": ["R8", "R9", "R9.1"],
+  "state_authority": "20260722_R5_2",
+  "state_contract_version": "20260722_R5_2",
+  "compatibility": {
+    "breaking_contract_change_approved": false,
+    "r9_1_technical_content_preserved": true,
+    "r5_2_state_semantics_unchanged": true
+  },
+  "state_contract": {
+    "version": "R5.2",
+    "authority": "R5.2 remains the sole authoritative formal governance state machine; R9.2 is an additive specification and active-source governance layer.",
+    "direct_transition_allowed": false
+  },
+  "patent_version": "V7_LOCKED",
+  "agent_platform": "R3.3",
+  "product_website": "v8.2.0",
+  "phase_0_repository_audit_required": true,
+  "final_official_allowed": false,
+  "child_alignment_ref": "contracts/tigi-r9-patent-v7-alignment.json"
+}

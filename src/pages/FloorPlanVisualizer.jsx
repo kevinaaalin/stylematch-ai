@@ -143,7 +143,7 @@ export default function FloorPlanVisualizer() {
           <Card className="rounded-md"><CardHeader><CardTitle>視角設定</CardTitle></CardHeader><CardContent className="space-y-5"><label className="block text-sm font-medium">朝向 {direction}°<input className="mt-2 w-full accent-amber-500" type="range" min="0" max="359" value={direction} onChange={(e) => setDirection(Number(e.target.value))} /></label><label className="block text-sm font-medium">水平 FOV {fov}°<input className="mt-2 w-full accent-amber-500" type="range" min="35" max="90" value={fov} onChange={(e) => setFov(Number(e.target.value))} /></label><p className="text-xs leading-5 text-stone-500">在左側平面圖點選相機位置；60° 為預設參考視角。</p><Button className="w-full" onClick={generateRoom} disabled={!floorPlanUrl || busy === "room" || !isBusinessPlan(planId) || !projectId}>{busy === "room" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}生成空間參考圖（{POINT_COSTS.room} 點）</Button></CardContent></Card>
         </div></TabsContent>
       </Tabs>
-      <StructuredSpacePanel projectId={projectId} floorPlanUrl={floorPlanUrl} />
+      <StructuredSpacePanel projectId={projectId} project={project} floorPlanUrl={floorPlanUrl} />
       {message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}
     </div>
   );

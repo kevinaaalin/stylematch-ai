@@ -1,0 +1,118 @@
+{
+  "contract_version": "20260723_R5_2_PARITY_1",
+  "source": "TWCID legacy cmonitor.php and emonitor.php",
+  "checklists": {
+    "D1_design_preparation": [
+      "雙方權利人確認",
+      "公司簡介、作業流程瞭解",
+      "基本需求及意象溝通",
+      "提案及參考照片",
+      "設計項目及內容",
+      "相關法規說明",
+      "設計費用及付款方式",
+      "設計作業檢核表完成",
+      "合約內容確認",
+      "設計契約簽立",
+      "上傳合約"
+    ],
+    "D2_floor_plan_design": [
+      "需求檢討及確認",
+      "現場丈量、繪製草圖",
+      "平面配置規劃初稿",
+      "現況問題及傢俱配置檢討、定案",
+      "交付現況平面圖",
+      "交付傢俱配置圖"
+    ],
+    "D3_basic_design_finalization": [
+      "設計風格、色彩計劃定調",
+      "天花、水電、燈光配置檢討",
+      "造型設計及建材選用討論",
+      "工程預算討論",
+      "基本設計規劃定案",
+      "交付拆除圖、隔間地坪圖",
+      "交付水電、弱電配置圖",
+      "交付天花板、空調配置圖",
+      "交付消防、環控配置圖"
+    ],
+    "D4_elevation_design_finalization": [
+      "立面設計，平面、天花、燈光設計微調",
+      "圖面檢討、調整",
+      "建材選用、立面設計定案",
+      "交付立面索引圖",
+      "交付各向立面三視圖、櫃內圖"
+    ],
+    "D5_construction_detail_agreements": [
+      "交付施工大樣圖",
+      "交付材質表、施工說明書",
+      "交付工程預算書、標單製作",
+      "交付所有完整圖面",
+      "交付3D電腦透視圖、模型",
+      "其他約定事項交付"
+    ],
+    "C1_construction_preparation": [
+      "雙方權利人確認",
+      "公司簡介、作業流程瞭解",
+      "參考照片提供",
+      "完整圖面上傳",
+      "材質表檢查",
+      "材料樣品確認",
+      "工程項目及內容",
+      "相關法規說明",
+      "工程費用及付款方式",
+      "工程作業檢核表完成",
+      "合約內容確認",
+      "工程契約簽立",
+      "上傳合約"
+    ],
+    "C2_phase_one_construction": [
+      "保護工程完工",
+      "拆除工程完工",
+      "水電工程階段施工",
+      "空調工程階段施工",
+      "環控通訊工程階段施工",
+      "消防工程階段施工"
+    ],
+    "C3_phase_two_construction": [
+      "輕隔間、輕鋼架天花板工程完工",
+      "木作工程完工",
+      "水電工程階段施工",
+      "空調工程階段施工",
+      "環控通訊工程階段施工",
+      "消防工程階段施工",
+      "油漆塗裝工程完工"
+    ],
+    "C4_phase_three_construction": [
+      "石材工程完工",
+      "鐵件工程完工",
+      "水電工程完工",
+      "空調工程完工",
+      "環控通訊工程完工",
+      "消防工程完工",
+      "燈具照明工程完工",
+      "玻璃工程完工",
+      "木地板、PVC地磚、地毯工程完工",
+      "系統家具工程完工",
+      "五金雜項及配件工程完工",
+      "清潔工程完工",
+      "壁紙工程完工",
+      "窗簾、裱褙工程完工",
+      "LOGO及招牌工程完工",
+      "活動傢俱工程完工",
+      "交屋清單與設備說明書、保固書點交",
+      "其他約定事項交付"
+    ],
+    "C5_warranty_aftercare": [
+      "保固期限內服務之記錄及追蹤"
+    ]
+  },
+  "payment_milestones": [
+    { "code": "DESIGN_DEPOSIT", "phase": "design", "stage": "D1_design_preparation", "label": "設計簽約金", "percentage": 30 },
+    { "code": "DESIGN_PROGRESS_1", "phase": "design", "stage": "D3_basic_design_finalization", "label": "設計第一期期中款", "percentage": 30 },
+    { "code": "DESIGN_PROGRESS_2", "phase": "design", "stage": "D4_elevation_design_finalization", "label": "設計第二期期中款", "percentage": 30 },
+    { "code": "DESIGN_FINAL", "phase": "design", "stage": "D5_construction_detail_agreements", "label": "設計尾款", "percentage": 10 },
+    { "code": "CONSTRUCTION_DEPOSIT", "phase": "construction", "stage": "C1_construction_preparation", "label": "工程簽約金", "percentage": 30 },
+    { "code": "CONSTRUCTION_PROGRESS_2", "phase": "construction", "stage": "C2_phase_one_construction", "label": "工程第二期期中款", "percentage": 30 },
+    { "code": "CONSTRUCTION_PROGRESS_3", "phase": "construction", "stage": "C3_phase_two_construction", "label": "工程第三期期中款", "percentage": 30 },
+    { "code": "CONSTRUCTION_FINAL", "phase": "construction", "stage": "C4_phase_three_construction", "label": "工程尾款", "percentage": 10 }
+  ]
+}

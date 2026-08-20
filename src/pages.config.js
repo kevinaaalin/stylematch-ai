@@ -50,6 +50,7 @@
 import { lazy } from 'react';
 const Home = lazy(() => import('./pages/Home'));
 const StyleTest = lazy(() => import('./pages/StyleTest'));
+const StyleTestServices = lazy(() => import('./pages/StyleTestServices'));
 const Requirements = lazy(() => import('./pages/Requirements'));
 const Cases = lazy(() => import('./pages/Cases'));
 const IsafeProjects = lazy(() => import('./pages/IsafeProjects'));
@@ -70,6 +71,7 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "Home": Home,
     "StyleTest": StyleTest,
+    "StyleTestServices": StyleTestServices,
     "Requirements": Requirements,
     "Cases": Cases,
     "IsafeProjects": IsafeProjects,

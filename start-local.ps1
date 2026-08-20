@@ -2,7 +2,9 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $workspaceRoot = Split-Path -Parent $projectRoot
 $vite = Join-Path $projectRoot "node_modules\vite\bin\vite.js"
-$apiServer = Join-Path $workspaceRoot "local-api\server.mjs"
+$bundledApiServer = Join-Path $projectRoot "local-api\server.mjs"
+$workspaceApiServer = Join-Path $workspaceRoot "local-api\server.mjs"
+$apiServer = if (Test-Path $bundledApiServer) { $bundledApiServer } else { $workspaceApiServer }
 $comfyRoot = "C:\Users\Kevin\Desktop\ComfyUI_windows_portable"
 $comfyPython = Join-Path $comfyRoot "python_embeded\python.exe"
 $comfyMain = Join-Path $comfyRoot "ComfyUI\main.py"
@@ -29,6 +31,7 @@ $node = if ($nodeCommand) {
 } else {
   "C:\Users\Kevin\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
 }
+$env:COMFYUI_PYTHON = $comfyPython
 
 if (-not (Test-Path $node)) {
   throw "Node.js 20 or newer is required."
@@ -61,7 +64,7 @@ if (-not (Test-LocalService "http://127.0.0.1:8188/system_stats")) {
     if ($checkpoints.Count -eq 0) {
       Write-Warning "ComfyUI is installed, but no checkpoint model was found. The site will start, but image generation requires a model."
     }
-    $comfyArgs = @("-s", $comfyMain, "--windows-standalone-build", "--listen", "127.0.0.1", "--port", "8188", "--extra-model-paths-config", $comfyModelConfig)
+    $comfyArgs = @("-s", "`"$comfyMain`"", "--windows-standalone-build", "--listen", "127.0.0.1", "--port", "8188", "--extra-model-paths-config", "`"$comfyModelConfig`"")
     if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) { $comfyArgs += "--cpu" }
     Start-Process -FilePath $comfyPython -ArgumentList $comfyArgs -WorkingDirectory $comfyRoot -WindowStyle Hidden `
       -RedirectStandardOutput (Join-Path $logRoot "comfyui.out.log") -RedirectStandardError (Join-Path $logRoot "comfyui.err.log")
@@ -71,9 +74,9 @@ if (-not (Test-LocalService "http://127.0.0.1:8188/system_stats")) {
   }
 }
 
-if (-not (Test-LocalService "http://127.0.0.1:4180/health")) {
+if (-not (Test-LocalService "http://127.0.0.1:4180/api/v1/health")) {
   if (-not (Test-Path $apiServer)) { throw "Local API was not found: $apiServer" }
-  Start-Process -FilePath $node -ArgumentList @($apiServer) -WorkingDirectory (Split-Path -Parent $apiServer) -WindowStyle Hidden `
+  Start-Process -FilePath $node -ArgumentList @("`"$apiServer`"") -WorkingDirectory (Split-Path -Parent $apiServer) -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $logRoot "local-api.out.log") -RedirectStandardError (Join-Path $logRoot "local-api.err.log")
   Write-Host "Starting local API: http://127.0.0.1:4180" -ForegroundColor Cyan
 }

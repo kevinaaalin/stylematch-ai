@@ -15,6 +15,9 @@ node_modules
 dist
 dist-ssr
 *.local
+local-api/data/
+local-api/**/*.log
+local-api/scripts/__pycache__/
 
 # Full local image corpora stay on the workstation. GitHub carries only the
 # explicitly staged representative images used as browser fallbacks.

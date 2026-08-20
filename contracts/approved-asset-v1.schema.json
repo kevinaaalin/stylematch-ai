@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.stylematch.ai/contracts/approved-asset-v1.schema.json",
+  "title": "StyleMatch Approved Asset",
+  "type": "object",
+  "required": ["schema_version", "asset_id", "stylematch_project_id", "revision", "status", "asset_type", "local_ref", "checksum"],
+  "properties": {
+    "schema_version": { "const": "StyleMatch.ApprovedAsset/1.0" },
+    "asset_id": { "type": "string", "minLength": 1 },
+    "stylematch_project_id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["candidate", "approved", "superseded"] },
+    "asset_type": { "enum": ["image", "floorplan", "proposal", "document", "other"] },
+    "local_ref": { "type": "string", "minLength": 1 },
+    "checksum": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": true
+}

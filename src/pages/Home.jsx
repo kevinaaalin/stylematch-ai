@@ -1,10 +1,11 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { lazy, Suspense, useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertTriangle,
+  ArrowLeftRight,
   ArrowRight,
   BadgeDollarSign,
   Building2,
@@ -15,12 +16,14 @@ import {
   HardHat,
   HomeIcon,
   ImagePlus,
+  Orbit,
   Palette,
   ShieldCheck,
   Sparkles,
   Star,
-  Wand2,
 } from "lucide-react";
+
+const PanoramaViewer = lazy(() => import("@/components/ai/PanoramaViewer"));
 
 const painPoints = [
   {
@@ -82,16 +85,7 @@ const budgetGroups = [
 const steps = [
   ["01", "填寫需求", "輸入坪數、屋況、預算與風格偏好。"],
   ["02", "取得AI分析", "獲得風格建議、預算配置與空間規劃方向。"],
-  ["03", "完整規劃", "進一步選擇 AI 提案、設計師媒合或工程治理。"],
-];
-
-const styles = [
-  ["簡約現代", "簡潔線條、開放空間"],
-  ["北歐風", "溫暖木質、自然光線"],
-  ["工業風", "裸露材質、粗獷美學"],
-  ["日式禪風", "寧靜和諧、自然素材"],
-  ["地中海", "明亮色彩、拱形設計"],
-  ["裝飾藝術", "奢華幾何、金屬玻璃"],
+  ["03", "完整規劃", "選擇確定的 AI 設計方案，進一步選擇適合的設計師進入工程治理。"],
 ];
 
 const styleCards = [
@@ -140,7 +134,60 @@ const testimonials = [
   ["陳先生", "新北市 · 中古屋 45坪", "中古屋改造最怕踩雷，AI 規劃把預算分配得非常清楚。"],
 ];
 
+function BeforeAfterSlider() {
+  const [position, setPosition] = useState(50);
+
+  return (
+    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-stone-300 shadow-xl sm:aspect-[16/9]">
+      <img
+        src="/home-showcase/living-room-after.jpg"
+        alt="AI 智能設計後的客廳提案"
+        className="absolute inset-0 h-full w-full select-none object-cover"
+        draggable="false"
+        loading="lazy"
+      />
+      <img
+        src="/home-showcase/living-room-before.jpg"
+        alt="設計前的空屋空間"
+        className="absolute inset-0 h-full w-full select-none object-cover"
+        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+        draggable="false"
+        loading="lazy"
+      />
+
+      <span className="absolute left-3 top-3 rounded-md bg-stone-950/75 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm">
+        原始空間
+      </span>
+      <span className="absolute right-3 top-3 rounded-md bg-amber-600/90 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm">
+        AI 智能設計
+      </span>
+
+      <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${position}%` }}>
+        <span className="absolute left-1/2 top-1/2 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-stone-950 text-white shadow-lg">
+          <ArrowLeftRight className="h-5 w-5" />
+        </span>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        value={position}
+        onChange={(event) => setPosition(Number(event.target.value))}
+        className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0"
+        aria-label="拖曳查看 AI 設計前後對比"
+      />
+    </div>
+  );
+}
+
 export default function Home() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("section") !== "services") return;
+    window.requestAnimationFrame(() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [location.search]);
+
   return (
     <div className="overflow-hidden">
       <section className="relative min-h-[680px] bg-stone-950 text-white">
@@ -166,7 +213,9 @@ export default function Home() {
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <a href="#services"><Button variant="outline" size="lg" className="border-white bg-transparent text-white hover:bg-white hover:text-stone-950">了解服務方式</Button></a>
+              <Link to={`${createPageUrl("Home")}?section=services`}>
+                <Button variant="outline" size="lg" className="border-white bg-transparent text-white hover:bg-white hover:text-stone-950">了解服務方式</Button>
+              </Link>
             </div>
             <div className="mt-7 flex flex-wrap gap-3 text-sm text-stone-200">
               <span className="inline-flex items-center gap-2 rounded-md border border-white/30 bg-stone-950/40 px-3 py-2">
@@ -204,7 +253,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="services" className="bg-white py-16 lg:py-20">
+      <section id="services" className="scroll-mt-20 bg-white py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-10 max-w-3xl">
             <h2 className="text-3xl font-bold text-stone-950">StyleMatch AI 如何幫助你做對裝修決策？</h2>
@@ -283,12 +332,6 @@ export default function Home() {
                   <li>• 空間設計預算抓 50%，再依客廳、廚房、主臥、收納與其他空間的使用頻率分配。</li>
                   <li>• 後續 AI 分析會依屋況、坪數、屋齡與照片判斷兩組比例是否需要上修或下修。</li>
                 </ul>
-                <Link to={createPageUrl("AIProposal")} className="mt-auto pt-8">
-                  <Button className="w-full bg-amber-500 text-white hover:bg-amber-600">
-                    查看我的AI分析
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
               </CardContent>
             </Card>
           </div>
@@ -324,38 +367,42 @@ export default function Home() {
       </section>
 
       <section className="bg-stone-100 py-16 lg:py-20">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
-          <div>
-            <h2 className="text-3xl font-bold text-stone-950">AI 空間設計與 360° 環景</h2>
-            <p className="mt-3 text-lg leading-relaxed text-stone-600">
-              導入專案空間照片與設計風格，生成 AI 空間設計草案與 360° 環景預覽。
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto mb-10 max-w-4xl text-center">
+            <span className="mb-4 inline-flex rounded-md bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white">進階功能</span>
+            <h2 className="text-3xl font-bold text-stone-950 sm:text-4xl">AI 設計前後對比</h2>
+            <p className="mt-4 text-lg leading-relaxed text-stone-600">
+              導入專案空間照片與偏好風格，拖曳滑桿比較原始空間與 AI 設計草案；再以 360°×180° 環景檢視整體配置、材質與採光方向。
             </p>
-            <Link to={createPageUrl("AIGenerate")} className="mt-6 inline-flex">
-              <Button className="bg-amber-500 text-white hover:bg-amber-600">
-                AI 空間設計與 360° 環景
-                <Wand2 className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
           </div>
-          <div className="grid grid-cols-2 overflow-hidden rounded-lg shadow-xl">
-            <div className="relative">
-              <img
-                src="https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=900&q=80"
-                alt="原始空間"
-                className="h-80 w-full object-cover"
-              />
-              <span className="absolute left-3 top-3 rounded bg-white px-3 py-1 text-sm font-medium">原始</span>
-            </div>
-            <div className="relative">
-              <img
-                src="https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=900&q=80"
-                alt="AI 智能設計"
-                className="h-80 w-full object-cover"
-              />
-              <span className="absolute left-3 top-3 rounded bg-amber-500 px-3 py-1 text-sm font-medium text-white">
-                AI 智能設計
+
+          <BeforeAfterSlider />
+
+          <div className="mt-14 border-t border-stone-300 pt-10">
+            <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+              <div>
+                <h3 className="flex items-center gap-2 text-2xl font-bold text-stone-950">
+                  <Orbit className="h-6 w-6 text-amber-600" />
+                  360° 環景預覽
+                </h3>
+                <p className="mt-2 max-w-3xl leading-relaxed text-stone-600">
+                  四方向照片經校正與無縫接合後生成完整環景圖，可連續拖曳、縮放並確認家具配置、視線、材質與採光。
+                </p>
+              </div>
+              <span className="w-fit rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-600">
+                AI 生成示意
               </span>
             </div>
+            <Suspense fallback={<div className="aspect-[2/1] animate-pulse rounded-md bg-stone-300" aria-label="環景載入中" />}>
+              <PanoramaViewer
+                imageUrl="/home-showcase/living-room-panorama-reference.png"
+                title="現代住宅客餐廳 360° 環景示意"
+                initialLongitude={0}
+                initialLatitude={0}
+                initialFov={100}
+                maxFov={120}
+              />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -500,12 +547,12 @@ export default function Home() {
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Link to={createPageUrl("StyleTest")}>
               <Button size="lg" className="bg-amber-500 text-white hover:bg-amber-600">
-                免費取得AI分析
+                免費測出你的設計風格
               </Button>
             </Link>
             <Link to={createPageUrl("AIProposal")}>
               <Button size="lg" variant="outline" className="border-white bg-transparent text-white hover:bg-white hover:text-stone-950">
-                預約裝修顧問
+                取得AI 規劃設計提案
               </Button>
             </Link>
           </div>

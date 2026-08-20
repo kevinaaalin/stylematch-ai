@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import BudgetEstimation from "@/components/requirements/BudgetEstimation";
 import PhotoUploadForm from "@/components/requirements/PhotoUploadForm";
 import PreferenceForm from "@/components/requirements/PreferenceForm";
 import ServiceOptions from "@/components/requirements/ServiceOptions";
+import { createPageUrl } from "@/utils";
 
 const steps = [
   { id: "basic", title: "基本資料", description: "填寫住宅條件與預算範圍" },
@@ -20,6 +21,7 @@ const steps = [
 
 export default function Requirements() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     user_email: location.state?.user_email || "",
@@ -69,9 +71,20 @@ export default function Requirements() {
   const currentStepData = steps[currentStep];
   const progress = ((currentStep + 1) / steps.length) * 100;
 
+  const returnToPreviousPage = () => {
+    if (location.state?.return_to === "StyleTestServices") {
+      navigate(-1);
+      return;
+    }
+    navigate(createPageUrl("Home"));
+  };
+
   return (
     <div className="min-h-screen bg-stone-50 py-8">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <Button type="button" variant="ghost" onClick={returnToPreviousPage} className="mb-5 px-0 text-stone-600 hover:bg-transparent hover:text-stone-950">
+          <ArrowLeft className="mr-2 h-4 w-4" />回上一頁：方案說明
+        </Button>
         <header className="mb-8 text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-amber-100 px-4 py-2 text-sm font-medium text-amber-900">
             <PenTool className="h-4 w-4" />

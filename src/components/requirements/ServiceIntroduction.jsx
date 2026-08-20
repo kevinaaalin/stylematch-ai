@@ -43,18 +43,20 @@ export default function ServiceIntroduction({ delivery, onNext }) {
 
   return (
     <div className="space-y-8">
-      <div className={"flex items-start gap-3 rounded-md border p-4 " + deliveryTone}>
-        {delivered ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /> : <Mail className="mt-0.5 h-5 w-5 shrink-0" />}
-        <div>
-          <p className="font-semibold">{delivered ? "風格結果與 4 張參考圖已寄出" : "風格結果已建立於本機待寄匣"}</p>
-          <p className="mt-1 text-sm">{delivery?.message || "寄送作業已完成，請選擇下一步服務方向。"}</p>
+      {delivery && (
+        <div className={"flex items-start gap-3 rounded-md border p-4 " + deliveryTone}>
+          {delivered ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /> : <Mail className="mt-0.5 h-5 w-5 shrink-0" />}
+          <div>
+            <p className="font-semibold">{delivered ? "風格結果與 4 張參考圖已寄出" : "風格結果已建立於本機待寄匣"}</p>
+            <p className="mt-1 text-sm">{delivery.message || "寄送作業已完成，請選擇下一步服務方向。"}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <header className="text-center">
         <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white">
           <Users className="h-4 w-4" />
-          後續服務選項
+          裝修規劃說明
         </div>
         <h1 className="text-3xl font-bold text-stone-900 sm:text-4xl">選擇適合你的裝修規劃方式</h1>
         <p className="mx-auto mt-3 max-w-2xl text-stone-600">
@@ -100,13 +102,14 @@ export default function ServiceIntroduction({ delivery, onNext }) {
       </div>
 
       <section className="border-y border-stone-200 py-6">
-        <h2 className="text-center text-lg font-semibold text-stone-900">接下來的流程</h2>
-        <div className="mt-5 grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
+        <h2 className="text-center text-lg font-semibold text-stone-900">接下來的五個步驟</h2>
+        <div className="mt-5 grid grid-cols-2 gap-4 text-center sm:grid-cols-5">
           {[
-            ["1", "住宅資料", "格局、坪數與預算"],
-            ["2", "現況資料", "平面圖與空間照片"],
-            ["3", "需求分析", "機能、材質與生活偏好"],
-            ["4", "確認方案", "檢視分析後正式送出"],
+            ["1", "基本資料", "房屋類型、坪數與預算"],
+            ["2", "空間照片", "上傳平面圖與現況照片"],
+            ["3", "喜好需求", "機能、材質與生活偏好"],
+            ["4", "AI 規劃", "檢視空間與預算建議"],
+            ["5", "選擇服務", "確認提案或設計師媒合"],
           ].map(([step, title, description]) => (
             <div key={step}>
               <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-stone-900 text-sm font-bold text-white">{step}</div>

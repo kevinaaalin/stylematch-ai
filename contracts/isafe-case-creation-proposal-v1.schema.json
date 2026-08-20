@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.stylematch.ai/contracts/isafe-case-creation-proposal-v1.schema.json",
+  "title": "iSAFE Case Creation Proposal",
+  "type": "object",
+  "required": ["schema_version", "proposal_id", "handoff_id", "receipt_id", "status", "project_summary", "authority_boundary"],
+  "properties": {
+    "schema_version": { "const": "iSAFE.CaseCreationProposal/1.0" },
+    "proposal_id": { "type": "string", "minLength": 1 },
+    "handoff_id": { "type": "string", "minLength": 1 },
+    "receipt_id": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["pending_review", "approved_for_case_creation", "rejected", "executed"] },
+    "project_summary": { "type": "object" },
+    "review": { "type": ["object", "null"] },
+    "authority_boundary": {
+      "type": "object",
+      "required": ["case_created", "gate_decision", "r5_2_state_transition"],
+      "properties": {
+        "case_created": { "const": false },
+        "gate_decision": { "const": false },
+        "r5_2_state_transition": { "const": false }
+      }
+    }
+  },
+  "additionalProperties": true
+}

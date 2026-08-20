@@ -6,29 +6,34 @@ import { fileURLToPath } from "node:url";
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicRoot = path.join(appRoot, "public");
 const index = JSON.parse(await readFile(path.join(publicRoot, "tigi-corpus", "knowledge-index.json"), "utf8"));
-const expectedOrder = ["foundation", "brs", "sad", "tgs", "sdd", "dds", "openapi", "implementation-spec", "platform-spec", "pep"];
+const expectedOrder = ["engineering-master", "sbir-master", "business-plan-master", "white-paper-master"];
 
-assert.equal(index.version, "5.0");
-assert.equal(index.networkDependency, false);
+assert.equal(index.version, "9.2");
+assert.equal(index.activeBaseline, true);
+assert.equal(index.ragActiveVersion, "R9.2");
+assert.deepEqual(index.archivedPredecessors, ["R8", "R9", "R9.1"]);
+assert.equal(index.releaseId, "TIGI-GOVERNANCE-20260820-R9.2-CONSOLIDATED");
+assert.equal(index.releaseStatus, "Approved Specification Baseline / Candidate Implementation");
+assert.equal(index.phase0RepositoryAuditRequired, true);
+assert.equal(index.finalOfficialAllowed, false);
+assert.equal(index.stateContractVersion, "20260722_R5_2");
+assert.equal(index.patentVersion, "V7_LOCKED");
 assert.deepEqual(index.canonicalReadingOrder, expectedOrder);
+assert.equal(index.documentCount, 4);
 assert.equal(index.documentCount, index.documents.length);
 assert.equal(index.chunkCount, index.chunks.length);
-assert.ok(index.documentCount >= 80);
-assert.ok(index.chunkCount >= 1000);
+assert.ok(index.chunkCount >= 150);
+assert.ok(index.documents.every((document) => document.path.includes("R9_2_Consolidated")));
+assert.ok(index.documents.every((document) => !/R9_1|R9_Patent|R8_/i.test(document.path)));
+assert.ok(index.documents.every((document) => document.baselineStatus === "active" && document.releaseVersion === "R9.2"));
+assert.ok(index.documents.every((document) => /^[a-f0-9]{64}$/.test(document.sourceSha256)));
+assert.ok(index.chunks.every((chunk) => chunk.baselineStatus === "active" && chunk.releaseVersion === "R9.2"));
+assert.ok(index.chunks.every((chunk) => /^[a-f0-9]{64}$/.test(chunk.sourceSha256)));
 
-let previousOrder = -1;
-for (const document of index.documents) {
-  assert.ok(document.canonicalOrder >= previousOrder, `Canonical order regressed at ${document.path}`);
-  previousOrder = document.canonicalOrder;
-  const sourcePath = path.join(publicRoot, decodeURIComponent(document.sourceUrl));
-  await access(sourcePath);
-}
-
-for (const query of ["預算 材料 驗收", "設計 提案 交付 治理", "供應商 評選 風險"]) {
+for (const document of index.documents) await access(path.join(publicRoot, decodeURIComponent(document.sourceUrl)));
+for (const query of ["StructuredSpace Auto Layout", "Visual Editing External Design Tool", "Multi-view 360 Material Product", "R5.2 Patent V7 Phase 0"]) {
   const terms = query.split(/\s+/);
-  const hits = index.chunks.filter((chunk) => terms.some((term) => `${chunk.title} ${chunk.heading} ${chunk.text}`.includes(term)));
-  assert.ok(hits.length > 0, `No local knowledge hit for: ${query}`);
-  assert.ok(hits.some((hit) => hit.sourceUrl && hit.path), `Missing source link for: ${query}`);
+  const hits = index.chunks.filter((chunk) => terms.some((term) => `${chunk.title} ${chunk.heading} ${chunk.text}`.toLowerCase().includes(term.toLowerCase())));
+  assert.ok(hits.length > 0, `No R9.2 knowledge hit for: ${query}`);
 }
-
-console.log(`canonical TIGI knowledge validated: ${index.documentCount} documents, ${index.chunkCount} chunks, local sources present`);
+console.log(`TIGI R9.2 knowledge validated: ${index.documentCount} documents, ${index.chunkCount} chunks`);

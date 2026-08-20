@@ -1,0 +1,35 @@
+{
+  "$schema": "https://tigi.tw/schemas/governance-release/v1.0",
+  "version": "20260730_R7_Implementation_Integrated",
+  "release_id": "TIGI-GOVERNANCE-20260730-R7-IMPL",
+  "document_set_id": "TIGI-4MASTER-20260730-R7-IMPL-01",
+  "status": "IMPLEMENTATION_INTEGRATED_BASELINE",
+  "final_official": "NO_GO",
+  "final_official_allowed": false,
+  "source_baseline": "20260728_R6_1_RC_QA_Integrated",
+  "state_contract_version": "20260722_R5_2",
+  "state_contract_file": "isafe-state-machine-r5.2.json",
+  "legacy_parity_version": "20260723_R5_2_PARITY_1",
+  "compatibility": {
+    "breaking_contract_change_approved": false,
+    "state_machine_mode": "R5.2_CANONICAL_COMPATIBILITY",
+    "offline_development_fallback": true
+  },
+  "stylematch_contracts": {
+    "analysis_schema": "stylematch.analysis.v1",
+    "reference_proposal_schema": "stylematch-reference-proposal-r7.schema.json",
+    "point_charge_rule": "charge_on_success_only",
+    "idempotency_scope": "project_id+confirmed_reference_set_id",
+    "case_authorization_headers": ["X-Server-Role", "X-Case-Role", "X-Case-Authorization"],
+    "offline_identifier_rule": "local fallback identifiers are non-authoritative and must not be synchronized as isafe_case_id"
+  },
+  "release_blockers": [
+    "backend_identity",
+    "payment",
+    "artifact_storage",
+    "audit",
+    "ai_trace",
+    "governance_approval",
+    "production_deployment_acceptance"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://tigi.tw/schemas/governance-release/v1.0",
+  "release_id": "TIGI-GOVERNANCE-20260814-R9-PATENT-V7",
+  "version": "20260814_R9_Patent_V7",
+  "status": "IMPLEMENTATION_GOVERNANCE_QA_BASELINE",
+  "final_official": "NO_GO",
+  "final_official_allowed": false,
+  "parent_baseline": "TIGI Engineering Master R8.2",
+  "state_contract_version": "20260722_R5_2",
+  "compatibility": {
+    "breaking_contract_change_approved": false,
+    "r8_registry_carry_forward": true,
+    "r5_2_state_semantics_unchanged": true
+  },
+  "state_contract": {
+    "version": "R5.2",
+    "authority": "R5.2 remains the authoritative formal governance state machine; R9 is an additive, non-breaking alignment layer.",
+    "direct_transition_allowed": false
+  },
+  "components": {
+    "stylematch_product": {
+      "version": "v8.1.0",
+      "authority": "product workflows, governance context reference, and handoff only",
+      "formal_governance_write_allowed": false
+    },
+    "stylematch_agent_platform": {
+      "version": "R3.2",
+      "authority": "retrieve, evaluate, query, use approved tools, and create handoff objects",
+      "formal_governance_write_allowed": false
+    },
+    "isafe_governance": {
+      "version": "R9",
+      "authority": "sole formal governance decision, state-transition, event, and official audit-output domain",
+      "formal_governance_write_allowed": true
+    }
+  },
+  "patent_v7_objects": {
+    "risk_state": ["NORMAL", "WARNING", "RESTRICTED", "HOLD", "BLOCKED", "ESCALATED", "RESOLVED"],
+    "trigger_result": ["ALLOW", "WARN", "CONDITIONAL", "RESTRICT", "HOLD", "BLOCK", "ESCALATE"],
+    "audit_output": "traceable output associated with decisions, events, evidence, actors, and timestamps",
+    "external_governance_evaluation": "controlled evaluation input admitted through an adapter and trace requirements"
+  },
+  "release_requirements": [
+    "approved registry",
+    "accepted ADRs",
+    "release checklist",
+    "regression evidence",
+    "production acceptance"
+  ]
+}

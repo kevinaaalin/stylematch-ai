@@ -73,6 +73,22 @@ export function approveAutoLayout(layoutId, revision) {
   }).then(read);
 }
 
+export function listProposalSnapshots(projectId) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/proposal-snapshots`, { headers: headers() }).then(read);
+}
+
+export function createProposalSnapshot(projectId, payload) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/proposal-snapshots`, {
+    method: "POST", headers: headers(true), body: JSON.stringify(payload),
+  }).then(read);
+}
+
+export function approveProposalSnapshot(proposalSnapshotId, revision) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/proposal-snapshots/${encodeURIComponent(proposalSnapshotId)}/approve`, {
+    method: "POST", headers: headers(true), body: JSON.stringify({ expected_revision: revision }),
+  }).then(read);
+}
+
 export function listGovernanceHandoffsV2(projectId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/governance-handoffs/v2`, { headers: headers() }).then(read);
 }
@@ -157,3 +173,31 @@ export function validateViewSet(payload) {
 
 export function searchMaterials(query = "") { return fetch(`${API_ORIGIN}/api/v1/materials/search?q=${encodeURIComponent(query)}`, { headers: headers() }).then(read); }
 export function mapMaterialBudget(projectId, payload) { return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/budget-map`, { method: "POST", headers: headers(true), body: JSON.stringify(payload) }).then(read); }
+
+export function getPlatformCapabilities() {
+  return fetch(`${API_ORIGIN}/api/v1/platform/capabilities`).then(read);
+}
+
+export function createProjectPaymentOrder(projectId, payload) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/payment-orders`, {
+    method: "POST", headers: headers(true), body: JSON.stringify(payload),
+  }).then(read);
+}
+
+export function createTwcidMatch(projectId, payload) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/twcid/matches`, {
+    method: "POST", headers: headers(true), body: JSON.stringify(payload),
+  }).then(read);
+}
+
+export function confirmTwcidMatch(matchRequestId, memberId) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/twcid/matches/${encodeURIComponent(matchRequestId)}/confirm`, {
+    method: "POST", headers: headers(true), body: JSON.stringify({ member_id: memberId }),
+  }).then(read);
+}
+
+export function createConnectorExchangePackage(projectId, toolType, payload) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(toolType)}/packages`, {
+    method: "POST", headers: headers(true), body: JSON.stringify(payload),
+  }).then(read);
+}
