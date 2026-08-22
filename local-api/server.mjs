@@ -15,6 +15,7 @@ import { validateViewSet, VIEWSET_SCHEMA_VERSION } from "./viewset-consistency.m
 import { mapBudget, searchCatalog, MATERIAL_CATALOG_VERSION } from "./material-catalog.mjs";
 import { createProductionAdapters } from "./production-adapters.mjs";
 import { authenticateOidcRequest } from "./oidc-auth.mjs";
+import { createFieldEvidenceService } from "./field-evidence.mjs";
 
 const HOST = process.env.ISAFE_API_HOST || "127.0.0.1";
 const PORT = Number(process.env.ISAFE_API_PORT || 4180);
@@ -782,6 +783,19 @@ const now = () => new Date().toISOString();
 const uid = (prefix) => `${prefix}_${randomUUID()}`;
 const parseJson = (value, fallback = {}) => { try { return JSON.parse(value); } catch { return fallback; } };
 const sha256 = (value) => createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex");
+function persistFieldMedia(mediaId, dataUrl, filename, declaredMimeType) {
+  const match = String(dataUrl || "").match(/^data:(image\/(?:jpeg|png|webp)|video\/mp4);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) fail("Field media must be JPEG, PNG, WebP or MP4 data URL.", "FIELD_MEDIA_TYPE_INVALID");
+  const buffer = Buffer.from(match[2], "base64");
+  if (!buffer.length || buffer.length > 12 * 1024 * 1024) fail("Field media must be between 1 byte and 12 MB.", "FIELD_MEDIA_SIZE_INVALID", 413);
+  const mimeType = declaredMimeType || match[1];
+  const extension = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "video/mp4": ".mp4" }[mimeType] || ".bin";
+  const directory = join(dataDir, "field-media"); mkdirSync(directory, { recursive: true });
+  const safeName = `${String(mediaId).replace(/[^a-zA-Z0-9_-]/g, "_")}${extension}`;
+  writeFileSync(join(directory, safeName), buffer);
+  return { object_ref: `local://field-media/${safeName}`, content_sha256: createHash("sha256").update(buffer).digest("hex"), bytes: buffer.length, mime_type: mimeType, original_filename: filename };
+}
+const fieldEvidence = createFieldEvidenceService({ db, now, uid, sha256, fail, persistMedia: persistFieldMedia });
 
 function migrateLegacyStateMachine() {
   const mapping = stateMachine.legacy_stage_mapping;
@@ -3252,7 +3266,64 @@ const server = createServer(async (req, res) => {
         },
       });
     }
-    if (req.method === "GET" && url.pathname === "/api/v1/isafe/governance/trigger-rules") {
+    if (req.method === "GET" && url.pathname === "/api/v1/isafe/field-evidence/schema") {
+      return send(req, res, 200, { schema_version: fieldEvidence.schemaVersion, authority_boundary: { evidence_input_only: true, state_transition_applied: false, gate_decision_applied: false, payment_execution_applied: false } });
+    }
+    if (req.method === "GET" && url.pathname === "/api/v1/isafe/external-evidence-providers") {
+      return send(req, res, 200, { providers: fieldEvidence.listProviders(ctx) });
+    }
+    if (req.method === "POST" && url.pathname === "/api/v1/isafe/external-evidence-providers") {
+      assertWriteAccess(req); assertMemberTier(ctx, ["headquarter"], "external_evidence_provider_manage");
+      return send(req, res, 201, { provider: fieldEvidence.registerProvider(await readBody(req), ctx) });
+    }
+    const evidenceRequirementsMatch = url.pathname.match(/^\/api\/v1\/isafe\/projects\/([^/]+)\/evidence-requirements$/);
+    if (req.method === "GET" && evidenceRequirementsMatch) {
+      const projectId = decodeURIComponent(evidenceRequirementsMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx);
+      return send(req, res, 200, { requirements: fieldEvidence.listRequirements(projectId, url.searchParams.get("step_id"), ctx) });
+    }
+    if (req.method === "POST" && evidenceRequirementsMatch) {
+      assertWriteAccess(req); assertMemberTier(ctx, ["headquarter", "dealer"], "evidence_requirement_manage");
+      const projectId = decodeURIComponent(evidenceRequirementsMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx);
+      return send(req, res, 201, { requirement: fieldEvidence.upsertRequirement(projectId, await readBody(req), ctx) });
+    }
+    const evidencePackagesMatch = url.pathname.match(/^\/api\/v1\/isafe\/projects\/([^/]+)\/evidence-packages(?:\/(manual))?$/);
+    if (req.method === "GET" && evidencePackagesMatch) {
+      const projectId = decodeURIComponent(evidencePackagesMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx);
+      return send(req, res, 200, { packages: fieldEvidence.listPackages(projectId, ctx) });
+    }
+    if (req.method === "POST" && evidencePackagesMatch) {
+      assertWriteAccess(req); assertMemberTier(ctx, ["headquarter", "dealer", "certified_member", "general_member"], "evidence_package_submit");
+      const projectId = decodeURIComponent(evidencePackagesMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx);
+      const payload = await readBody(req); if (payload.isafe_case_id) assertCaseAuthorization(payload.isafe_case_id, ctx);
+      const result = fieldEvidence.submitPackage(projectId, payload, ctx, evidencePackagesMatch[2] === "manual" ? "manual" : "external");
+      return send(req, res, result.created ? 201 : 200, result);
+    }
+    const fieldMediaMatch = url.pathname.match(/^\/api\/v1\/isafe\/projects\/([^/]+)\/field-media$/);
+    if (req.method === "GET" && fieldMediaMatch) { const projectId = decodeURIComponent(fieldMediaMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx); return send(req, res, 200, { media: fieldEvidence.listMedia(projectId, ctx) }); }
+    if (req.method === "POST" && fieldMediaMatch) { assertWriteAccess(req); assertMemberTier(ctx, ["headquarter", "dealer", "certified_member", "general_member"], "field_media_capture"); const projectId = decodeURIComponent(fieldMediaMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx); return send(req, res, 201, { media: fieldEvidence.batchCapture(projectId, await readBody(req), ctx) }); }
+    const fieldMediaCorrectionMatch = url.pathname.match(/^\/api\/v1\/isafe\/field-media\/([^/]+)\/corrections$/);
+    if (req.method === "GET" && fieldMediaCorrectionMatch) { return send(req, res, 200, { revisions: fieldEvidence.listMediaRevisions(decodeURIComponent(fieldMediaCorrectionMatch[1]), ctx) }); }
+    if (req.method === "POST" && fieldMediaCorrectionMatch) { assertWriteAccess(req); assertMemberTier(ctx, ["headquarter", "dealer"], "field_media_correct"); return send(req, res, 201, { media: fieldEvidence.correctMedia(decodeURIComponent(fieldMediaCorrectionMatch[1]), await readBody(req), ctx) }); }    const fieldMediaMapMatch = url.pathname.match(/^\/api\/v1\/isafe\/projects\/([^/]+)\/field-media:map$/);
+    if (req.method === "POST" && fieldMediaMapMatch) { assertWriteAccess(req); assertMemberTier(ctx, ["headquarter", "dealer"], "field_media_map"); const projectId = decodeURIComponent(fieldMediaMapMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx); return send(req, res, 201, { mappings: fieldEvidence.mapMedia(projectId, await readBody(req), ctx) }); }
+    const ncrMatch = url.pathname.match(/^\/api\/v1\/isafe\/projects\/([^/]+)\/ncr-candidates$/);
+    if (req.method === "GET" && ncrMatch) { const projectId=decodeURIComponent(ncrMatch[1]); assertStyleMatchCaseAuthorization(projectId,ctx); return send(req,res,200,{ncr:fieldEvidence.listNcr(projectId,ctx)}); }
+    if (req.method === "POST" && ncrMatch) { assertWriteAccess(req); assertMemberTier(ctx,["headquarter","dealer","certified_member"],"ncr_candidate_create"); const projectId=decodeURIComponent(ncrMatch[1]); assertStyleMatchCaseAuthorization(projectId,ctx); return send(req,res,201,{ncr:fieldEvidence.detectCandidateDefects(projectId,await readBody(req),ctx)}); }
+    const ncrReviewMatch = url.pathname.match(/^\/api\/v1\/isafe\/ncr-candidates\/([^/]+)\/review$/);
+    if (req.method === "POST" && ncrReviewMatch) { assertWriteAccess(req); assertMemberTier(ctx,["headquarter","dealer"],"ncr_review"); return send(req,res,200,{ncr:fieldEvidence.reviewNcr(decodeURIComponent(ncrReviewMatch[1]),await readBody(req),ctx)}); }
+    const capaMatch = url.pathname.match(/^\/api\/v1\/isafe\/projects\/([^/]+)\/capa$/);
+    if (req.method === "GET" && capaMatch) { const projectId=decodeURIComponent(capaMatch[1]); assertStyleMatchCaseAuthorization(projectId,ctx); return send(req,res,200,{capa:fieldEvidence.listCapa(projectId,ctx)}); }
+    if (req.method === "POST" && capaMatch) { assertWriteAccess(req); assertMemberTier(ctx,["headquarter","dealer"],"capa_create"); const projectId=decodeURIComponent(capaMatch[1]); assertStyleMatchCaseAuthorization(projectId,ctx); return send(req,res,201,{capa:fieldEvidence.createCapa(projectId,await readBody(req),ctx)}); }
+    const capaCloseMatch = url.pathname.match(/^\/api\/v1\/isafe\/capa\/([^/]+)\/close$/);
+    if (req.method === "POST" && capaCloseMatch) { assertWriteAccess(req); assertMemberTier(ctx,["headquarter"],"capa_authorized_close"); return send(req,res,200,{capa:fieldEvidence.closeCapa(decodeURIComponent(capaCloseMatch[1]),await readBody(req),ctx)}); }
+    const capaHistoryMatch = url.pathname.match(/^\/api\/v1\/isafe\/capa\/([^/]+)\/history$/);
+    if (req.method === "GET" && capaHistoryMatch) { return send(req,res,200,{history:fieldEvidence.listCapaHistory(decodeURIComponent(capaHistoryMatch[1]),ctx)}); }    const capaUpdateMatch = url.pathname.match(/^\/api\/v1\/isafe\/capa\/([^/]+)$/);
+    if (req.method === "POST" && capaUpdateMatch) { assertWriteAccess(req); assertMemberTier(ctx,["headquarter","dealer"],"capa_update"); return send(req,res,200,{capa:fieldEvidence.updateCapa(decodeURIComponent(capaUpdateMatch[1]),await readBody(req),ctx)}); }    const constructionLogsMatch = url.pathname.match(/^\/api\/v1\/isafe\/projects\/([^/]+)\/construction-logs$/);
+    if (req.method === "GET" && constructionLogsMatch) { const projectId = decodeURIComponent(constructionLogsMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx); return send(req, res, 200, { logs: fieldEvidence.listConstructionLogs(projectId, ctx) }); }
+    if (req.method === "POST" && constructionLogsMatch) { assertWriteAccess(req); assertMemberTier(ctx, ["headquarter", "dealer", "certified_member"], "construction_log_generate"); const projectId = decodeURIComponent(constructionLogsMatch[1]); assertStyleMatchCaseAuthorization(projectId, ctx); return send(req, res, 201, { log: fieldEvidence.generateConstructionLog(projectId, await readBody(req), ctx) }); }    const evidencePackageReviewMatch = url.pathname.match(/^\/api\/v1\/isafe\/evidence-packages\/([^/]+)\/review$/);
+    if (req.method === "POST" && evidencePackageReviewMatch) {
+      assertWriteAccess(req); assertMemberTier(ctx, ["headquarter", "dealer"], "evidence_package_review");
+      return send(req, res, 200, { package: fieldEvidence.reviewPackage(decodeURIComponent(evidencePackageReviewMatch[1]), await readBody(req), ctx) });
+    }    if (req.method === "GET" && url.pathname === "/api/v1/isafe/governance/trigger-rules") {
       return send(req, res, 200, { rules: listTriggerRules(ctx) });
     }
     if (req.method === "POST" && url.pathname === "/api/v1/isafe/governance/trigger-rules") {

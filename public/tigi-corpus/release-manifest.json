@@ -1,6 +1,6 @@
 {
   "releaseId": "TIGI-GOVERNANCE-20260820-R9.2-CONSOLIDATED",
-  "corpusVersion": "9.2",
+  "corpusVersion": "9.2+9.2.1-candidate",
   "activeBaseline": true,
   "ragActiveVersion": "R9.2",
   "archivedPredecessors": [
@@ -8,7 +8,7 @@
     "R9",
     "R9.1"
   ],
-  "generatedAt": "2026-08-20T09:43:37.402Z",
+  "generatedAt": "2026-08-22T09:21:43.331Z",
   "networkDependency": false,
   "canonicalReadingOrder": [
     "engineering-master",
@@ -16,9 +16,15 @@
     "business-plan-master",
     "white-paper-master"
   ],
-  "documentCount": 4,
-  "chunkCount": 192,
-  "releaseStatus": "Approved Specification Baseline / Candidate Implementation",
+  "supplementalReadingOrder": [
+    "field-evidence-addendum"
+  ],
+  "candidateAddenda": [
+    "R9.2.1 Field Evidence Addendum"
+  ],
+  "documentCount": 5,
+  "chunkCount": 208,
+  "releaseStatus": "Approved Specification Baseline / Candidate Supplemental Knowledge",
   "phase0RepositoryAuditRequired": true,
   "finalOfficialAllowed": false,
   "stateContractVersion": "20260722_R5_2",

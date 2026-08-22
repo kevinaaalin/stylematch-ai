@@ -75,3 +75,19 @@ Legacy Functional Parity 工作區承接舊站逐項檢核、文件、合約、�
 - Connector：Revit、IFC、AutoCAD、Rhino、Blender 共用 `StyleMatch.ExternalExchange/1.0`。本機可建立交換包；除 IFC 外仍需在各原生軟體內完成匯入／匯出驗收。
 
 正式環境變數列於 `.env.production.example`。備份／還原 checksum 驗證工具為 `scripts/backup-restore.mjs`。
+
+## R9.2.1 Field Evidence candidate API
+
+The local API includes provider-neutral field Evidence intake while R5.2 remains the only state authority:
+
+- `GET|POST /api/v1/isafe/external-evidence-providers`
+- `GET|POST /api/v1/isafe/projects/{project_id}/evidence-requirements`
+- `GET|POST /api/v1/isafe/projects/{project_id}/evidence-packages`
+- `POST /api/v1/isafe/projects/{project_id}/evidence-packages/manual`
+- `POST /api/v1/isafe/evidence-packages/{package_id}/review`
+
+Every write is tenant/organization scoped and idempotent. Package receipts explicitly report that no R5.2 transition, Gate decision or payment execution occurred. Human Review can accept, reject or require correction of Evidence only.
+
+## R9.2.1 Field Evidence and Smart Supervision
+
+The local API implements provider-neutral Evidence intake, immutable MediaAsset provenance/revisions, five-dimensional candidate classification, Evidence Mapping, construction logs, NCR/CAPA and accepted-Evidence-gated CAPA closure. See `../docs/tigi-r9.2.1-field-evidence-local-implementation-20260822.md`. These endpoints are candidate inputs only and never mutate Gate, payment or R5.2 state.

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node test-panorama-projection.mjs && node --test --test-concurrency=1 test-r5.2.mjs test-r9-governance.mjs test-structured-space.mjs test-ai-quality.mjs test-visual-editing.mjs test-auto-layout-candidates.mjs test-viewset-consistency.mjs test-material-catalog.mjs test-production-adapters.mjs",
+    "test": "node test-panorama-projection.mjs && node --test --test-concurrency=1 test-r5.2.mjs test-r9-governance.mjs test-field-evidence.mjs test-smart-supervision.mjs test-structured-space.mjs test-ai-quality.mjs test-visual-editing.mjs test-auto-layout-candidates.mjs test-viewset-consistency.mjs test-material-catalog.mjs test-production-adapters.mjs",
     "test:comfyui-e2e": "node test-comfyui-e2e.mjs"
   }
 }

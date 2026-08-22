@@ -9,6 +9,7 @@ const publicRoot = path.join(appRoot, "public", "tigi-corpus");
 const isafePublicRoot = path.resolve(appRoot, "..", "github_isafe2_website_work", "tigi-corpus");
 const sourcesRoot = path.join(publicRoot, "sources", "r9_2");
 const canonicalReadingOrder = ["engineering-master", "sbir-master", "business-plan-master", "white-paper-master"];
+const supplementalReadingOrder = ["field-evidence-addendum"];
 const releaseId = "TIGI-GOVERNANCE-20260820-R9.2-CONSOLIDATED";
 const archivedPredecessors = ["R8", "R9", "R9.1"];
 
@@ -56,14 +57,28 @@ async function build() {
     documents.push({ id: documentId, category, categoryLabel: category, title, fileName, path: `${path.basename(releaseRoot)}/${fileName}`, sourceUrl, baselineStatus: "active", releaseVersion: "R9.2", sourceSha256, canonicalOrder: fileOrder, categoryOrder: fileOrder, fileOrder, length: markdown.length, headings: headingsFromMarkdown(markdown) });
     chunks.push(...splitIntoChunks(markdown, title).map((chunk) => ({ id: `${documentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId, category, categoryLabel: category, title, heading: chunk.heading, text: chunk.text, sourceUrl, path: `${path.basename(releaseRoot)}/${fileName}`, baselineStatus: "active", releaseVersion: "R9.2", sourceSha256, canonicalOrder: fileOrder, sectionOrder: chunk.sectionIndex, chunkOrder: chunk.chunkIndex })));
   }
-  const generatedAt = new Date().toISOString();
-  const manifest = { releaseId, corpusVersion: "9.2", activeBaseline: true, ragActiveVersion: "R9.2", archivedPredecessors, generatedAt, networkDependency: false, canonicalReadingOrder, documentCount: documents.length, chunkCount: chunks.length, releaseStatus: "Approved Specification Baseline / Candidate Implementation", phase0RepositoryAuditRequired: true, finalOfficialAllowed: false, stateContractVersion: "20260722_R5_2", patentVersion: "V7_LOCKED" };
+  const addendumRelativePath = "06_TIGI_R9_2_1_Field_Evidence_Addendum_20260821/06_TIGI_R9_2_1_Field_Evidence_Addendum_20260821.md";
+  const addendumPath = path.join(releaseRoot, addendumRelativePath);
+  const addendumFileName = path.basename(addendumPath);
+  const addendumMarkdown = await readFile(addendumPath, "utf8");
+  const addendumSha256 = createHash("sha256").update(addendumMarkdown).digest("hex");
+  const addendumTitle = titleFromMarkdown(addendumMarkdown, addendumFileName);
+  const addendumCategory = supplementalReadingOrder[0];
+  const addendumSourceUrl = `tigi-corpus/sources/r9_2/${addendumFileName}.html`;
+  const addendumDocumentId = `TIGI_R9_2_1_CANDIDATE/${addendumFileName}`;
+  await copyFile(addendumPath, path.join(sourcesRoot, addendumFileName));
+  await writeFile(path.join(sourcesRoot, `${addendumFileName}.html`), `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(addendumTitle)}</title><style>body{margin:0;background:#f5f5f4;color:#1c1917;font-family:system-ui,sans-serif}main{max-width:980px;margin:auto;padding:32px 24px}header{border-bottom:1px solid #d6d3d1;padding-bottom:16px}h1{font-size:24px}p{color:#57534e}pre{margin-top:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}</style></head><body><main><header><h1>${escapeHtml(addendumTitle)}</h1><p>R9.2.1 Candidate Supplemental Specification · Not Final Official</p></header><pre>${escapeHtml(addendumMarkdown)}</pre></main></body></html>`, "utf8");
+  const addendumOrder = fileNames.length;
+  const addendumCommon = { category: addendumCategory, categoryLabel: "Field Evidence Addendum", title: addendumTitle, sourceUrl: addendumSourceUrl, path: `${path.basename(releaseRoot)}/${addendumRelativePath}`, baselineStatus: "candidate-addendum", releaseVersion: "R9.2.1-candidate", sourceSha256: addendumSha256, canonicalOrder: addendumOrder, categoryOrder: addendumOrder, legalReviewRequired: true };
+  documents.push({ id: addendumDocumentId, ...addendumCommon, fileName: addendumFileName, fileOrder: addendumOrder, length: addendumMarkdown.length, headings: headingsFromMarkdown(addendumMarkdown) });
+  chunks.push(...splitIntoChunks(addendumMarkdown, addendumTitle).map((chunk) => ({ id: `${addendumDocumentId}#${chunk.sectionIndex}-${chunk.chunkIndex}`, documentId: addendumDocumentId, ...addendumCommon, heading: chunk.heading, text: chunk.text, sectionOrder: chunk.sectionIndex, chunkOrder: chunk.chunkIndex })));  const generatedAt = new Date().toISOString();
+  const manifest = { releaseId, corpusVersion: "9.2+9.2.1-candidate", activeBaseline: true, ragActiveVersion: "R9.2", archivedPredecessors, generatedAt, networkDependency: false, canonicalReadingOrder, supplementalReadingOrder, candidateAddenda: ["R9.2.1 Field Evidence Addendum"], documentCount: documents.length, chunkCount: chunks.length, releaseStatus: "Approved Specification Baseline / Candidate Supplemental Knowledge", phase0RepositoryAuditRequired: true, finalOfficialAllowed: false, stateContractVersion: "20260722_R5_2", patentVersion: "V7_LOCKED" };
   const index = { version: "9.2", generatedAt, corpus: "TIGI R9.2 Consolidated Technical Masters", releaseVersion: "20260820_R9_2_Consolidated", ...manifest, sourceRoot: path.basename(releaseRoot), manifestUrl: "tigi-corpus/release-manifest.json", documents, chunks };
   await writeFile(path.join(publicRoot, "knowledge-index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
   await writeFile(path.join(publicRoot, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   await rm(isafePublicRoot, { recursive: true, force: true });
   await cp(publicRoot, isafePublicRoot, { recursive: true });
-  console.log(`Built TIGI R9.2 index: ${documents.length} documents, ${chunks.length} chunks`);
+  console.log(`Built TIGI R9.2 + candidate addendum index: ${documents.length} documents, ${chunks.length} chunks`);
 }
 
 build().catch((error) => { console.error(error); process.exit(1); });
