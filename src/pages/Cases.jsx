@@ -50,14 +50,6 @@ const serviceNames = {
   twcid_platform: "TWCID 平台媒合",
 };
 
-const gateLabels = {
-  not_started: "尚未啟動",
-  D1_pending: "D1 待審",
-  migration_review_required: "遷移後待人工覆核",
-  intake_pending: "待受理",
-  closed: "已關閉",
-};
-
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString("zh-TW", {
@@ -401,8 +393,6 @@ export default function Cases() {
                       <Field label="twcid_match_id" value={selectedProject.twcid_match_id} />
                       <Field label="isafe_case_id" value={selectedProject.isafe_case_id} />
                       <Field label="stage_status" value={selectedProject.stage_status} />
-                      <Field label="current_stage" value={selectedProject.current_stage} />
-                      <Field label="gate_status" value={gateLabels[selectedProject.gate_status] || selectedProject.gate_status} />
                       <Field label="trace_id" value={selectedProject.trace_id} />
                     </div>
 
@@ -471,89 +461,19 @@ export default function Cases() {
 
                   <TabsContent value="isafe" className="space-y-4">
                     {!selectedIsafeCase ? (
-                      <div className="rounded-md border border-dashed border-stone-300 bg-white p-6 text-center">
-                        <p className="font-semibold text-stone-900">尚未成立 iSAFE 監管專案</p>
-                        <p className="mt-1 text-sm text-stone-600">
-                          點選「成立 iSAFE 監管專案」後，系統會產生 iSAFE project、D1 前置作業、Gate 狀態與正式監管連結。
-                        </p>
-                        <Button
-                          onClick={handleIsafeCreate}
-                          disabled={isCreatingIsafe || !isMatchConfirmed}
-                          className="mt-4 bg-stone-900 hover:bg-stone-800"
-                        >
-                          <ShieldCheck className="mr-2 h-4 w-4" />
-                          立即成立 iSAFE 監管專案
-                        </Button>
+                      <div className="border border-dashed border-stone-300 bg-white p-6 text-center">
+                        <p className="font-semibold text-stone-900">尚未交接 iSAFE 立案</p>
+                        <p className="mt-1 text-sm text-stone-600">確認媒合後可送交 iSAFE；正式案件狀態由 iSAFE API 回傳，StyleMatchAI 不建立或管理 Gate。</p>
+                        <Button onClick={handleIsafeCreate} disabled={isCreatingIsafe || !isMatchConfirmed} className="mt-4 bg-stone-900 hover:bg-stone-800"><ShieldCheck className="mr-2 h-4 w-4" />送交 iSAFE 立案</Button>
                         {isafeError && <p className="mt-3 text-sm text-red-600">{isafeError}</p>}
                       </div>
                     ) : (
-                      <>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <Field label="isafe_project_id" value={selectedIsafeCase.isafe_project_id} />
-                          <Field label="isafe_case_id" value={selectedIsafeCase.isafe_case_id} />
-                          <Field label="source_case_code" value={selectedIsafeCase.source_case_code} />
-                          <Field label="source_project_id" value={selectedIsafeCase.source_project_id} />
-                          <Field label="current_stage" value={selectedIsafeCase.current_stage} />
-                          <Field label="gate_status" value={selectedIsafeCase.gate_status} />
-                          <Field label="Pilot 風險值" value={selectedIsafeCase.risk_assessment?.value ?? selectedIsafeCase.risk_score} />
-                          <Field label="風險狀態" value={selectedIsafeCase.risk_assessment?.status || "pilot_unverified"} />
-                          <Field label="pgp_url" value={selectedIsafeCase.pgp_url} />
-                        </div>
-
-                        <div className="rounded-md border border-stone-200 bg-white p-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <p className="font-semibold text-stone-900">iSAFE 正式監管工作台</p>
-                              <p className="mt-1 text-sm text-stone-600">
-                                StyleMatch AI 只保留轉案與唯讀摘要；會員層級、案件角色、雙方確認與 Gate 操作均在 iSAFE 網站處理。
-                              </p>
-                              <p className="mt-2 break-all font-mono text-xs text-stone-500">
-                                {buildIsafeWorkspaceUrl(selectedIsafeCase)}
-                              </p>
-                            </div>
-                            <a
-                              href={buildIsafeWorkspaceUrl(selectedIsafeCase)}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <Button className="bg-stone-900 hover:bg-stone-800">
-                                <ArrowUpRight className="mr-2 h-4 w-4" />
-                                開啟 iSAFE 工作台
-                              </Button>
-                            </a>
-                          </div>
-                        </div>
-
-                        <div className="rounded-md border border-stone-200 bg-white p-4">
-                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="font-semibold text-stone-900">兩階段十大監管節點</p>
-                            <Badge variant="outline">{selectedIsafeCase.status}</Badge>
-                          </div>
-                          <div className="mt-3 grid grid-cols-1 gap-2">
-                            {(selectedIsafeCase.governance_steps || []).map((step) => (
-                              <div
-                                key={step.key}
-                                className="grid grid-cols-[52px_1fr_auto] items-center gap-3 rounded-md border border-stone-200 px-3 py-2"
-                              >
-                                <span className="font-mono text-sm font-semibold text-stone-900">{step.code}</span>
-                                <div>
-                                  <p className="text-sm font-medium text-stone-900">{step.name || step.label}</p>
-                                  <p className="text-xs text-stone-500">{step.phase}</p>
-                                </div>
-                                <Badge variant={step.status === "active" ? "default" : "outline"}>
-                                  {step.status}
-                                </Badge>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                          <Field label="timeline_events" value={selectedIsafeCase.evidence_summary?.timeline_events} />
-                          <Field label="source_audit_logs" value={selectedIsafeCase.evidence_summary?.source_audit_logs} />
-                          <Field label="project_photos" value={selectedIsafeCase.evidence_summary?.project_photos} />
-                        </div>
-                      </>
+                      <div className="border border-stone-200 bg-white p-5">
+                        <p className="font-semibold text-stone-900">iSAFE 已立案</p>
+                        <p className="mt-2 font-mono text-sm text-stone-600">{selectedIsafeCase.isafe_case_id}</p>
+                        <p className="mt-2 text-sm text-stone-600">後續階段、逐項檢核、付款、證據與 Gate 全部在 iSAFE 工作台管理。</p>
+                        <a href={selectedIsafeCase.workspace_url || buildIsafeWorkspaceUrl(selectedIsafeCase)} target="_blank" rel="noreferrer"><Button className="mt-4 bg-stone-900 hover:bg-stone-800"><ArrowUpRight className="mr-2 h-4 w-4" />進入 iSAFE 管理</Button></a>
+                      </div>
                     )}
                   </TabsContent>
 

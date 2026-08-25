@@ -47,7 +47,7 @@ An active trigger rule can supply the evaluation outcome, rule version, and pend
 
 `POST /api/handoffs/isafe` 以 `case_code` 保證重送冪等，不會建立重複的 iSAFE 專案。
 
-Legacy Functional Parity 工作區承接舊站逐項檢核、文件、合約、付款時點、收據、追加工程與留言；D1-D5、C1-C5 R5.2 狀態契約仍是唯一的 Gate 推進依據。
+Legacy Functional Parity 工作區承接舊站逐項檢核、文件、合約、付款時點、收據、追加工程與留言；D1-D5、C1-C5 R5.2 狀態契約仍是唯一的 Gate 推進依據。每一階段僅在執行基準已由雙方凍結、必填項目逐項雙方確認、必要證據完整、付款證明已由業主提交且付款由雙方確認後才可推進；推進後前一階段永久鎖定。總部不能代替任何一方勾選，修正必須以版本化變更單或證據修訂處理。
 
 受保護路由要求 `X-Tenant-Id`、`X-Organization-Id`、`X-Purpose`、`X-Consent-Ref`、`X-Trace-Id`；寫入另要求 `Idempotency-Key`。
 

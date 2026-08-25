@@ -110,6 +110,17 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
       status TEXT NOT NULL DEFAULT 'proposed',
       requested_by TEXT NOT NULL,
       approved_by TEXT,
+      stage TEXT,
+      document_file_name TEXT,
+      document_mime_type TEXT,
+      document_content_base64 TEXT,
+      document_sha256 TEXT,
+      payment_file_name TEXT,
+      payment_mime_type TEXT,
+      payment_content_base64 TEXT,
+      payment_sha256 TEXT,
+      payment_amount INTEGER NOT NULL DEFAULT 0,
+      locked_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY(case_id) REFERENCES cases(id)
@@ -142,7 +153,40 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
       UNIQUE(checklist_item_id, party_type),
       FOREIGN KEY(case_id) REFERENCES cases(id)
     );
-    CREATE TABLE IF NOT EXISTS execution_checklist_baselines (
+    CREATE TABLE IF NOT EXISTS payment_milestone_confirmations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      confirmation_id TEXT NOT NULL UNIQUE,
+      milestone_id TEXT NOT NULL,
+      case_id INTEGER NOT NULL,
+      party_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      actor_user_id TEXT,
+      actor_role TEXT,
+      note TEXT,
+      confirmed_at TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(milestone_id, party_type),
+      FOREIGN KEY(case_id) REFERENCES cases(id)
+    );
+    CREATE TABLE IF NOT EXISTS change_order_confirmations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      confirmation_id TEXT NOT NULL UNIQUE,
+      change_order_id TEXT NOT NULL,
+      case_id INTEGER NOT NULL,
+      party_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      actor_user_id TEXT,
+      actor_role TEXT,
+      note TEXT,
+      confirmed_at TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(change_order_id, party_type),
+      FOREIGN KEY(case_id) REFERENCES cases(id)
+    );    CREATE TABLE IF NOT EXISTS execution_checklist_baselines (
       case_id INTEGER PRIMARY KEY,
       status TEXT NOT NULL DEFAULT 'draft',
       certified_member_confirmed_by TEXT,
@@ -164,6 +208,7 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
     ["file_name", "TEXT"], ["mime_type", "TEXT"], ["content_base64", "TEXT"], ["file_size", "INTEGER DEFAULT 0"],
   ].forEach(([name, definition]) => ensureColumn("evidence", name, definition));
   [["content", "TEXT"], ["deleted_at", "TEXT"]].forEach(([name, definition]) => ensureColumn("checklist_items", name, definition));
+  [["stage", "TEXT"], ["document_file_name", "TEXT"], ["document_mime_type", "TEXT"], ["document_content_base64", "TEXT"], ["document_sha256", "TEXT"], ["payment_file_name", "TEXT"], ["payment_mime_type", "TEXT"], ["payment_content_base64", "TEXT"], ["payment_sha256", "TEXT"], ["payment_amount", "INTEGER NOT NULL DEFAULT 0"], ["locked_at", "TEXT"]].forEach(([name, definition]) => ensureColumn("change_orders", name, definition));
 
   function caseRow(id, ctx) {
     const row = ctx
@@ -201,8 +246,22 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
     }
     for (const item of contract.payment_milestones) {
       const base = item.phase === "design" ? baseline.design_total : baseline.construction_total;
-      db.prepare("INSERT OR IGNORE INTO payment_milestones (milestone_id,case_id,code,phase,stage,label,percentage,amount,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-        .run(uid("milestone"), row.id, item.code, item.phase, item.stage, item.label, item.percentage, Math.round(base * item.percentage / 100), at, at);
+      const existing = db.prepare("SELECT milestone_id FROM payment_milestones WHERE case_id=? AND phase=? AND stage=? ORDER BY id LIMIT 1").get(row.id, item.phase, item.stage);
+      if (existing) {
+        db.prepare("UPDATE payment_milestones SET code=?,label=?,percentage=?,amount=?,updated_at=? WHERE milestone_id=?")
+          .run(item.code, item.label, item.percentage, Math.round(base * item.percentage / 100), at, existing.milestone_id);
+      } else {
+        db.prepare("INSERT INTO payment_milestones (milestone_id,case_id,code,phase,stage,label,percentage,amount,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+          .run(uid("milestone"), row.id, item.code, item.phase, item.stage, item.label, item.percentage, Math.round(base * item.percentage / 100), at, at);
+      }
+    }
+    const milestoneRows = db.prepare("SELECT milestone_id FROM payment_milestones WHERE case_id=?").all(row.id);
+    for (const milestone of milestoneRows) {
+      for (const party of ["certified_member", "owner"]) {
+        db.prepare(`INSERT OR IGNORE INTO payment_milestone_confirmations
+          (confirmation_id,milestone_id,case_id,party_type,created_at,updated_at)
+          VALUES (?,?,?,?,?,?)`).run(uid("payment_confirmation"), milestone.milestone_id, row.id, party, at, at);
+      }
     }
     const checklistRows = db.prepare("SELECT checklist_item_id,status,completed_by,completed_at,note,created_at,updated_at FROM checklist_items WHERE case_id=?").all(row.id);
     for (const item of checklistRows) {
@@ -243,9 +302,30 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
       FROM contract_baseline_versions WHERE case_id=? ORDER BY version_no DESC`).all(row.id);
     baseline.current_version = baselineHistory[0]?.version_no || 1;
     baseline.current_version_id = baselineHistory[0]?.baseline_version_id || null;
-    const milestones = db.prepare("SELECT milestone_id,code,phase,stage,label,percentage,amount,status,due_at,receipt_id,updated_at FROM payment_milestones WHERE case_id=? ORDER BY id").all(row.id);
+    const paymentConfirmations = db.prepare("SELECT milestone_id,party_type,status,actor_user_id,actor_role,note,confirmed_at,version,updated_at FROM payment_milestone_confirmations WHERE case_id=? ORDER BY id").all(row.id);
+    const paymentConfirmationsByMilestone = paymentConfirmations.reduce((map, confirmation) => {
+      if (!map[confirmation.milestone_id]) map[confirmation.milestone_id] = {};
+      map[confirmation.milestone_id][confirmation.party_type] = confirmation;
+      return map;
+    }, {});
+    const milestones = db.prepare("SELECT milestone_id,code,phase,stage,label,percentage,amount,status,due_at,receipt_id,updated_at FROM payment_milestones WHERE case_id=? ORDER BY id").all(row.id)
+      .map((milestone) => ({
+        ...milestone,
+        confirmations: paymentConfirmationsByMilestone[milestone.milestone_id] || {},
+        stage_locked: isStageLocked(row, milestone.stage),
+      }));
     const receipts = db.prepare("SELECT receipt_id,milestone_id,title,amount,file_name,mime_type,sha256,status,created_by,created_at FROM receipts WHERE case_id=? ORDER BY id DESC").all(row.id);
-    const changes = db.prepare("SELECT change_order_id,title,reason,amount_delta,schedule_delta_days,status,requested_by,approved_by,created_at,updated_at FROM change_orders WHERE case_id=? ORDER BY id DESC").all(row.id);
+    for (const change of db.prepare("SELECT change_order_id FROM change_orders WHERE case_id=?").all(row.id)) {
+      for (const party of ["certified_member", "owner"]) db.prepare("INSERT OR IGNORE INTO change_order_confirmations (confirmation_id,change_order_id,case_id,party_type,created_at,updated_at) VALUES (?,?,?,?,?,?)")
+        .run(uid("change_confirmation"), change.change_order_id, row.id, party, row.created_at || now(), row.updated_at || now());
+    }    const changeConfirmations = db.prepare("SELECT change_order_id,party_type,status,actor_user_id,actor_role,note,confirmed_at,version,updated_at FROM change_order_confirmations WHERE case_id=? ORDER BY id").all(row.id);
+    const changeConfirmationsByOrder = changeConfirmations.reduce((map, confirmation) => {
+      if (!map[confirmation.change_order_id]) map[confirmation.change_order_id] = {};
+      map[confirmation.change_order_id][confirmation.party_type] = confirmation;
+      return map;
+    }, {});
+    const changes = db.prepare("SELECT change_order_id,title,reason,amount_delta,schedule_delta_days,status,requested_by,approved_by,stage,document_file_name,document_mime_type,document_sha256,payment_file_name,payment_mime_type,payment_sha256,payment_amount,locked_at,created_at,updated_at FROM change_orders WHERE case_id=? ORDER BY id DESC").all(row.id)
+      .map((change) => ({ ...change, confirmations: changeConfirmationsByOrder[change.change_order_id] || {} }));
     const messages = db.prepare("SELECT message_id,category,body,actor,actor_role,created_at FROM case_messages WHERE case_id=? ORDER BY id DESC LIMIT 100").all(row.id);
     const evidenceFiles = db.prepare("SELECT evidence_id,evidence_type,label,file_name,mime_type,file_size,sha256,created_by,step_key,created_at FROM evidence WHERE case_id=? AND file_name IS NOT NULL ORDER BY id DESC").all(row.id);
     const executionBaseline = db.prepare("SELECT status,certified_member_confirmed_by,certified_member_confirmed_at,owner_confirmed_by,owner_confirmed_at,frozen_at,version,updated_at FROM execution_checklist_baselines WHERE case_id=?").get(row.id)
@@ -281,25 +361,8 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
     if (baseline.status === "frozen") fail("The execution checklist baseline is frozen.", "CHECKLIST_BASELINE_FROZEN", 409);
   }
 
-  function updateChecklist(row, itemId, payload, ctx) {
-    const item = db.prepare("SELECT * FROM checklist_items WHERE case_id=? AND checklist_item_id=?").get(row.id, itemId);
-    if (!item) fail("Checklist item not found.", "CHECKLIST_ITEM_NOT_FOUND", 404);
-    const allowed = new Set(["pending", "completed", "exception", "not_applicable"]);
-    if (!allowed.has(payload.status)) fail("Invalid checklist status.", "CHECKLIST_STATUS_INVALID");
-    const at = now();
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      db.prepare("UPDATE checklist_items SET status=?,completed_by=?,completed_at=?,note=?,updated_at=? WHERE id=?")
-        .run(payload.status, payload.status === "completed" ? (payload.actor || "local-admin") : null, payload.status === "completed" ? at : null, payload.note || null, at, item.id);
-      db.prepare(`UPDATE checklist_party_confirmations SET status=?,actor_user_id=?,actor_role='headquarter_override',note=?,confirmed_at=?,version=version+1,updated_at=? WHERE checklist_item_id=?`)
-        .run(payload.status, payload.actor || ctx.user_id || "local-admin", payload.note || null, payload.status === "completed" ? at : null, at, itemId);
-      db.exec("COMMIT");
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
-    }
-    audit(row, "checklist.status_changed", payload.actor, `${item.stage}:${item.label}:${payload.status}`, ctx.trace_id);
-    emitEvent("ChecklistItemStatusChanged", { ...ctx, correlation_id: row.correlation_id }, { isafe_case_id: row.isafe_case_id, checklist_item_id: itemId, stage: item.stage, status: payload.status });
+  function updateChecklist() {
+    fail("Checklist completion requires separate confirmation by both parties.", "CHECKLIST_DUAL_CONFIRMATION_REQUIRED", 409);
   }
 
   function assertLegacyAction(ctx, action, party = null) {
@@ -309,8 +372,9 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
       checklist_admin: new Set(["headquarter"]),
       checklist_add: new Set(["headquarter", "dealer", "certified_member", "general_member"]),
       baseline: new Set(["headquarter", "dealer"]),
-      receipt: new Set(["headquarter", "dealer", "certified_member"]),
-      evidence: new Set(["headquarter", "dealer", "certified_member", "general_member"]),
+      receipt: new Set(["general_member"]),
+      payment_confirmation: new Set(["certified_member", "general_member"]),
+      evidence: new Set(["headquarter", "dealer", "certified_member"]),
       change_order: new Set(["headquarter", "dealer", "certified_member", "general_member"]),
       message: new Set(["headquarter", "dealer", "association", "certified_member", "general_member"]),
     };
@@ -329,6 +393,37 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
     const currentIndex = stages.indexOf(row.current_stage);
     const itemIndex = stages.indexOf(stage);
     return currentIndex >= 0 && itemIndex >= 0 && itemIndex < currentIndex;
+  }
+
+  function stageReadiness(row) {
+    seed(row);
+    const baseline = executionBaseline(row);
+    const items = db.prepare("SELECT checklist_item_id,label,status,required FROM checklist_items WHERE case_id=? AND stage=? AND deleted_at IS NULL ORDER BY position,id").all(row.id, row.current_stage);
+    const incompleteChecklist = items.filter((item) => item.required && !new Set(["completed", "not_applicable"]).has(item.status));
+    const milestones = db.prepare("SELECT milestone_id,label,status,receipt_id FROM payment_milestones WHERE case_id=? AND stage=? ORDER BY id").all(row.id, row.current_stage);
+    const incompletePayments = milestones.filter((milestone) => {
+      const confirmations = db.prepare("SELECT party_type,status FROM payment_milestone_confirmations WHERE milestone_id=? ORDER BY party_type").all(milestone.milestone_id);
+      return !milestone.receipt_id || milestone.status !== "completed" || confirmations.length !== 2 || confirmations.some((item) => item.status !== "completed");
+    });
+    return {
+      stage: row.current_stage,
+      baseline_frozen: baseline.status === "frozen",
+      checklist_total: items.length,
+      checklist_completed: items.length - incompleteChecklist.length,
+      incomplete_checklist: incompleteChecklist.map((item) => ({ checklist_item_id: item.checklist_item_id, label: item.label, status: item.status })),
+      payment_required: milestones.length,
+      payment_completed: milestones.length - incompletePayments.length,
+      incomplete_payments: incompletePayments.map((item) => ({ milestone_id: item.milestone_id, label: item.label, status: item.status, receipt_submitted: Boolean(item.receipt_id) })),
+      ready: baseline.status === "frozen" && incompleteChecklist.length === 0 && incompletePayments.length === 0,
+    };
+  }
+
+  function assertStageReady(row) {
+    const readiness = stageReadiness(row);
+    if (!readiness.baseline_frozen) fail("Execution checklist baseline must be frozen before stage execution.", "EXECUTION_BASELINE_NOT_FROZEN", 409, readiness);
+    if (readiness.incomplete_checklist.length) fail("Every required checklist item needs owner and certified-member confirmation.", "STAGE_DUAL_CONFIRMATION_INCOMPLETE", 409, readiness);
+    if (readiness.incomplete_payments.length) fail("Stage payment must be evidenced and confirmed by both parties.", "STAGE_PAYMENT_INCOMPLETE", 409, readiness);
+    return readiness;
   }
 
   function confirmationAggregate(itemId) {
@@ -433,6 +528,7 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
   }
 
   function saveBaseline(row, payload, ctx) {
+    assertPlanningEditable(row);
     const designTotal = Math.max(0, Number(payload.design_total) || 0);
     const constructionTotal = Math.max(0, Number(payload.construction_total) || 0);
     const status = payload.status || "draft";
@@ -473,14 +569,42 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
 
   function addReceipt(row, payload, ctx) {
     if (!payload.title?.trim()) fail("Receipt title is required.", "RECEIPT_TITLE_REQUIRED");
+    if (!payload.milestone_id) fail("milestone_id is required.", "PAYMENT_MILESTONE_REQUIRED");
+    const milestone = db.prepare("SELECT * FROM payment_milestones WHERE case_id=? AND milestone_id=?").get(row.id, payload.milestone_id);
+    if (!milestone) fail("Payment milestone not found.", "PAYMENT_MILESTONE_NOT_FOUND", 404);
+    if (isStageLocked(row, milestone.stage) || milestone.stage !== row.current_stage) fail("Payment evidence can only be submitted for the current unlocked stage.", "PAYMENT_STAGE_LOCKED", 409, { stage: milestone.stage, current_stage: row.current_stage });
+    if (!payload.file_name || !payload.content_base64) fail("Payment proof file is required.", "PAYMENT_PROOF_FILE_REQUIRED");
     const content = payload.content_base64 || "";
     if (content.length > 14_000_000) fail("Receipt file exceeds local 10 MB limit.", "FILE_TOO_LARGE", 413);
     const id = uid("receipt");
     const at = now();
     db.prepare("INSERT INTO receipts (receipt_id,case_id,milestone_id,title,amount,file_name,mime_type,content_base64,sha256,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,'submitted',?,?)")
       .run(id, row.id, payload.milestone_id || null, payload.title.trim(), Math.max(0, Number(payload.amount) || 0), payload.file_name || null, payload.mime_type || null, content || null, content ? hash(content) : null, payload.actor || "local-admin", at);
-    if (payload.milestone_id) db.prepare("UPDATE payment_milestones SET receipt_id=?,status='receipt_submitted',updated_at=? WHERE case_id=? AND milestone_id=?").run(id, at, row.id, payload.milestone_id);
+    db.prepare("UPDATE payment_milestones SET receipt_id=?,status='awaiting_dual_confirmation',updated_at=? WHERE case_id=? AND milestone_id=?").run(id, at, row.id, payload.milestone_id);
+    db.prepare("UPDATE payment_milestone_confirmations SET status='completed',actor_user_id=?,actor_role=?,confirmed_at=?,version=version+1,updated_at=? WHERE milestone_id=? AND party_type='owner'")
+      .run(ctx.user_id || payload.actor || "local-owner", ctx.case_role, at, at, payload.milestone_id);
     audit(row, "receipt.submitted", payload.actor, `${id}:${payload.title.trim()}`, ctx.trace_id);
+  }
+
+  function updatePaymentConfirmation(row, milestoneId, party, payload, ctx) {
+    if (!new Set(["certified_member", "owner"]).has(party)) fail("Invalid payment confirmation party.", "PAYMENT_PARTY_INVALID");
+    assertLegacyAction(ctx, "checklist_confirmation", party);
+    const milestone = db.prepare("SELECT * FROM payment_milestones WHERE case_id=? AND milestone_id=?").get(row.id, milestoneId);
+    if (!milestone) fail("Payment milestone not found.", "PAYMENT_MILESTONE_NOT_FOUND", 404);
+    if (isStageLocked(row, milestone.stage) || milestone.stage !== row.current_stage) fail("Completed or non-current stage payments are locked.", "PAYMENT_STAGE_LOCKED", 409, { stage: milestone.stage, current_stage: row.current_stage });
+    if (!milestone.receipt_id) fail("Owner payment evidence is required before confirmation.", "PAYMENT_RECEIPT_REQUIRED", 409);
+    const allowed = new Set(["completed", "exception"]);
+    if (!allowed.has(payload.status)) fail("Payment confirmation status must be completed or exception.", "PAYMENT_CONFIRMATION_STATUS_INVALID");
+    const confirmation = db.prepare("SELECT * FROM payment_milestone_confirmations WHERE milestone_id=? AND party_type=?").get(milestoneId, party);
+    if (!confirmation) fail("Payment confirmation not found.", "PAYMENT_CONFIRMATION_NOT_FOUND", 404);
+    if (payload.expected_version !== undefined && Number(payload.expected_version) !== confirmation.version) fail("Payment confirmation version conflict.", "PAYMENT_CONFIRMATION_VERSION_CONFLICT", 409, { expected_version: payload.expected_version, current_version: confirmation.version });
+    const at = now();
+    db.prepare("UPDATE payment_milestone_confirmations SET status=?,actor_user_id=?,actor_role=?,note=?,confirmed_at=?,version=version+1,updated_at=? WHERE id=?")
+      .run(payload.status, ctx.user_id || payload.actor || "local-user", ctx.case_role, payload.note || null, payload.status === "completed" ? at : null, at, confirmation.id);
+    const confirmations = db.prepare("SELECT status FROM payment_milestone_confirmations WHERE milestone_id=?").all(milestoneId);
+    const nextStatus = confirmations.length === 2 && confirmations.every((item) => item.status === "completed") ? "completed" : confirmations.some((item) => item.status === "exception") ? "exception" : "awaiting_dual_confirmation";
+    db.prepare("UPDATE payment_milestones SET status=?,updated_at=? WHERE milestone_id=?").run(nextStatus, at, milestoneId);
+    audit(row, "payment.party_confirmation_changed", ctx.user_id || payload.actor, `${milestone.stage}:${milestone.label}:${party}:${payload.status}`, ctx.trace_id);
   }
 
   function addEvidenceFile(row, payload, ctx) {
@@ -498,14 +622,56 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
 
   function addChangeOrder(row, payload, ctx) {
     if (!payload.title?.trim() || !payload.reason?.trim()) fail("Change order title and reason are required.", "CHANGE_ORDER_INCOMPLETE");
+    if (!payload.stage?.startsWith("C")) fail("A construction stage is required.", "CHANGE_ORDER_STAGE_REQUIRED");
+    if (!payload.file_name || !payload.content_base64) fail("Change order document is required.", "CHANGE_ORDER_DOCUMENT_REQUIRED");
+    if (payload.content_base64.length > 14_000_000) fail("Change order document exceeds local 10 MB limit.", "FILE_TOO_LARGE", 413);
     const id = uid("change");
     const at = now();
-    db.prepare("INSERT INTO change_orders (change_order_id,case_id,title,reason,amount_delta,schedule_delta_days,status,requested_by,created_at,updated_at) VALUES (?,?,?,?,?,?,'proposed',?,?,?)")
-      .run(id, row.id, payload.title.trim(), payload.reason.trim(), Number(payload.amount_delta) || 0, Number(payload.schedule_delta_days) || 0, payload.actor || "local-admin", at, at);
+    db.prepare("INSERT INTO change_orders (change_order_id,case_id,title,reason,amount_delta,schedule_delta_days,status,requested_by,stage,document_file_name,document_mime_type,document_content_base64,document_sha256,created_at,updated_at) VALUES (?,?,?,?,?,?,'awaiting_payment_proof',?,?,?,?,?,?,?,?)")
+      .run(id, row.id, payload.title.trim(), payload.reason.trim(), Number(payload.amount_delta) || 0, Number(payload.schedule_delta_days) || 0, payload.actor || "local-admin", payload.stage, payload.file_name, payload.mime_type || "application/octet-stream", payload.content_base64, hash(payload.content_base64), at, at);
+    for (const party of ["certified_member", "owner"]) db.prepare("INSERT INTO change_order_confirmations (confirmation_id,change_order_id,case_id,party_type,created_at,updated_at) VALUES (?,?,?,?,?,?)")
+      .run(uid("change_confirmation"), id, row.id, party, at, at);
     audit(row, "change_order.proposed", payload.actor, `${id}:${payload.title.trim()}`, ctx.trace_id);
     emitEvent("ChangeOrderProposed", { ...ctx, correlation_id: row.correlation_id }, { isafe_case_id: row.isafe_case_id, change_order_id: id, amount_delta: Number(payload.amount_delta) || 0, schedule_delta_days: Number(payload.schedule_delta_days) || 0 });
   }
 
+  function addChangeOrderPayment(row, changeOrderId, payload, ctx) {
+    assertLegacyAction(ctx, "receipt");
+    const change = db.prepare("SELECT * FROM change_orders WHERE case_id=? AND change_order_id=?").get(row.id, changeOrderId);
+    if (!change) fail("Change order not found.", "CHANGE_ORDER_NOT_FOUND", 404);
+    if (change.locked_at) fail("Completed change order is locked.", "CHANGE_ORDER_LOCKED", 409);
+    if (!payload.file_name || !payload.content_base64) fail("Owner payment proof is required.", "CHANGE_ORDER_PAYMENT_PROOF_REQUIRED");
+    const at = now();
+    db.prepare("UPDATE change_orders SET payment_file_name=?,payment_mime_type=?,payment_content_base64=?,payment_sha256=?,payment_amount=?,status='awaiting_dual_confirmation',updated_at=? WHERE id=?")
+      .run(payload.file_name, payload.mime_type || "application/octet-stream", payload.content_base64, hash(payload.content_base64), Math.max(0, Number(payload.amount) || 0), at, change.id);
+    audit(row, "change_order.payment_proof_submitted", ctx.user_id || payload.actor, changeOrderId, ctx.trace_id);
+  }
+
+  function updateChangeOrderConfirmation(row, changeOrderId, party, payload, ctx) {
+    assertLegacyAction(ctx, "payment_confirmation", party);
+    const change = db.prepare("SELECT * FROM change_orders WHERE case_id=? AND change_order_id=?").get(row.id, changeOrderId);
+    if (!change) fail("Change order not found.", "CHANGE_ORDER_NOT_FOUND", 404);
+    if (change.locked_at) fail("Completed change order is locked.", "CHANGE_ORDER_LOCKED", 409);
+    if (!change.document_file_name || !change.payment_file_name) fail("Change document and owner payment proof are required before confirmation.", "CHANGE_ORDER_EVIDENCE_INCOMPLETE", 409);
+    const confirmation = db.prepare("SELECT * FROM change_order_confirmations WHERE change_order_id=? AND party_type=?").get(changeOrderId, party);
+    if (!confirmation) fail("Change order confirmation not found.", "CHANGE_ORDER_CONFIRMATION_NOT_FOUND", 404);
+    if (payload.expected_version !== undefined && Number(payload.expected_version) !== confirmation.version) fail("Change order confirmation version conflict.", "CHANGE_ORDER_CONFIRMATION_VERSION_CONFLICT", 409);
+    const at = now();
+    db.prepare("UPDATE change_order_confirmations SET status='completed',actor_user_id=?,actor_role=?,note=?,confirmed_at=?,version=version+1,updated_at=? WHERE id=?")
+      .run(ctx.user_id || payload.actor || "local-user", ctx.case_role, payload.note || null, at, at, confirmation.id);
+    const confirmations = db.prepare("SELECT status FROM change_order_confirmations WHERE change_order_id=?").all(changeOrderId);
+    if (confirmations.length === 2 && confirmations.every((item) => item.status === "completed")) db.prepare("UPDATE change_orders SET status='completed_locked',approved_by=?,locked_at=?,updated_at=? WHERE id=?").run(ctx.user_id || payload.actor || "local-user", at, at, change.id);
+    audit(row, "change_order.party_confirmed", ctx.user_id || payload.actor, `${changeOrderId}:${party}`, ctx.trace_id);
+  }
+
+  function getChangeOrderFile(id, changeOrderId, kind, ctx) {
+    const row = caseRow(id, ctx);
+    const change = db.prepare("SELECT * FROM change_orders WHERE case_id=? AND change_order_id=?").get(row.id, changeOrderId);
+    if (!change) fail("Change order not found.", "CHANGE_ORDER_NOT_FOUND", 404);
+    const prefix = kind === "payment" ? "payment" : "document";
+    if (!change[`${prefix}_file_name`]) fail("Change order file not found.", "CHANGE_ORDER_FILE_NOT_FOUND", 404);
+    return { file_name: change[`${prefix}_file_name`], mime_type: change[`${prefix}_mime_type`], content_base64: change[`${prefix}_content_base64`], sha256: change[`${prefix}_sha256`] };
+  }
   function addMessage(row, payload, ctx) {
     if (!payload.body?.trim()) fail("Message body is required.", "MESSAGE_REQUIRED");
     const id = uid("message");
@@ -539,28 +705,36 @@ export function createLegacyParity({ db, schemaVersion, fail, emitEvent }) {
     if (req.method === "GET" && receiptFile) return { status: 200, body: { file: getReceiptFile(id, decodeURIComponent(receiptFile[1]), ctx) } };
     const evidenceFile = action.match(/^evidence\/([^/]+)\/file$/);
     if (req.method === "GET" && evidenceFile) return { status: 200, body: { file: getEvidenceFile(id, decodeURIComponent(evidenceFile[1]), ctx) } };
+    const changeFile = action.match(/^change-orders\/([^/]+)\/(document|payment)\/file$/);
+    if (req.method === "GET" && changeFile) return { status: 200, body: { file: getChangeOrderFile(id, decodeURIComponent(changeFile[1]), changeFile[2], ctx) } };
     assertWriteAccess(req);
     const payload = await readJson(req, fail);
     const checklistStatus = action.match(/^checklist\/([^/]+)\/status$/);
     const checklistConfirmation = action.match(/^checklist\/([^/]+)\/confirmations\/([^/]+)$/);
     const checklistEdit = action.match(/^checklist\/([^/]+)\/edit$/);
     const checklistDelete = action.match(/^checklist\/([^/]+)\/delete$/);
+    const paymentConfirmation = action.match(/^payment-milestones\/([^/]+)\/confirmations\/([^/]+)$/);
+    const changePayment = action.match(/^change-orders\/([^/]+)\/payment-proof$/);
+    const changeConfirmation = action.match(/^change-orders\/([^/]+)\/confirmations\/([^/]+)$/);
     if (req.method === "POST" && checklistConfirmation) updateChecklistConfirmation(row, decodeURIComponent(checklistConfirmation[1]), decodeURIComponent(checklistConfirmation[2]), payload, ctx);
     else if (req.method === "POST" && checklistStatus) { assertLegacyAction(ctx, "checklist_admin"); updateChecklist(row, decodeURIComponent(checklistStatus[1]), payload, ctx); }
     else if (req.method === "POST" && action === "checklist") { assertLegacyAction(ctx, "checklist_add"); addChecklist(row, payload, ctx); }
     else if (req.method === "POST" && checklistEdit) { assertLegacyAction(ctx, "checklist_add"); editChecklist(row, decodeURIComponent(checklistEdit[1]), payload, ctx); }
     else if (req.method === "POST" && checklistDelete) { assertLegacyAction(ctx, "checklist_add"); deleteChecklist(row, decodeURIComponent(checklistDelete[1]), payload, ctx); }
     else if (req.method === "POST" && action === "execution-checklist-baseline/confirm") confirmExecutionBaseline(row, payload, ctx);
+    else if (req.method === "POST" && paymentConfirmation) updatePaymentConfirmation(row, decodeURIComponent(paymentConfirmation[1]), decodeURIComponent(paymentConfirmation[2]), payload, ctx);
     else if (req.method === "POST" && action === "contract-baseline") { assertLegacyAction(ctx, "baseline"); saveBaseline(row, payload, ctx); }
     else if (req.method === "POST" && action === "receipts") { assertLegacyAction(ctx, "receipt"); addReceipt(row, payload, ctx); }
     else if (req.method === "POST" && action === "evidence-files") { assertLegacyAction(ctx, "evidence"); addEvidenceFile(row, payload, ctx); }
     else if (req.method === "POST" && action === "change-orders") { assertLegacyAction(ctx, "change_order"); addChangeOrder(row, payload, ctx); }
+    else if (req.method === "POST" && changePayment) addChangeOrderPayment(row, decodeURIComponent(changePayment[1]), payload, ctx);
+    else if (req.method === "POST" && changeConfirmation) updateChangeOrderConfirmation(row, decodeURIComponent(changeConfirmation[1]), decodeURIComponent(changeConfirmation[2]), payload, ctx);
     else if (req.method === "POST" && action === "messages") { assertLegacyAction(ctx, "message"); addMessage(row, payload, ctx); }
     else return { status: 404, body: { code: "LEGACY_PARITY_ROUTE_NOT_FOUND", message: "Legacy parity route not found." } };
-    return { status: action === "contract-baseline" || checklistStatus || checklistConfirmation || checklistEdit || checklistDelete || action === "execution-checklist-baseline/confirm" ? 200 : 201, body: { workspace: serialize(row) } };
+    return { status: action === "contract-baseline" || checklistStatus || checklistConfirmation || checklistEdit || checklistDelete || paymentConfirmation || action === "execution-checklist-baseline/confirm" ? 200 : 201, body: { workspace: serialize(row) } };
   }
 
-  return { contract, serialize, handle };
+  return { contract, serialize, stageReadiness, assertStageReady, handle };
 }
 
 async function readJson(req, fail) {

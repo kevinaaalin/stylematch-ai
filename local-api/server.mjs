@@ -1859,6 +1859,8 @@ function serializeCase(row) {
     source_project_id: row.source_project_id, source_case_code: row.source_case_code,
     source: row.intake_channel === "isafe_direct" ? "iSAFE Direct" : "StyleMatchAI",
     title: row.title, status: row.status, current_stage: row.current_stage, gate_status: row.gate_status,
+    case_mode: source.case_mode || source.execution_mode || "design_build", site_address: source.site_address || null,
+    floor_area_ping: source.floor_area_ping || source.square_footage || null, owner_phone: source.phone || source.owner_phone || null,
     stage_status: row.stage_status, risk_score: row.risk_score, version: row.version || 1,
     risk_assessment: {
       value: row.risk_score,
@@ -1909,28 +1911,31 @@ function createHandover(payload, ctx) {
   const at = now();
   const ids = { journey_id: project.journey_id || uid("journey"), project_id: project.canonical_project_id || uid("project"), handover_id: uid("handover"), isafe_case_id: nextCaseId() };
   ctx.correlation_id = payload.correlation_id || project.correlation_id || ctx.trace_id;
-  const sourcePayload = { ...project, audit_logs: payload.audit_logs || [], timeline: project.timeline || [] };
+  const caseMode = ["design_only", "construction_only", "design_build"].includes(project.case_mode || project.execution_mode) ? (project.case_mode || project.execution_mode) : "design_build";
+  const firstStage = caseMode === "construction_only" ? "C1_construction_preparation" : "D1_design_preparation";
+  const firstGate = caseMode === "construction_only" ? "C1_pending" : "D1_pending";
+  const sourcePayload = { ...project, case_mode: caseMode, audit_logs: payload.audit_logs || [], timeline: project.timeline || [] };
   db.exec("BEGIN IMMEDIATE");
   try {
     const result = db.prepare(`INSERT INTO cases (isafe_case_id,source_project_id,source_case_code,title,status,current_stage,gate_status,risk_score,stage_status,trace_id,source_payload,created_at,updated_at,tenant_id,organization_id,journey_id,stylematch_project_id,project_id,handover_id,correlation_id,schema_version,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`)
-      .run(ids.isafe_case_id, stylematchProjectId, project.case_code, project.title || `${project.case_code} iSAFE governance project`, "active", "D1_design_preparation", "D1_pending", 88, JSON.stringify(project.stage_status || {}), ctx.trace_id, JSON.stringify(sourcePayload), at, at, ctx.tenant_id, ctx.organization_id, ids.journey_id, stylematchProjectId, ids.project_id, ids.handover_id, ctx.correlation_id, SCHEMA_VERSION);
+      .run(ids.isafe_case_id, stylematchProjectId, project.case_code, project.title || `${project.case_code} iSAFE governance project`, "active", firstStage, firstGate, 88, JSON.stringify(project.stage_status || {}), ctx.trace_id, JSON.stringify(sourcePayload), at, at, ctx.tenant_id, ctx.organization_id, ids.journey_id, stylematchProjectId, ids.project_id, ids.handover_id, ctx.correlation_id, SCHEMA_VERSION);
     const caseId = Number(result.lastInsertRowid);
     db.prepare("INSERT INTO handovers (handover_id,idempotency_key,tenant_id,organization_id,journey_id,stylematch_project_id,project_id,isafe_case_id,status,trace_id,correlation_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
       .run(ids.handover_id, ctx.idempotency_key, ctx.tenant_id, ctx.organization_id, ids.journey_id, stylematchProjectId, ids.project_id, ids.isafe_case_id, "approved", ctx.trace_id, ctx.correlation_id, at);
     db.prepare("INSERT INTO link_registry (link_id,tenant_id,journey_id,stylematch_project_id,project_id,isafe_case_id,handover_id,created_at) VALUES (?,?,?,?,?,?,?,?)")
       .run(uid("link"), ctx.tenant_id, ids.journey_id, stylematchProjectId, ids.project_id, ids.isafe_case_id, ids.handover_id, at);
     db.prepare("INSERT INTO gate_states (case_id,stage,gate_status,actor,detail,trace_id,created_at,gate_decision_id,outcome,reason,rule_version,before_version,after_version,idempotency_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(caseId, "D1_design_preparation", "D1_pending", "local-admin", "Governance initiated", ctx.trace_id, at, uid("gate"), "Conditional", "D1 design preparation evidence review required", SCHEMA_VERSION, 0, 1, `${ctx.idempotency_key}:D1`);
+      .run(caseId, firstStage, firstGate, "local-admin", "Governance initiated", ctx.trace_id, at, uid("gate"), "Conditional", `${firstStage} evidence review required`, SCHEMA_VERSION, 0, 1, `${ctx.idempotency_key}:${firstGate.split("_")[0]}`);
     for (const type of ["case_master", "timeline", "audit_log"]) {
       const value = type === "case_master" ? project : (sourcePayload[type] || sourcePayload.audit_logs || []);
       db.prepare("INSERT INTO evidence (case_id,evidence_type,label,sha256,metadata,created_at,evidence_id,created_by,version,permission_scope,retention_policy,legal_hold,step_key,rule_version,schema_version,object_ref,trace_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-        .run(caseId, type, type, sha256(value), JSON.stringify({ source: "StyleMatchAI", captured_at: at }), at, uid("evidence"), "StyleMatchAI", 1, "case_participants", "project_lifecycle_plus_7_years", 0, "D1_design_preparation", SCHEMA_VERSION, SCHEMA_VERSION, `${stylematchProjectId}:${type}`, ctx.trace_id);
+        .run(caseId, type, type, sha256(value), JSON.stringify({ source: "StyleMatchAI", captured_at: at }), at, uid("evidence"), "StyleMatchAI", 1, "case_participants", "project_lifecycle_plus_7_years", 0, firstStage, SCHEMA_VERSION, SCHEMA_VERSION, `${stylematchProjectId}:${type}`, ctx.trace_id);
     }
     for (const log of payload.audit_logs || []) db.prepare("INSERT INTO audit_logs (case_id,action,actor,detail,trace_id,source_log_id,created_at) VALUES (?,?,?,?,?,?,?)").run(caseId, log.action || "source.audit.imported", log.user_id || "StyleMatchAI", log.detail || "Imported audit event", log.trace_id || ctx.trace_id, log.id || null, log.created_at || at);
     const handoverEvent = emitEvent("ProjectHandoverApproved", ctx, { ...ids, stylematch_project_id: stylematchProjectId });
     emitEvent("ProjectCreated", ctx, { ...ids, stylematch_project_id: stylematchProjectId }, handoverEvent.event_id);
     emitEvent("ISAFECaseCreated", ctx, { ...ids, stylematch_project_id: stylematchProjectId }, handoverEvent.event_id);
-    emitEvent("GovernanceInitiated", ctx, { ...ids, current_stage: "D1_design_preparation" }, handoverEvent.event_id);
+    emitEvent("GovernanceInitiated", ctx, { ...ids, current_stage: firstStage, case_mode: caseMode }, handoverEvent.event_id);
     db.exec("COMMIT");
   } catch (error) { db.exec("ROLLBACK"); throw error; }
   return { created: true, case: getCase(ids.isafe_case_id), handover: ids };
@@ -1942,6 +1947,7 @@ function createDirectIntake(payload, ctx) {
   if (!payload.title?.trim()) fail("title is required.");
   if (!payload.applicant_name?.trim()) fail("applicant_name is required.");
   if (!payload.contact?.trim()) fail("contact is required.");
+  if (payload.case_mode && !["design_only", "construction_only", "design_build"].includes(payload.case_mode)) fail("case_mode is invalid.", "CASE_MODE_INVALID");
   const at = now();
   const directIntakeId = uid("direct_intake");
   const projectId = uid("project");
@@ -1993,15 +1999,18 @@ function startGovernance(id, payload, ctx) {
   const expected = Number(payload.expected_version); if (!Number.isInteger(expected)) fail("expected_version is required.");
   if ((row.version || 1) !== expected) fail("Case version conflict.", "VERSION_CONFLICT", 409, { expected_version: expected, actual_version: row.version || 1 });
   const at = now();
+  const source = parseJson(row.source_payload);
+  const firstStage = source.case_mode === "construction_only" ? "C1_construction_preparation" : "D1_design_preparation";
+  const firstGate = firstStage.startsWith("C") ? "C1_pending" : "D1_pending";
   db.exec("BEGIN IMMEDIATE");
   try {
-    const changed = db.prepare("UPDATE cases SET status='active',current_stage='D1_design_preparation',gate_status='D1_pending',version=?,state_contract_version=?,schema_version=?,updated_at=? WHERE id=? AND version=?")
-      .run(expected + 1, SCHEMA_VERSION, SCHEMA_VERSION, at, row.id, expected);
+    const changed = db.prepare("UPDATE cases SET status='active',current_stage=?,gate_status=?,version=?,state_contract_version=?,schema_version=?,updated_at=? WHERE id=? AND version=?")
+      .run(firstStage, firstGate, expected + 1, SCHEMA_VERSION, SCHEMA_VERSION, at, row.id, expected);
     if (!changed.changes) fail("Case version conflict.", "VERSION_CONFLICT", 409);
     db.prepare("UPDATE direct_intakes SET status='governance_started' WHERE isafe_case_id=?").run(row.isafe_case_id);
     db.prepare("INSERT INTO audit_logs (case_id,action,actor,detail,trace_id,created_at) VALUES (?,?,?,?,?,?)")
       .run(row.id, "governance.started", payload.actor || "local-admin", payload.reason || "Direct intake approved", ctx.trace_id, at);
-    emitEvent("GovernanceInitiated", { ...ctx, correlation_id: row.correlation_id }, { isafe_case_id: row.isafe_case_id, current_stage: "D1_design_preparation", before_version: expected, after_version: expected + 1 });
+    emitEvent("GovernanceInitiated", { ...ctx, correlation_id: row.correlation_id }, { isafe_case_id: row.isafe_case_id, current_stage: firstStage, case_mode: source.case_mode || "design_build", before_version: expected, after_version: expected + 1 });
     db.exec("COMMIT");
   } catch (error) { db.exec("ROLLBACK"); throw error; }
   return getCase(row.isafe_case_id);
@@ -2029,7 +2038,10 @@ function evaluateGate(id, payload, ctx) {
     if (Number.isNaN(Date.parse(waiver.expires_at)) || Date.parse(waiver.expires_at) <= Date.now()) fail("Waiver expires_at must be a future ISO date.", "WAIVER_EXPIRY_INVALID", 400);
   }
   const index = STEPS.indexOf(row.current_stage); const advances = stateMachine.advance_outcomes.includes(payload.outcome);
-  const nextStage = advances ? (index < STEPS.length - 1 ? STEPS[index + 1] : "CLOSED") : row.current_stage;
+  if (advances) legacyParity.assertStageReady(row);
+  const source = parseJson(row.source_payload);
+  const modeCompletesAtD5 = source.case_mode === "design_only" && row.current_stage === "D5_construction_detail_agreements";
+  const nextStage = advances ? (modeCompletesAtD5 || index >= STEPS.length - 1 ? "CLOSED" : STEPS[index + 1]) : row.current_stage;
   const nextVersion = expected + 1; const gateStatus = `${stage.code}_${payload.outcome.toLowerCase()}`; const at = now(); const decisionId = uid("gate");
   db.exec("BEGIN IMMEDIATE");
   try {

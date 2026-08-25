@@ -282,9 +282,9 @@ function makeIsafeCaseFromProject(project, { traceId, at = nowIso() } = {}) {
     source_case_code: project.case_code,
     source: "StyleMatchAI",
     title: `${project.case_code} iSAFE 監管專案`,
-    status: "active",
-    current_stage: "D1_design_preparation",
-    gate_status: "D1_pending",
+    status: "intake_pending",
+    current_stage: "INTAKE_pending",
+    gate_status: "intake_pending",
     risk_score: null,
     risk_assessment: {
       value: null,
@@ -297,7 +297,7 @@ function makeIsafeCaseFromProject(project, { traceId, at = nowIso() } = {}) {
     pgp_url: project.pgp_url || `local://isafe/${project.isafe_case_id}/pgp`,
     workspace_url: buildIsafeWorkspaceUrl(project.isafe_case_id),
     owner: "local-admin",
-    governance_steps: buildIsafeGovernanceSteps("D1_design_preparation"),
+    governance_steps: buildIsafeGovernanceSteps("INTAKE_pending"),
     evidence_summary: {
       timeline_events: Array.isArray(project.timeline) ? project.timeline.length : 0,
       source_audit_logs: Array.isArray(project.audit_log_ids) ? project.audit_log_ids.length : 0,
@@ -306,10 +306,10 @@ function makeIsafeCaseFromProject(project, { traceId, at = nowIso() } = {}) {
     },
     timeline: [
       makeTimelineEvent({
-        title: "iSAFE 監管專案成立",
-        status: "D1_design_preparation",
+        title: "iSAFE 交接候選已建立",
+        status: "INTAKE_pending",
         actor: "StyleMatch AI",
-        detail: `由 ${project.case_code} 自動成立 iSAFE 監管專案 ${project.isafe_case_id}。`,
+        detail: `由 ${project.case_code} 建立非正式交接候選；須由 iSAFE 正式受理後才可進入 D1。`,
         at: createdAt,
         traceId,
       }),
@@ -874,11 +874,7 @@ export const localStore = {
     const traceId = makeTraceId();
     project.stage_status = stage;
     project.match_status = CASE_STAGES.find((item) => item.value === stage)?.label || stage;
-    if (stage === "closed") {
-      project.current_stage = project.isafe_case_id ? "CLOSED" : null;
-      project.isafe_current_stage = project.current_stage;
-      project.gate_status = "closed";
-    }
+    // Product lifecycle changes never mutate authoritative iSAFE Gate or stage state.
 
     recordProjectEvent(
       database,
@@ -1017,16 +1013,18 @@ export const localStore = {
     const traceId = makeTraceId();
     project.isafe_case_id = remoteCase?.isafe_case_id || project.isafe_case_id || nextIsafeCaseId(database);
     project.stage_status = "isafe_created";
-    project.current_stage = normalizeIsafeStage(remoteCase?.current_stage);
+    project.current_stage = remoteCase
+      ? normalizeIsafeStage(remoteCase.current_stage)
+      : "INTAKE_pending";
     project.isafe_current_stage = project.current_stage;
-    project.gate_status = "D1_pending";
+    project.gate_status = remoteCase?.gate_status || "intake_pending";
     project.pgp_url = remoteCase?.pgp_url || project.pgp_url || `local://isafe/${project.isafe_case_id}/pgp`;
     project.stylematch_project_id = remoteCase?.stylematch_project_id || project.stylematch_project_id || project.project_id;
     project.canonical_project_id = remoteCase?.project_id || project.canonical_project_id || null;
     project.journey_id = remoteCase?.journey_id || project.journey_id || null;
     project.handover_id = remoteCase?.handover_id || project.handover_id || null;
     project.correlation_id = remoteCase?.correlation_id || project.correlation_id || traceId;
-    project.match_status = "iSAFE 已立案";
+    project.match_status = remoteCase ? "iSAFE 已立案" : "iSAFE 交接候選";
     const isafeCase = remoteCase
       ? normalizeIsafeCase({
           ...makeIsafeCaseFromProject(project, { traceId }),

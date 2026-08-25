@@ -54,7 +54,6 @@ const StyleTestServices = lazy(() => import('./pages/StyleTestServices'));
 const Requirements = lazy(() => import('./pages/Requirements'));
 const Cases = lazy(() => import('./pages/Cases'));
 const IsafeProjects = lazy(() => import('./pages/IsafeProjects'));
-const IsafeDirectIntake = lazy(() => import('./pages/IsafeDirectIntake'));
 const AIProposal = lazy(() => import('./pages/AIProposal'));
 const AIGenerate = lazy(() => import('./pages/AIGenerate'));
 const ReferenceCanvas = lazy(() => import('./pages/ReferenceCanvas'));
@@ -75,7 +74,6 @@ export const PAGES = {
     "Requirements": Requirements,
     "Cases": Cases,
     "IsafeProjects": IsafeProjects,
-    "IsafeDirectIntake": IsafeDirectIntake,
     "AIProposal": AIProposal,
     "AIGenerate": AIGenerate,
     "ReferenceCanvas": ReferenceCanvas,
