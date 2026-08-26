@@ -1,4 +1,4 @@
-import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -12,6 +12,34 @@ const canonicalReadingOrder = ["engineering-master", "sbir-master", "business-pl
 const supplementalReadingOrder = ["field-evidence-addendum"];
 const releaseId = "TIGI-GOVERNANCE-20260820-R9.2-CONSOLIDATED";
 const archivedPredecessors = ["R8", "R9", "R9.1"];
+
+async function exists(target) {
+  try {
+    await access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function useBundledCorpusWhenSourceIsUnavailable() {
+  if (await exists(releaseRoot)) return false;
+
+  const indexPath = path.join(publicRoot, "knowledge-index.json");
+  const manifestPath = path.join(publicRoot, "release-manifest.json");
+  if (!(await exists(indexPath)) || !(await exists(manifestPath))) {
+    throw new Error(`TIGI source is unavailable and the bundled corpus is incomplete: ${releaseRoot}`);
+  }
+
+  const index = JSON.parse(await readFile(indexPath, "utf8"));
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  if (!Array.isArray(index.documents) || !Array.isArray(index.chunks) || !manifest.releaseId) {
+    throw new Error("Bundled TIGI corpus failed structural validation");
+  }
+
+  console.log(`TIGI source is outside this checkout; using bundled corpus (${index.documents.length} documents, ${index.chunks.length} chunks)`);
+  return true;
+}
 
 const normalizeText = (value) => String(value || "").replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
 const titleFromMarkdown = (markdown, fileName) => markdown.match(/^#\s+(.+)$/m)?.[1]?.trim() || fileName.replace(/\.md$/i, "").replace(/[_-]+/g, " ");
@@ -40,6 +68,8 @@ function splitIntoChunks(markdown, fallbackTitle) {
 }
 
 async function build() {
+  if (await useBundledCorpusWhenSourceIsUnavailable()) return;
+
   const fileNames = (await readdir(releaseRoot)).filter((name) => /^0[1-4]_.*R9_2_Consolidated\.md$/i.test(name)).sort();
   if (fileNames.length !== 4) throw new Error(`Expected four R9.2 master Markdown files, found ${fileNames.length}`);
   await rm(publicRoot, { recursive: true, force: true });
@@ -76,8 +106,12 @@ async function build() {
   const index = { version: "9.2", generatedAt, corpus: "TIGI R9.2 Consolidated Technical Masters", releaseVersion: "20260820_R9_2_Consolidated", ...manifest, sourceRoot: path.basename(releaseRoot), manifestUrl: "tigi-corpus/release-manifest.json", documents, chunks };
   await writeFile(path.join(publicRoot, "knowledge-index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
   await writeFile(path.join(publicRoot, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  await rm(isafePublicRoot, { recursive: true, force: true });
-  await cp(publicRoot, isafePublicRoot, { recursive: true });
+  if (await exists(path.dirname(isafePublicRoot))) {
+    await rm(isafePublicRoot, { recursive: true, force: true });
+    await cp(publicRoot, isafePublicRoot, { recursive: true });
+  } else {
+    console.log("iSAFE sibling checkout is unavailable; skipped local cross-repository corpus sync");
+  }
   console.log(`Built TIGI R9.2 + candidate addendum index: ${documents.length} documents, ${chunks.length} chunks`);
 }
 
