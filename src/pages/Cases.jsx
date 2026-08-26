@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,29 +19,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity,
   ArrowUpRight,
-  ClipboardCheck,
   CircleCheck,
-  Download,
   FileClock,
-  FileJson,
   FolderKanban,
-  Link2,
-  Mail,
   Network,
   Search,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { CASE_STAGES, localStore } from "@/lib/localStore";
-import {
-  buildGovernancePassport,
-  downloadTextFile,
-  governancePassportToMarkdown,
-} from "@/lib/governancePassport";
 import { createIsafeHandoff } from "@/lib/isafeApi";
 import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 
@@ -58,11 +48,6 @@ function formatDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatFullDate(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("zh-TW");
 }
 
 function getStageMeta(stage) {
@@ -96,8 +81,15 @@ function Field({ label, value }) {
 }
 
 export default function Cases() {
+  const [searchParams] = useSearchParams();
+  const requestedProjectId = searchParams.get("project") || "";
   const [database, setDatabase] = useState(() => localStore.getAll());
-  const [selectedProjectId, setSelectedProjectId] = useState(database.projects[0]?.id || "");
+  const [selectedProjectId, setSelectedProjectId] = useState(() => {
+    const requestedProject = database.projects.find(
+      (project) => project.id === requestedProjectId || project.project_id === requestedProjectId
+    );
+    return requestedProject?.id || database.projects[0]?.id || "";
+  });
   const [query, setQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [isCreatingIsafe, setIsCreatingIsafe] = useState(false);
@@ -107,6 +99,16 @@ export default function Cases() {
     const refresh = () => setDatabase(localStore.getAll());
     return localStore.subscribe(refresh);
   }, []);
+
+  useEffect(() => {
+    if (!requestedProjectId) return;
+    const requestedProject = database.projects.find(
+      (project) => project.id === requestedProjectId || project.project_id === requestedProjectId
+    );
+    if (requestedProject && requestedProject.id !== selectedProjectId) {
+      setSelectedProjectId(requestedProject.id);
+    }
+  }, [database.projects, requestedProjectId, selectedProjectId]);
 
   useEffect(() => {
     if (!database.projects.length) {
@@ -163,6 +165,17 @@ export default function Cases() {
     ) || null;
   }, [database.isafeCases, selectedProject]);
 
+  const selectedIsafeWorkspaceUrl = selectedProject?.isafe_case_id
+    ? selectedIsafeCase?.workspace_url || buildIsafeWorkspaceUrl(selectedProject.isafe_case_id)
+    : "";
+
+  useEffect(() => {
+    const matchesRequestedProject = selectedProject?.id === requestedProjectId
+      || selectedProject?.project_id === requestedProjectId;
+    if (!matchesRequestedProject || !selectedProject?.isafe_case_id || !selectedIsafeWorkspaceUrl) return;
+    window.location.replace(selectedIsafeWorkspaceUrl);
+  }, [requestedProjectId, selectedProject?.id, selectedProject?.project_id, selectedProject?.isafe_case_id, selectedIsafeWorkspaceUrl]);
+
   const stats = useMemo(() => {
     const isafeCount = (database.isafeCases || []).length || database.projects.filter((project) => project.isafe_case_id).length;
     const pendingMatches = database.projects.filter(
@@ -180,11 +193,6 @@ export default function Cases() {
     if (window.confirm("確定要清除 localStorage 內的 StyleMatch AI MVP 案件資料嗎？")) {
       localStore.clear();
     }
-  };
-
-  const handleStageChange = (stage) => {
-    if (!selectedProject) return;
-    localStore.updateProjectStage(selectedProject.id, stage);
   };
 
   const handleTwcidMatch = () => {
@@ -211,7 +219,13 @@ export default function Cases() {
     setIsafeError("");
     try {
       const response = await createIsafeHandoff(selectedProject, selectedAuditLogs);
-      localStore.createIsafeCase(selectedProject.id, response.case);
+      const created = localStore.createIsafeCase(selectedProject.id, response.case);
+      const isafeCaseId = response.case?.isafe_case_id || created?.isafeCase?.isafe_case_id;
+      if (!isafeCaseId) throw new Error("iSAFE 已回應，但未提供案件編號，無法進入專案工作台。");
+      const workspaceUrl = response.case?.workspace_url
+        || created?.isafeCase?.workspace_url
+        || buildIsafeWorkspaceUrl(isafeCaseId);
+      window.location.assign(workspaceUrl);
     } catch (error) {
       setIsafeError(error.message || "無法連線至 iSAFE 本地 API");
     } finally {
@@ -219,26 +233,6 @@ export default function Cases() {
     }
   };
 
-  const handlePassportExport = async (format) => {
-    if (!selectedProject) return;
-    const passport = await buildGovernancePassport(selectedProject, database);
-    const safeCaseCode = selectedProject.case_code || selectedProject.project_id || "stylematch-case";
-
-    if (format === "markdown") {
-      downloadTextFile(
-        `${safeCaseCode}-pgp-governance-passport.md`,
-        governancePassportToMarkdown(passport),
-        "text/markdown"
-      );
-      return;
-    }
-
-    downloadTextFile(
-      `${safeCaseCode}-pgp-governance-passport.json`,
-      JSON.stringify(passport, null, 2),
-      "application/json"
-    );
-  };
 
   return (
     <div className="min-h-screen bg-stone-50 py-8">
@@ -251,7 +245,7 @@ export default function Cases() {
             </div>
             <h1 className="text-3xl font-semibold text-stone-950">案件控台</h1>
             <p className="mt-2 max-w-3xl text-stone-600">
-              對齊 6/24 確認欄位：project_id、case_code、twcid_match_id、isafe_case_id、stage_status、timeline、jobs、audit_logs 與 trace ID。
+              管理 StyleMatchAI 前期案件與 TWCID 媒合；iSAFE 立案後僅保留交接識別與工作台連結，不在此管理 Gate、付款或工程證據。
             </p>
           </div>
           <Button
@@ -327,7 +321,13 @@ export default function Cases() {
                           key={project.id}
                           data-state={isSelected ? "selected" : undefined}
                           className="cursor-pointer"
-                          onClick={() => setSelectedProjectId(project.id)}
+                          onClick={() => {
+                            if (project.isafe_case_id) {
+                              window.location.assign(buildIsafeWorkspaceUrl(project.isafe_case_id));
+                              return;
+                            }
+                            setSelectedProjectId(project.id);
+                          }}
                         >
                           <TableCell>
                             <p className="font-semibold text-stone-900">{project.case_code}</p>
@@ -376,49 +376,44 @@ export default function Cases() {
                   目前沒有案件資料。
                 </div>
               ) : (
-                <Tabs defaultValue="overview" className="space-y-4">
-                  <TabsList className="grid h-auto w-full grid-cols-6">
-                    <TabsTrigger value="overview">總覽</TabsTrigger>
-                    <TabsTrigger value="timeline">時間軸</TabsTrigger>
-                    <TabsTrigger value="isafe">iSAFE</TabsTrigger>
-                    <TabsTrigger value="passport">PGP</TabsTrigger>
-                    <TabsTrigger value="audit">Audit</TabsTrigger>
-                    <TabsTrigger value="jobs">Jobs</TabsTrigger>
-                  </TabsList>
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="案件編號" value={selectedProject.case_code} />
+                    <Field label="StyleMatch project_id" value={selectedProject.project_id} />
+                    <Field label="服務" value={serviceNames[selectedProject.service_option] || selectedProject.service_option} />
+                    <Field label="案件階段" value={getStageMeta(selectedProject.stage_status).label} />
+                    <Field label="坪數" value={selectedProject.square_footage ? `${selectedProject.square_footage} 坪` : ""} />
+                    <Field label="預算" value={selectedProject.budget_range} />
+                  </div>
 
-                  <TabsContent value="overview" className="space-y-4">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <Field label="case_code" value={selectedProject.case_code} />
-                      <Field label="project_id" value={selectedProject.project_id} />
-                      <Field label="twcid_match_id" value={selectedProject.twcid_match_id} />
-                      <Field label="isafe_case_id" value={selectedProject.isafe_case_id} />
-                      <Field label="stage_status" value={selectedProject.stage_status} />
-                      <Field label="trace_id" value={selectedProject.trace_id} />
+                  {selectedProject.isafe_case_id ? (
+                    <div className="space-y-3 border border-teal-200 bg-teal-50 p-4">
+                      <div>
+                        <p className="font-semibold text-teal-950">案件已在 iSAFE 立案</p>
+                        <p className="mt-1 text-sm text-teal-800">StyleMatchAI 不再提供案件管理功能，請直接進入 iSAFE 專案工作台。</p>
+                      </div>
+                      <Field label="iSAFE 案件編號" value={selectedProject.isafe_case_id} />
+                      <a href={selectedIsafeWorkspaceUrl}>
+                        <Button className="w-full bg-teal-800 hover:bg-teal-900">
+                          <ArrowUpRight className="mr-2 h-4 w-4" />
+                          進入 iSAFE 專案介面
+                        </Button>
+                      </a>
                     </div>
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <Field label="服務" value={serviceNames[selectedProject.service_option] || selectedProject.service_option} />
-                      <Field label="坪數" value={selectedProject.square_footage ? `${selectedProject.square_footage} 坪` : ""} />
-                      <Field label="預算" value={selectedProject.budget_range} />
-                    </div>
-
-                    <div className="space-y-3 rounded-md border border-stone-200 bg-white p-4">
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-                        <Select value={selectedProject.stage_status} onValueChange={handleStageChange}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="更新 stage_status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CASE_STAGES.map((stage) => (
-                              <SelectItem key={stage.value} value={stage.value}>
-                                {stage.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button onClick={handleTwcidMatch} variant="outline">
+                  ) : (
+                    <div className="space-y-4 border border-stone-200 bg-white p-4">
+                      <div>
+                        <p className="font-semibold text-stone-900">iSAFE 立案交接</p>
+                        <p className="mt-1 text-sm text-stone-600">此頁只完成媒合確認與立案交接；立案成功後會立即離開 StyleMatchAI，進入該案件的 iSAFE 工作台。</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <Field label="TWCID 媒合編號" value={selectedProject.twcid_match_id || "尚未媒合"} />
+                        <Field label="媒合狀態" value={isMatchConfirmed ? "雙方已確認" : "待確認"} />
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Button onClick={handleTwcidMatch} variant="outline" disabled={Boolean(selectedProject.twcid_match_id)}>
                           <Network className="mr-2 h-4 w-4" />
-                          建立 TWCID 媒合
+                          {selectedProject.twcid_match_id ? "已建立 TWCID 媒合" : "建立 TWCID 媒合"}
                         </Button>
                         <Button
                           onClick={handleMatchConfirmation}
@@ -431,179 +426,21 @@ export default function Cases() {
                       </div>
                       <Button
                         onClick={handleIsafeCreate}
-                        disabled={isCreatingIsafe || Boolean(selectedProject.isafe_case_id) || !isMatchConfirmed}
+                        disabled={isCreatingIsafe || !isMatchConfirmed}
                         className="w-full bg-stone-900 hover:bg-stone-800"
                       >
                         <ShieldCheck className="mr-2 h-4 w-4" />
-                        成立 iSAFE 監管專案並回存 isafe_case_id
+                        {isCreatingIsafe ? "正在建立 iSAFE 案件" : "成立 iSAFE 案件並進入專案工作台"}
                       </Button>
                       {isafeError && <p className="text-sm text-red-600">{isafeError}</p>}
                     </div>
-                  </TabsContent>
-
-                  <TabsContent value="timeline" className="space-y-3">
-                    {(selectedProject.timeline || []).map((event) => (
-                      <div key={event.id} className="grid grid-cols-[28px_1fr] gap-3">
-                        <div className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-stone-900">
-                          <ClipboardCheck className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="rounded-md border border-stone-200 bg-white p-3">
-                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="font-semibold text-stone-900">{event.title}</p>
-                            <p className="text-xs text-stone-500">{formatFullDate(event.at)}</p>
-                          </div>
-                          <p className="mt-1 text-sm text-stone-600">{event.detail}</p>
-                          <p className="mt-2 font-mono text-xs text-stone-500">{event.trace_id}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </TabsContent>
-
-                  <TabsContent value="isafe" className="space-y-4">
-                    {!selectedIsafeCase ? (
-                      <div className="border border-dashed border-stone-300 bg-white p-6 text-center">
-                        <p className="font-semibold text-stone-900">尚未交接 iSAFE 立案</p>
-                        <p className="mt-1 text-sm text-stone-600">確認媒合後可送交 iSAFE；正式案件狀態由 iSAFE API 回傳，StyleMatchAI 不建立或管理 Gate。</p>
-                        <Button onClick={handleIsafeCreate} disabled={isCreatingIsafe || !isMatchConfirmed} className="mt-4 bg-stone-900 hover:bg-stone-800"><ShieldCheck className="mr-2 h-4 w-4" />送交 iSAFE 立案</Button>
-                        {isafeError && <p className="mt-3 text-sm text-red-600">{isafeError}</p>}
-                      </div>
-                    ) : (
-                      <div className="border border-stone-200 bg-white p-5">
-                        <p className="font-semibold text-stone-900">iSAFE 已立案</p>
-                        <p className="mt-2 font-mono text-sm text-stone-600">{selectedIsafeCase.isafe_case_id}</p>
-                        <p className="mt-2 text-sm text-stone-600">後續階段、逐項檢核、付款、證據與 Gate 全部在 iSAFE 工作台管理。</p>
-                        <a href={selectedIsafeCase.workspace_url || buildIsafeWorkspaceUrl(selectedIsafeCase)} target="_blank" rel="noreferrer"><Button className="mt-4 bg-stone-900 hover:bg-stone-800"><ArrowUpRight className="mr-2 h-4 w-4" />進入 iSAFE 管理</Button></a>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="passport" className="space-y-4">
-                    <div className="rounded-md border border-stone-200 bg-white p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="font-semibold text-stone-900">PGP Governance Passport</p>
-                          <p className="mt-1 text-sm text-stone-600">
-                            Reviewer-ready export aligned to the July 1 SBIR Gate, Evidence, PGP, and RiskScore model.
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 gap-2">
-                          <Button variant="outline" onClick={() => handlePassportExport("json")}>
-                            <FileJson className="mr-2 h-4 w-4" />
-                            JSON
-                          </Button>
-                          <Button variant="outline" onClick={() => handlePassportExport("markdown")}>
-                            <Download className="mr-2 h-4 w-4" />
-                            MD
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <Field label="PGP source" value="localStorage MVP evidence chain" />
-                      <Field label="SBIR baseline" value="2026-07-01 PGP / Evidence / RiskScore" />
-                      <Field label="timeline events" value={(selectedProject.timeline || []).length} />
-                      <Field label="audit logs" value={selectedAuditLogs.length} />
-                    </div>
-
-                    <div className="rounded-md border border-stone-200 bg-white p-3">
-                      <p className="text-sm font-semibold text-stone-900">Included case evidence</p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-600">
-                        <Badge variant="outline">case_code</Badge>
-                        <Badge variant="outline">timeline</Badge>
-                        <Badge variant="outline">audit_logs</Badge>
-                        <Badge variant="outline">stage_status</Badge>
-                        <Badge variant="outline">isafe_case_id</Badge>
-                        <Badge variant="outline">trace IDs</Badge>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="audit">
-                    <div className="space-y-2">
-                      {selectedAuditLogs.length === 0 ? (
-                        <p className="rounded-md border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">
-                          尚無此案件的 audit log。
-                        </p>
-                      ) : (
-                        selectedAuditLogs.map((log) => (
-                          <div key={log.id} className="rounded-md border border-stone-200 bg-white p-3">
-                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                              <p className="font-mono text-sm font-semibold text-stone-900">{log.action}</p>
-                              <p className="text-xs text-stone-500">{formatFullDate(log.created_at)}</p>
-                            </div>
-                            <p className="mt-1 text-sm text-stone-600">{log.detail}</p>
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-500">
-                              <span>user_id: {log.user_id}</span>
-                              <span>ip: {log.ip}</span>
-                              <span>trace: {log.trace_id}</span>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="jobs">
-                    <div className="space-y-2">
-                      {database.jobs.filter((job) => job.project_id === selectedProject.project_id).length === 0 ? (
-                        <p className="rounded-md border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">
-                          尚無此案件的 jobs 紀錄。
-                        </p>
-                      ) : (
-                        database.jobs
-                          .filter((job) => job.project_id === selectedProject.project_id)
-                          .map((job) => (
-                            <div key={job.id} className="rounded-md border border-stone-200 bg-white p-3">
-                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="font-semibold text-stone-900">{job.type}</p>
-                                <Badge variant="outline">{job.status}</Badge>
-                              </div>
-                              <p className="mt-1 text-sm text-stone-600">{job.detail}</p>
-                              <p className="mt-2 font-mono text-xs text-stone-500">{job.trace_id}</p>
-                            </div>
-                          ))
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border border-stone-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Mail className="h-5 w-5" />
-              近期本機通知與外部對應
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {database.notifications.slice(0, 4).map((notification) => (
-                <div key={notification.id} className="rounded-md border border-stone-200 bg-white p-3">
-                  <p className="font-semibold text-stone-900">{notification.subject || "未命名通知"}</p>
-                  <p className="mt-1 text-sm text-stone-600">{notification.to}</p>
-                  <p className="mt-2 font-mono text-xs text-stone-500">{notification.trace_id}</p>
-                </div>
-              ))}
-              {database.notifications.length === 0 && (
-                <p className="rounded-md border border-dashed border-stone-300 p-6 text-sm text-stone-500">
-                  尚無通知紀錄。
-                </p>
-              )}
-              <div className="rounded-md border border-stone-200 bg-white p-3">
-                <div className="flex items-center gap-2 font-semibold text-stone-900">
-                  <Link2 className="h-4 w-4" />
-                  API 對齊路徑
-                </div>
-                <p className="mt-2 font-mono text-xs text-stone-600">POST /api/v1/isafe/case-create</p>
-                <p className="mt-1 font-mono text-xs text-stone-600">GET /api/v1/project/{"{case_code}"}/status</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

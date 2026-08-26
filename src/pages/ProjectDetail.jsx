@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, FileText, Image as ImageIcon, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, FileText, Image as ImageIcon, ShieldCheck, Users } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 import { localStore } from "@/lib/localStore";
 import { confirmTwcidMatch, createTwcidMatch } from "@/lib/structuredSpaceApi";
 import { createPageUrl } from "@/utils";
@@ -136,8 +137,25 @@ export default function ProjectDetail() {
 
         <section className="mt-3 border-l-4 border-teal-600 bg-teal-950 p-6 text-white">
           <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
-            <div><div className="flex items-center gap-2 text-sm font-semibold text-teal-300"><ShieldCheck className="h-5 w-5" />iSAFE 工程監管</div><h2 className="mt-2 text-xl font-bold">此為獨立的工程治理程序</h2><p className="mt-2 text-sm leading-6 text-teal-100">只有完成媒合、人工確認及 iSAFE 立案後，才會開始工程 Gate、證據、付款資格與稽核管理。</p></div>
-            <Link to={`${createPageUrl("Cases")}?project=${project.project_id}`}><Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">進入案件 iSAFE 控台<ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-teal-300"><ShieldCheck className="h-5 w-5" />iSAFE 工程監管</div>
+              <h2 className="mt-2 text-xl font-bold">{project.isafe_case_id ? "iSAFE 已立案" : "此為獨立的工程治理程序"}</h2>
+              <p className="mt-2 text-sm leading-6 text-teal-100">
+                {project.isafe_case_id
+                  ? "唯讀交接識別：" + project.isafe_case_id + "。後續 Gate、付款、證據與稽核全部在 iSAFE 執行。"
+                  : "完成媒合與人工確認後，由交接頁建立 iSAFE 案件；立案成功將直接進入 iSAFE 工作台。"}
+              </p>
+              {project.isafe_case_id && <p className="mt-2 break-all font-mono text-xs text-teal-200">{buildIsafeWorkspaceUrl(project.isafe_case_id)}</p>}
+            </div>
+            {project.isafe_case_id ? (
+              <a href={buildIsafeWorkspaceUrl(project.isafe_case_id)}>
+                <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">直接進入 iSAFE<ArrowUpRight className="ml-2 h-4 w-4" /></Button>
+              </a>
+            ) : (
+              <Link to={createPageUrl("Cases") + "?project=" + project.project_id}>
+                <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">前往 iSAFE 交接<ArrowRight className="ml-2 h-4 w-4" /></Button>
+              </Link>
+            )}
           </div>
         </section>
       </div>

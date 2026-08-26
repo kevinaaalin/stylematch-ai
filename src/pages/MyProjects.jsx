@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, BriefcaseBusiness, CheckCircle2, Crown, Download, FileText, LockKeyhole, ShieldCheck, Upload, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BriefcaseBusiness, CheckCircle2, Crown, Download, FileText, LockKeyhole, ShieldCheck, Upload, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 import { localStore } from "@/lib/localStore";
 import { readActivePlan, setActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
@@ -251,9 +252,18 @@ export default function MyProjects() {
                         </p>
                         <p className="mt-1 text-xs text-stone-500">建立日期：{new Date(project.created_at).toLocaleDateString("zh-TW")}</p>
                       </div>
-                      <Link to={`${createPageUrl("ProjectDetail")}?project=${project.project_id}`}>
-                        <Button variant="outline">開啟專案內頁<ArrowRight className="ml-2 h-4 w-4" /></Button>
-                      </Link>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Link to={createPageUrl("ProjectDetail") + "?project=" + project.project_id}>
+                          <Button variant="outline">開啟專案內頁<ArrowRight className="ml-2 h-4 w-4" /></Button>
+                        </Link>
+                        {project.isafe_case_id && (
+                          <a href={buildIsafeWorkspaceUrl(project.isafe_case_id)}>
+                            <Button className="bg-teal-700 text-white hover:bg-teal-800">
+                              進入 iSAFE<ArrowUpRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </a>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -287,13 +297,13 @@ export default function MyProjects() {
           <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-teal-300"><ShieldCheck className="h-5 w-5" />獨立工程治理系統</div>
-              <h2 className="mt-2 text-2xl font-bold">進入案件 iSAFE 控台</h2>
+              <h2 className="mt-2 text-2xl font-bold">iSAFE 案件交接</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-teal-100">
-                StyleMatch 負責裝修需求與設計提案；案件完成媒合、人工確認並正式立案後，才進入 iSAFE 工程階段、Gate、證據與稽核流程。
+                StyleMatchAI 僅負責媒合、立案交接與唯讀連結；正式立案後直接進入 iSAFE 管理工程 Gate、付款、證據與稽核。
               </p>
             </div>
             <Link to={createPageUrl("Cases")}>
-              <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">進入案件 iSAFE 控台<ArrowRight className="ml-2 h-4 w-4" /></Button>
+              <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">管理案件交接<ArrowRight className="ml-2 h-4 w-4" /></Button>
             </Link>
           </div>
         </section>

@@ -70,7 +70,7 @@ export default function IsafeProjects() {
                   <p className="mt-1 font-mono text-sm text-stone-600">iSAFE case: {item.isafe_case_id}</p>
                   <p className="mt-1 text-xs text-stone-500">立案時間：{formatDate(item.created_at)}</p>
                 </div>
-                <a href={item.workspace_url || buildIsafeWorkspaceUrl(item)} target="_blank" rel="noreferrer"><Button className="w-full bg-stone-900 hover:bg-stone-800"><ArrowUpRight className="mr-2 h-4 w-4" />進入 iSAFE 管理</Button></a>
+                <a href={item.workspace_url || buildIsafeWorkspaceUrl(item)}><Button className="w-full bg-stone-900 hover:bg-stone-800"><ArrowUpRight className="mr-2 h-4 w-4" />進入 iSAFE 管理</Button></a>
               </div>
             ))}
           </CardContent>
