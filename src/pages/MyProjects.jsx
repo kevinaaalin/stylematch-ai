@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUpRight, BriefcaseBusiness, CheckCircle2, Crown, Download, FileText, LockKeyhole, ShieldCheck, Upload, Users } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, CheckCircle2, Crown, Download, FileText, LockKeyhole, Upload, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 import { localStore } from "@/lib/localStore";
 import { readActivePlan, setActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
@@ -59,7 +58,6 @@ export default function MyProjects() {
   const dataCounts = useMemo(() => ({
     projects: database.projects?.length || 0,
     styleTests: database.styleTests?.length || 0,
-    isafeCases: database.isafeCases?.length || 0,
     auditLogs: database.auditLogs?.length || 0,
   }), [database]);
 
@@ -110,7 +108,6 @@ export default function MyProjects() {
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-600">
                 <Badge variant="outline">專案 {dataCounts.projects}</Badge>
                 <Badge variant="outline">風格測試 {dataCounts.styleTests}</Badge>
-                <Badge variant="outline">iSAFE {dataCounts.isafeCases}</Badge>
                 <Badge variant="outline">Audit {dataCounts.auditLogs}</Badge>
               </div>
               {dataTransferStatus?.message && (
@@ -127,7 +124,6 @@ export default function MyProjects() {
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
                     {[
                       ["專案", "projects"],
-                      ["iSAFE case", "isafeCases"],
                       ["Audit", "auditLogs"],
                     ].map(([label, key]) => {
                       const item = dataTransferStatus.summary.collections[key];
@@ -164,8 +160,8 @@ export default function MyProjects() {
 
         <Tabs defaultValue="projects" className="space-y-5">
           <TabsList className="h-auto flex-wrap justify-start">
+            <TabsTrigger value="projects"><FileText className="mr-2 h-4 w-4" />我的專案</TabsTrigger>
             <TabsTrigger value="plan"><Crown className="mr-2 h-4 w-4" />目前方案</TabsTrigger>
-            <TabsTrigger value="projects"><FileText className="mr-2 h-4 w-4" />StyleMatch 專案</TabsTrigger>
             <TabsTrigger value="members"><Users className="mr-2 h-4 w-4" />會員與權限</TabsTrigger>
           </TabsList>
 
@@ -227,8 +223,8 @@ export default function MyProjects() {
             <section className="border border-stone-200 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 p-5">
                 <div>
-                  <h2 className="text-xl font-bold text-stone-950">StyleMatch 專案</h2>
-                  <p className="mt-1 text-sm text-stone-600">此區僅管理裝修需求、圖片與設計提案，不代表已進入 iSAFE 工程監管。</p>
+                  <h2 className="text-xl font-bold text-stone-950">我的專案</h2>
+                  <p className="mt-1 text-sm text-stone-600">此區僅管理裝修需求、圖片與設計提案。</p>
                 </div>
                 <Link to={createPageUrl("AIProposal")}><Button>建立新專案</Button></Link>
               </div>
@@ -245,7 +241,6 @@ export default function MyProjects() {
                               {project.payment.status === "paid_test" ? "本機測試付款完成" : "付款完成"}
                             </Badge>
                           )}
-                          {project.isafe_case_id && <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">已銜接 iSAFE</Badge>}
                         </div>
                         <p className="mt-2 text-sm text-stone-600">
                           {project.house_type || "房屋類型待確認"} · {project.square_footage ? `${project.square_footage} 坪` : "坪數待確認"} · {project.room_layout || "格局待確認"}
@@ -256,19 +251,12 @@ export default function MyProjects() {
                         <Link to={createPageUrl("ProjectDetail") + "?project=" + project.project_id}>
                           <Button variant="outline">開啟專案內頁<ArrowRight className="ml-2 h-4 w-4" /></Button>
                         </Link>
-                        {project.isafe_case_id && (
-                          <a href={buildIsafeWorkspaceUrl(project.isafe_case_id)}>
-                            <Button className="bg-teal-700 text-white hover:bg-teal-800">
-                              進入 iSAFE<ArrowUpRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </a>
-                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-10 text-center text-stone-500">目前尚未建立 StyleMatch 專案。</div>
+                <div className="p-10 text-center text-stone-500">目前尚未建立專案。</div>
               )}
             </section>
           </TabsContent>
@@ -277,7 +265,7 @@ export default function MyProjects() {
             <section className="border border-stone-200 bg-white">
               <div className="border-b border-stone-200 p-5">
                 <h2 className="text-xl font-bold">會員與角色權限</h2>
-                <p className="mt-1 text-sm text-stone-600">權限只適用於 StyleMatch 工作區；iSAFE 另有工程治理角色與稽核權限。</p>
+                <p className="mt-1 text-sm text-stone-600">權限只適用於 StyleMatch 工作區、指定專案與已發布提案。</p>
               </div>
               <div className="divide-y divide-stone-200">
                 {members.slice(0, activePlan.id === "business" ? members.length : 1).map((member) => (
@@ -293,20 +281,6 @@ export default function MyProjects() {
           </TabsContent>
         </Tabs>
 
-        <section className="mt-8 border-l-4 border-teal-600 bg-teal-950 p-6 text-white">
-          <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-teal-300"><ShieldCheck className="h-5 w-5" />獨立工程治理系統</div>
-              <h2 className="mt-2 text-2xl font-bold">iSAFE 案件交接</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-teal-100">
-                StyleMatchAI 僅負責媒合、立案交接與唯讀連結；正式立案後直接進入 iSAFE 管理工程 Gate、付款、證據與稽核。
-              </p>
-            </div>
-            <Link to={createPageUrl("Cases")}>
-              <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">管理案件交接<ArrowRight className="ml-2 h-4 w-4" /></Button>
-            </Link>
-          </div>
-        </section>
       </div>
     </div>
   );

@@ -103,7 +103,7 @@ ${secondaryStyleName ? `次要風格：${secondaryStyleName}\n` : ""}
 風格分數排名：
 ${rankedScores}
 
-本信附上 4 張由本機 ComfyUI 依主要風格產生的空間參考圖。
+本信附上 4 張由 StyleMatch AI 影像工作流依主要風格產生的空間參考圖；每張皆為獨立生成任務並保留來源紀錄。
 
 ${formData.marketing_consent ? "您已另行同意接收 StyleMatch AI 的設計服務與活動資訊；每封行銷郵件都應提供免費取消方式。" : "您未同意接收行銷資訊，本次僅寄送測驗結果。"}
 

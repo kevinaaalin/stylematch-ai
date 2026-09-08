@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, FileText, Image as ImageIcon, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, FileText, Image as ImageIcon, ShieldCheck } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 import { localStore } from "@/lib/localStore";
-import { confirmTwcidMatch, createTwcidMatch } from "@/lib/structuredSpaceApi";
 import { createPageUrl } from "@/utils";
 
 const roomLabels = {
@@ -27,20 +26,10 @@ function Field({ label, value }) {
   return <div className="border-b border-stone-200 pb-3"><p className="text-xs text-stone-500">{label}</p><p className="mt-1 font-semibold text-stone-900">{value || "未提供"}</p></div>;
 }
 
-function budgetRangeToTwd(value) {
-  const numbers = String(value || "").match(/\d+(?:\.\d+)?/g)?.map(Number) || [];
-  if (!numbers.length) return 0;
-  const amount = Math.max(...numbers);
-  return /萬/.test(String(value)) ? amount * 10000 : amount;
-}
-
 export default function ProjectDetail() {
   const [searchParams] = useSearchParams();
   const projectId = searchParams.get("project");
   const [database, setDatabase] = useState(() => localStore.getAll());
-  const [matching, setMatching] = useState(false);
-  const [matchResult, setMatchResult] = useState(null);
-  const [matchMessage, setMatchMessage] = useState("");
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
@@ -59,29 +48,6 @@ export default function ProjectDetail() {
   const media = project.proposal_media || {};
   const photos = Object.entries(media.space_photos || {}).flatMap(([room, images]) => images.map((url) => ({ room, url })));
   const proposalPaid = ["paid", "paid_test"].includes(project.payment?.status);
-  const requestMatch = async () => {
-    setMatching(true); setMatchMessage("");
-    try {
-      const result = await createTwcidMatch(project.project_id, {
-        region: project.city || project.region || "",
-        budget_twd: budgetRangeToTwd(project.budget_range),
-        primary_style: project.analysis?.primary_style || "",
-        secondary_style: project.analysis?.secondary_style || "",
-        specialties: [project.house_age?.includes("老屋") ? "老屋翻新" : "新成屋", "工程交接"],
-      });
-      setMatchResult(result);
-    } catch (error) { setMatchMessage(error.message || "無法建立媒合候選。"); }
-    finally { setMatching(false); }
-  };
-  const confirmMatch = async (memberId) => {
-    setMatching(true); setMatchMessage("");
-    try {
-      const result = await confirmTwcidMatch(matchResult.match_request_id, memberId);
-      setMatchResult((current) => ({ ...current, status: result.status, selected_member: result.selected_member, receipt: result.receipt }));
-      setMatchMessage("已完成人工確認並建立不可變更的 TWCID 交接收據。");
-    } catch (error) { setMatchMessage(error.message || "媒合確認失敗。"); }
-    finally { setMatching(false); }
-  };
 
   return (
     <div className="min-h-screen bg-stone-50 py-8">
@@ -128,12 +94,6 @@ export default function ProjectDetail() {
           </div>
         </section>
 
-        <section className="border-t border-stone-200 py-7">
-          <div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-2"><Users className="h-5 w-5 text-emerald-700" /><div><h2 className="text-xl font-bold">TWCID 設計師媒合與交接</h2><p className="mt-1 text-sm text-stone-600">依地區、預算、風格與專長計分；選定前必須由使用者人工確認。</p></div></div>{!matchResult && <Button type="button" onClick={requestMatch} disabled={matching}>{matching ? "正在媒合" : "尋找適合團隊"}</Button>}</div>
-          {matchResult?.candidates?.length > 0 && <div className="mt-5 divide-y divide-stone-200 border border-stone-200 bg-white">{matchResult.candidates.map((candidate) => <div key={candidate.member_id} className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{candidate.display_name}</p><Badge variant="outline">媒合 {candidate.score} 分</Badge><Badge variant="outline">評分 {candidate.rating}</Badge></div><p className="mt-2 text-sm text-stone-600">{candidate.service_regions.join("、")} · {candidate.styles.join("、")}</p></div>{matchResult.status !== "confirmed" && <Button type="button" variant="outline" disabled={matching} onClick={() => confirmMatch(candidate.member_id)}>確認選擇</Button>}{matchResult.selected_member?.member_id === candidate.member_id && <Badge className="w-fit bg-emerald-100 text-emerald-800 hover:bg-emerald-100">已確認交接</Badge>}</div>)}</div>}
-          {matchResult?.receipt && <p className="mt-3 break-all text-xs text-stone-500">交接收據：{matchResult.receipt.receipt_id} · checksum {matchResult.receipt.checksum}</p>}
-          {matchMessage && <p className="mt-3 text-sm text-emerald-800">{matchMessage}</p>}
-        </section>
 
         <section className="mt-3 border-l-4 border-teal-600 bg-teal-950 p-6 text-white">
           <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">

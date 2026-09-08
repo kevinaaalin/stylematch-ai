@@ -15,7 +15,6 @@ import {
   FileSearch,
   HardHat,
   HomeIcon,
-  ImagePlus,
   Orbit,
   Palette,
   ShieldCheck,
@@ -47,7 +46,6 @@ const features = [
   ["AI風格分析", "分析偏好的設計風格、材質語彙與空間氛圍。", Palette],
   ["裝修預算配置", "依屋況與空間需求拆解合理比例，避免超支。", BadgeDollarSign],
   ["空間規劃方向", "先整理收納、動線與生活需求，再進入設計。", ClipboardList],
-  ["AI 空間設計與 360° 環景", "導入專案空間照片與設計風格，生成 AI 空間設計草案與 360° 環景預覽。", ImagePlus],
   ["設計師媒合與工程治理", "可銜接 TWCID 媒合與 iSAFE 工程履歷。", ShieldCheck],
 ];
 
@@ -115,9 +113,9 @@ const styleCards = [
     image: "https://images.unsplash.com/photo-1615529182904-14819c35db37?auto=format&fit=crop&w=900&q=80",
   },
   {
-    title: "裝飾藝術",
-    description: "幾何線條、金屬細節與精緻層次。",
-    image: "https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=900&q=80",
+    title: "輕奢風格",
+    description: "精緻石材、香檳金屬與客製化優雅的精品質感。",
+    image: "style-reference-db/synthetic/comfyui-taiwan-25/%E8%BC%95%E5%A5%A2%E9%A2%A8_light_luxury/dining_display_day_wide_274085776043156.png",
   },
 ];
 
@@ -197,7 +195,7 @@ export default function Home() {
           <div className="max-w-3xl">
             <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-amber-300 backdrop-blur">
               <Sparkles className="h-4 w-4" />
-              由20年以上設計與工程團隊經驗打造
+              由20年經驗的專業設計師與工程師團隊打造
             </div>
             <h1 className="text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
               裝修前，
@@ -261,7 +259,7 @@ export default function Home() {
               從風格分析到設計師媒合，提供全方位裝修前規劃支持，讓每一分預算都花在刀口上。
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {features.map(([title, description, Icon]) => (
               <Card key={title} className="border-stone-200 shadow-sm">
                 <CardContent className="p-5">
@@ -271,6 +269,42 @@ export default function Home() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white py-16 lg:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold text-stone-950">探索設計風格</h2>
+            <p className="mt-3 text-lg text-stone-600">從多種專業設計風格中選擇，AI 會根據您的空間量身定制。</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {styleCards.map((style) => (
+              <Card key={style.title} className="overflow-hidden border-stone-200 shadow-sm">
+                <div className="aspect-[4/3] overflow-hidden bg-stone-200">
+                  <img
+                    src={style.image}
+                    alt={`${style.title} 室內設計風格`}
+                    className="h-full w-full object-cover transition duration-300 hover:scale-105"
+                    loading="lazy"
+                  />
+                </div>
+                <CardContent className="p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Star className="h-5 w-5 text-amber-500" />
+                    <h3 className="font-semibold">{style.title}</h3>
+                  </div>
+                  <p className="text-sm text-stone-600">{style.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="mt-8 text-center">
+            <Link to={createPageUrl("StyleTest")} className="inline-flex items-center font-semibold text-amber-700 hover:text-amber-800">
+              更多風格請進入AI風格分析探索
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
           </div>
         </div>
       </section>
@@ -369,10 +403,16 @@ export default function Home() {
       <section className="bg-stone-100 py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto mb-10 max-w-4xl text-center">
-            <span className="mb-4 inline-flex rounded-md bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white">進階功能</span>
+            <div className="mb-4 flex flex-wrap justify-center gap-2">
+              <span className="inline-flex rounded-md bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900">商業方案會員</span>
+              <span className="inline-flex rounded-md bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white">進階功能</span>
+            </div>
             <h2 className="text-3xl font-bold text-stone-950 sm:text-4xl">AI 設計前後對比</h2>
             <p className="mt-4 text-lg leading-relaxed text-stone-600">
               導入專案空間照片與偏好風格，拖曳滑桿比較原始空間與 AI 設計草案；再以 360°×180° 環景檢視整體配置、材質與採光方向。
+            </p>
+            <p className="mt-4 leading-7 text-stone-600">
+              設計師可用前後對比與環景提案快速呈現設計價值、縮短溝通與方案確認流程，提升接案轉換；房仲人員可視覺化空屋或中古屋的改造潛力，協助買方理解空間價值，強化帶看與銷售說服力。
             </p>
           </div>
 
@@ -403,36 +443,6 @@ export default function Home() {
                 maxFov={120}
               />
             </Suspense>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-white py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold text-stone-950">探索設計風格</h2>
-            <p className="mt-3 text-lg text-stone-600">從多種專業設計風格中選擇，AI 會根據您的空間量身定制。</p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {styleCards.map((style) => (
-              <Card key={style.title} className="overflow-hidden border-stone-200 shadow-sm">
-                <div className="aspect-[4/3] overflow-hidden bg-stone-200">
-                  <img
-                    src={style.image}
-                    alt={`${style.title} 室內設計風格`}
-                    className="h-full w-full object-cover transition duration-300 hover:scale-105"
-                    loading="lazy"
-                  />
-                </div>
-                <CardContent className="p-5">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Star className="h-5 w-5 text-amber-500" />
-                    <h3 className="font-semibold">{style.title}</h3>
-                  </div>
-                  <p className="text-sm text-stone-600">{style.description}</p>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         </div>
       </section>

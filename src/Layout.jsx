@@ -30,7 +30,7 @@ const generalNavigation = [
   { title: "本地 Knowledge", url: createPageUrl("Knowledge"), icon: BookOpen },
   { title: "首頁", url: createPageUrl("Home"), icon: Home },
   { title: "風格測驗", url: createPageUrl("StyleTest"), icon: Sparkles },
-  { title: "AI 裝修提案", url: createPageUrl("AIProposal"), icon: PenTool },
+  { title: "AI室內設計提案", url: createPageUrl("AIProposal"), icon: PenTool },
   { title: "我的專案", url: createPageUrl("MyProjects"), icon: BriefcaseBusiness },
   { title: "方案價格", url: createPageUrl("PricingPlans"), icon: BadgeDollarSign },
 ];

@@ -91,3 +91,9 @@ Every write is tenant/organization scoped and idempotent. Package receipts expli
 ## R9.2.1 Field Evidence and Smart Supervision
 
 The local API implements provider-neutral Evidence intake, immutable MediaAsset provenance/revisions, five-dimensional candidate classification, Evidence Mapping, construction logs, NCR/CAPA and accepted-Evidence-gated CAPA closure. See `../docs/tigi-r9.2.1-field-evidence-local-implementation-20260822.md`. These endpoints are candidate inputs only and never mutate Gate, payment or R5.2 state.
+
+## Gemini Image provider migration
+
+雲端影像工作流使用 `gemini-3.1-flash-image` 作為一般／批次預設，高品質提案才使用 `gemini-3-pro-image`。四張風格參考圖維持四個獨立單圖任務，不使用 `numberOfImages`。每筆任務保存 provider、模型、SHA-256、MIME 與 SynthID 必要來源標記。
+
+未設定 `GOOGLE_GENAI_API_KEY` 時維持 ComfyUI 本機模式；環景永遠使用專用四方向 ComfyUI workflow。部署設定與驗收限制見 `../docs/gemini-image-provider-migration-20260827.md`。

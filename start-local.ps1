@@ -5,6 +5,7 @@ $vite = Join-Path $projectRoot "node_modules\vite\bin\vite.js"
 $bundledApiServer = Join-Path $projectRoot "local-api\server.mjs"
 $workspaceApiServer = Join-Path $workspaceRoot "local-api\server.mjs"
 $apiServer = if (Test-Path $bundledApiServer) { $bundledApiServer } else { $workspaceApiServer }
+$env:ISAFE_DB_PATH = Join-Path $workspaceRoot "local-api\data\isafe.db"
 $comfyRoot = "C:\Users\Kevin\Desktop\ComfyUI_windows_portable"
 $comfyPython = Join-Path $comfyRoot "python_embeded\python.exe"
 $comfyMain = Join-Path $comfyRoot "ComfyUI\main.py"

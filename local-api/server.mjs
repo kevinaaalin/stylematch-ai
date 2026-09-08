@@ -16,6 +16,7 @@ import { mapBudget, searchCatalog, MATERIAL_CATALOG_VERSION } from "./material-c
 import { createProductionAdapters } from "./production-adapters.mjs";
 import { authenticateOidcRequest } from "./oidc-auth.mjs";
 import { createFieldEvidenceService } from "./field-evidence.mjs";
+import { generateGeminiImage, GEMINI_IMAGE_MODELS } from "./gemini-image-provider.mjs";
 
 const HOST = process.env.ISAFE_API_HOST || "127.0.0.1";
 const PORT = Number(process.env.ISAFE_API_PORT || 4180);
@@ -43,6 +44,10 @@ const DEFAULT_ORGANIZATION = "org_local_headquarter";
 const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
 const COMFYUI_CHECKPOINT = process.env.COMFYUI_CHECKPOINT || "sd_xl_base_1.0.safetensors";
 const COMFYUI_PYTHON = process.env.COMFYUI_PYTHON || "C:\\Users\\Kevin\\Desktop\\ComfyUI_windows_portable\\python_embeded\\python.exe";
+const GOOGLE_GENAI_API_KEY = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY || "";
+const GOOGLE_IMAGE_DEFAULT_MODEL = process.env.GOOGLE_IMAGE_DEFAULT_MODEL || GEMINI_IMAGE_MODELS.standard;
+const GOOGLE_IMAGE_HIGH_QUALITY_MODEL = process.env.GOOGLE_IMAGE_HIGH_QUALITY_MODEL || GEMINI_IMAGE_MODELS.high;
+const AI_IMAGE_PROVIDER = process.env.AI_IMAGE_PROVIDER || (GOOGLE_GENAI_API_KEY ? "google_gemini" : "comfyui");
 const FLOORPLAN_PDFTOPPM = process.env.FLOORPLAN_PDFTOPPM || "C:\\Users\\Kevin\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin\\pdftoppm.exe";
 const PANORAMA_WORKFLOW_VERSION = "stylematch-panorama-4dir-v1";
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
@@ -748,6 +753,8 @@ function ensureColumn(table, name, definition) {
   ["style_id", "TEXT"], ["style_catalog_version", "TEXT"], ["source_media_count", "INTEGER DEFAULT 0"],
   ["requested_output_type", "TEXT DEFAULT 'perspective_draft'"], ["quality_report", "TEXT"],
   ["operation_metadata", "TEXT"], ["output_sha256", "TEXT"],
+  ["provider_id", "TEXT DEFAULT 'comfyui'"], ["model_id", "TEXT"], ["output_path", "TEXT"],
+  ["output_mime_type", "TEXT"], ["synthid_required", "INTEGER DEFAULT 0"], ["provider_metadata", "TEXT"],
 ].forEach(([name, definition]) => ensureColumn("ai_image_tasks", name, definition));
 [
   ["requires_confirmation", "INTEGER NOT NULL DEFAULT 1"],
@@ -2216,6 +2223,7 @@ function serializeImageTask(row) {
     ...row,
     quality_report: row.quality_report ? JSON.parse(row.quality_report) : null,
     operation: row.operation_metadata ? JSON.parse(row.operation_metadata) : null,
+    provider_metadata: row.provider_metadata ? JSON.parse(row.provider_metadata) : null,
     image_url: row.status === "completed" ? `http://${HOST}:${PORT}/api/v1/ai/image-tasks/${row.ai_task_id}/image` : null,
     human_review_required: true,
     advisory_only: true,
@@ -2241,6 +2249,35 @@ async function createImageTask(payload, ctx) {
   const negativePrompt = payload.negative_prompt || "low quality, blurry, distorted, watermark, text, unsafe construction detail";
   const panorama = payload.output_type === "equirectangular_2_1";
   const sourceMedia = Array.isArray(payload.source_media_urls) ? payload.source_media_urls.find(Boolean) : null;
+  const requestedProvider = panorama ? "comfyui" : (payload.provider || AI_IMAGE_PROVIDER);
+  if (requestedProvider === "google_gemini") {
+    let generated;
+    try {
+      generated = await generateGeminiImage({
+        apiKey: GOOGLE_GENAI_API_KEY,
+        defaultModel: GOOGLE_IMAGE_DEFAULT_MODEL,
+        highModel: GOOGLE_IMAGE_HIGH_QUALITY_MODEL,
+        quality: payload.quality || "standard",
+        prompt: payload.prompt.trim(),
+        width,
+        height,
+        mimeType: "image/png",
+      });
+    } catch (error) {
+      fail(error.message, error.code || "GEMINI_IMAGE_REQUEST_FAILED", error.status || 502);
+    }
+    const cloudDir = join(dataDir, "cloud-image-tasks");
+    mkdirSync(cloudDir, { recursive: true });
+    const outputPath = join(cloudDir, `${aiTaskId}.png`);
+    writeFileSync(outputPath, generated.bytes);
+    const qualityReport = inspectGeneratedImage({ bytes: generated.bytes, contentType: generated.mimeType, expectedWidth: width, expectedHeight: height, outputType: payload.output_type || "perspective_draft" });
+    const outputSha256 = createHash("sha256").update(generated.bytes).digest("hex");
+    db.prepare(`INSERT INTO ai_image_tasks (ai_task_id,prompt_id,tenant_id,organization_id,purpose,consent_ref,trace_id,idempotency_key,stylematch_project_id,case_code,prompt,negative_prompt,workflow_version,checkpoint,seed,width,height,status,created_at,updated_at,style_id,style_catalog_version,source_media_count,requested_output_type,operation_metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(aiTaskId, null, ctx.tenant_id, ctx.organization_id, ctx.purpose, ctx.consent_ref, ctx.trace_id, ctx.idempotency_key, payload.stylematch_project_id || null, payload.case_code || null, payload.prompt.trim(), negativePrompt, generated.requestContract, generated.model, seed, width, height, "completed", at, at, payload.style_id || null, payload.style_catalog_version || null, Number(payload.source_media_count) || 0, payload.output_type || "perspective_draft", JSON.stringify(operation));
+    db.prepare("UPDATE ai_image_tasks SET provider_id=?,model_id=?,output_path=?,output_mime_type=?,synthid_required=1,provider_metadata=?,quality_report=?,output_sha256=? WHERE ai_task_id=?")
+      .run(generated.provider, generated.model, outputPath, generated.mimeType, JSON.stringify({ synthid: true, output_count_per_request: 1 }), JSON.stringify(qualityReport), outputSha256, aiTaskId);
+    return { task: serializeImageTask(db.prepare("SELECT * FROM ai_image_tasks WHERE ai_task_id=?").get(aiTaskId)), created: true };
+  }
   let sourceImage = null;
   let panoramaManifest = null;
   try {
@@ -2318,6 +2355,16 @@ function validateStyleTestDelivery(payload) {
   return email;
 }
 
+async function readImageTaskOutput(task) {
+  if (task.provider_id === "google_gemini" && task.output_path) {
+    return { bytes: readFileSync(task.output_path), contentType: task.output_mime_type || "image/png" };
+  }
+  const query = new URLSearchParams({ filename: task.output_filename, subfolder: task.output_subfolder || "", type: task.output_type || "output" });
+  const response = await fetch(`${COMFYUI_URL}/view?${query}`);
+  if (!response.ok) fail("Generated image could not be read.", "AI_IMAGE_READ_FAILED", 502, { provider: task.provider_id || "comfyui" });
+  return { bytes: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get("content-type") || "image/png" };
+}
+
 async function loadStyleTestAttachments(aiTaskIds, ctx) {
   return Promise.all(aiTaskIds.map(async (aiTaskId, index) => {
     const task = await refreshImageTask(aiTaskId);
@@ -2325,17 +2372,11 @@ async function loadStyleTestAttachments(aiTaskIds, ctx) {
       fail("AI image task is outside the current tenant.", "AI_TASK_FORBIDDEN", 403);
     }
     if (task.status !== "completed") fail("A reference image is not ready.", "AI_IMAGE_NOT_READY", 409);
-    const query = new URLSearchParams({
-      filename: task.output_filename,
-      subfolder: task.output_subfolder || "",
-      type: task.output_type || "output",
-    });
-    const response = await fetch(`${COMFYUI_URL}/view?${query}`);
-    if (!response.ok) fail("Generated image could not be attached.", "COMFYUI_IMAGE_READ_FAILED", 502);
+    const output = await readImageTaskOutput(task);
     return {
       filename: `stylematch-reference-${index + 1}.png`,
-      content: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get("content-type") || "image/png",
+      content: output.bytes,
+      contentType: output.contentType,
     };
   }));
 }
@@ -3148,7 +3189,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/v1/ai/health") {
       let comfyui = "offline";
       try { const response = await fetch(`${COMFYUI_URL}/system_stats`); if (response.ok) comfyui = "online"; } catch { /* Report offline below. */ }
-      return send(req, res, 200, { status: "ok", adapter: "comfyui", comfyui, comfyui_url: COMFYUI_URL, checkpoint: COMFYUI_CHECKPOINT, workflow_version: "stylematch-sdxl-v1", panorama_workflow_version: PANORAMA_WORKFLOW_VERSION, panorama_input: "front_right_back_left", panorama_projection: "equirectangular_2_1" });
+      return send(req, res, 200, { status: "ok", adapter: AI_IMAGE_PROVIDER, default_provider: AI_IMAGE_PROVIDER, cloud_image: { configured: Boolean(GOOGLE_GENAI_API_KEY), default_model: GOOGLE_IMAGE_DEFAULT_MODEL, high_quality_model: GOOGLE_IMAGE_HIGH_QUALITY_MODEL, output_count_per_request: 1, four_image_strategy: "four_independent_calls", synthid_required: true, supported_output_formats: ["image/png", "image/jpeg"] }, local_image: { adapter: "comfyui", status: comfyui, comfyui_url: COMFYUI_URL, checkpoint: COMFYUI_CHECKPOINT, independent_fallback: true }, workflow_version: "stylematch-sdxl-v1", panorama_workflow_version: PANORAMA_WORKFLOW_VERSION, panorama_input: "front_right_back_left", panorama_projection: "equirectangular_2_1", panorama_provider: "comfyui" });
     }
     if (req.method === "GET" && url.pathname === "/api/v1/ai/style-vision/health") {
       let models = [];
@@ -3551,12 +3592,10 @@ const server = createServer(async (req, res) => {
       if (!entitlement.download_unlocked) fail("Payment is required before downloading this file.", "DOWNLOAD_PAYMENT_REQUIRED", 402);
       const task = await refreshImageTask(aiTaskId);
       if (task.status !== "completed") fail("Image is not ready.", "AI_IMAGE_NOT_READY", 409);
-      const query = new URLSearchParams({ filename: task.output_filename, subfolder: task.output_subfolder || "", type: task.output_type || "output" });
-      const imageResponse = await fetch(`${COMFYUI_URL}/view?${query}`);
-      if (!imageResponse.ok) fail("Generated image could not be read from ComfyUI.", "COMFYUI_IMAGE_READ_FAILED", 502);
-      const bytes = Buffer.from(await imageResponse.arrayBuffer());
+      const output = await readImageTaskOutput(task);
+      const bytes = output.bytes;
       res.writeHead(200, {
-        "Content-Type": imageResponse.headers.get("content-type") || "image/png",
+        "Content-Type": output.contentType,
         "Content-Length": bytes.length,
         "Content-Disposition": `attachment; filename="${aiTaskId}.png"`,
         "Cache-Control": "private, no-store",
@@ -3570,11 +3609,9 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && imageFileMatch) {
       const task = await refreshImageTask(decodeURIComponent(imageFileMatch[1]));
       if (task.status !== "completed") fail("Image is not ready.", "AI_IMAGE_NOT_READY", 409);
-      const query = new URLSearchParams({ filename: task.output_filename, subfolder: task.output_subfolder || "", type: task.output_type || "output" });
-      const imageResponse = await fetch(`${COMFYUI_URL}/view?${query}`);
-      if (!imageResponse.ok) fail("Generated image could not be read from ComfyUI.", "COMFYUI_IMAGE_READ_FAILED", 502);
-      const bytes = Buffer.from(await imageResponse.arrayBuffer());
-      res.writeHead(200, { "Content-Type": imageResponse.headers.get("content-type") || "image/png", "Content-Length": bytes.length, "Cache-Control": "no-store", "Access-Control-Allow-Origin": corsHeaders(req)["Access-Control-Allow-Origin"], "X-AI-Task-Id": task.ai_task_id, "X-Trace-Id": task.trace_id });
+      const output = await readImageTaskOutput(task);
+      const bytes = output.bytes;
+      res.writeHead(200, { "Content-Type": output.contentType, "Content-Length": bytes.length, "Cache-Control": "no-store", "Access-Control-Allow-Origin": corsHeaders(req)["Access-Control-Allow-Origin"], "X-AI-Task-Id": task.ai_task_id, "X-Trace-Id": task.trace_id });
       return res.end(bytes);
     }
     if (req.method === "GET" && ["/api/v1/isafe/cases", "/api/cases"].includes(url.pathname)) {

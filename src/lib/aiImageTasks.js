@@ -40,6 +40,8 @@ export async function createAndWaitForImageTask({
   width = 1024,
   height = 768,
   operation = {},
+  provider = import.meta.env.VITE_AI_IMAGE_PROVIDER || undefined,
+  quality = "standard",
   timeoutMs = 180000,
 }) {
   const idempotencyKey = `${outputType}-${project?.project_id || "local"}-${crypto.randomUUID()}`;
@@ -59,6 +61,8 @@ export async function createAndWaitForImageTask({
       source_media_urls: [...new Set(sourceMediaUrls.filter(Boolean))],
       source_media_count: [...new Set(sourceMediaUrls.filter(Boolean))].length,
       operation,
+      provider,
+      quality,
     }),
   }));
 
@@ -80,7 +84,7 @@ export async function createAndWaitForImageTask({
   return {
     url: `${task.image_url}?v=${encodeURIComponent(task.updated_at || Date.now())}`,
     task,
-    generation_source: "local_api_comfyui",
+    generation_source: task.provider_id === "google_gemini" ? "google_gemini_image" : "local_api_comfyui",
     authoritative: true,
   };
 }
