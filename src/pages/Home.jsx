@@ -24,6 +24,8 @@ import {
 
 const PanoramaViewer = lazy(() => import("@/components/ai/PanoramaViewer"));
 
+const publicAssetUrl = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+
 const painPoints = [
   {
     icon: CircleDollarSign,
@@ -138,14 +140,14 @@ function BeforeAfterSlider() {
   return (
     <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-stone-300 shadow-xl sm:aspect-[16/9]">
       <img
-        src="/home-showcase/living-room-after.jpg"
+        src={publicAssetUrl("home-showcase/living-room-after.jpg")}
         alt="AI 智能設計後的客廳提案"
         className="absolute inset-0 h-full w-full select-none object-cover"
         draggable="false"
         loading="lazy"
       />
       <img
-        src="/home-showcase/living-room-before.jpg"
+        src={publicAssetUrl("home-showcase/living-room-before.jpg")}
         alt="設計前的空屋空間"
         className="absolute inset-0 h-full w-full select-none object-cover"
         style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
@@ -435,7 +437,7 @@ export default function Home() {
             </div>
             <Suspense fallback={<div className="aspect-[2/1] animate-pulse rounded-md bg-stone-300" aria-label="環景載入中" />}>
               <PanoramaViewer
-                imageUrl="/home-showcase/living-room-panorama-reference.png"
+                imageUrl={publicAssetUrl("home-showcase/living-room-panorama-reference.png")}
                 title="現代住宅客餐廳 360° 環景示意"
                 initialLongitude={0}
                 initialLatitude={0}

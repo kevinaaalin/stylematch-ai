@@ -3,6 +3,7 @@ import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 let pannellumLoader;
+const publicAssetUrl = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
 
 function loadPannellum() {
   if (window.pannellum) return Promise.resolve(window.pannellum);
@@ -13,7 +14,7 @@ function loadPannellum() {
       const stylesheet = document.createElement("link");
       stylesheet.id = "pannellum-local-css";
       stylesheet.rel = "stylesheet";
-      stylesheet.href = "/vendor/pannellum/pannellum.css";
+      stylesheet.href = publicAssetUrl("vendor/pannellum/pannellum.css");
       document.head.appendChild(stylesheet);
     }
 
@@ -26,7 +27,7 @@ function loadPannellum() {
 
     const script = document.createElement("script");
     script.id = "pannellum-local-script";
-    script.src = "/vendor/pannellum/pannellum.js";
+    script.src = publicAssetUrl("vendor/pannellum/pannellum.js");
     script.async = true;
     script.addEventListener("load", () => resolve(window.pannellum), { once: true });
     script.addEventListener("error", reject, { once: true });
