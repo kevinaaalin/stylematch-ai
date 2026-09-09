@@ -1,0 +1,32 @@
+{
+  "releaseId": "TIGI-GOVERNANCE-20260820-R9.2-CONSOLIDATED",
+  "corpusVersion": "9.2+9.2.1-candidate",
+  "activeBaseline": true,
+  "ragActiveVersion": "R9.2",
+  "archivedPredecessors": [
+    "R8",
+    "R9",
+    "R9.1"
+  ],
+  "generatedAt": "2026-09-08T12:06:42.418Z",
+  "networkDependency": false,
+  "canonicalReadingOrder": [
+    "engineering-master",
+    "sbir-master",
+    "business-plan-master",
+    "white-paper-master"
+  ],
+  "supplementalReadingOrder": [
+    "field-evidence-addendum"
+  ],
+  "candidateAddenda": [
+    "R9.2.1 Field Evidence Addendum"
+  ],
+  "documentCount": 5,
+  "chunkCount": 208,
+  "releaseStatus": "Approved Specification Baseline / Candidate Supplemental Knowledge",
+  "phase0RepositoryAuditRequired": true,
+  "finalOfficialAllowed": false,
+  "stateContractVersion": "20260722_R5_2",
+  "patentVersion": "V7_LOCKED"
+}

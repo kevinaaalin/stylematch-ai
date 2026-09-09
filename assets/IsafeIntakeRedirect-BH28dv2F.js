@@ -1,0 +1,1 @@
+import{r as e,j as t}from"./index-DmvCpUf_.js";const a="http://127.0.0.1:4174/?view=home&intake=1";function o(){return e.useEffect(()=>{window.location.replace(a)},[]),t.jsx("div",{className:"min-h-[50vh]","aria-live":"polite"})}export{o as default};
