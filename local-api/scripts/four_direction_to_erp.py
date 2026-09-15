@@ -59,10 +59,12 @@ def fill_missing_vertical(rgb: np.ndarray, valid: np.ndarray) -> np.ndarray:
 
 
 def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_output: Path,
-            width: int, height: int, hfov: float, seam_degrees: float, allow_partial: bool = False) -> dict:
+            width: int, height: int, hfov: float, seam_degrees: float, allow_partial: bool = False, concept_only: bool = False) -> dict:
     if width != height * 2:
         raise ValueError("Equirectangular output must use an exact 2:1 width-to-height ratio.")
-    if (not allow_partial and set(inputs) != set(YAW_BY_DIRECTION)) or not inputs or not set(inputs).issubset(YAW_BY_DIRECTION):
+    if concept_only and inputs:
+        raise ValueError("Concept-only mode must not mislabel source photos.")
+    if not concept_only and ((not allow_partial and set(inputs) != set(YAW_BY_DIRECTION)) or not inputs or not set(inputs).issubset(YAW_BY_DIRECTION)):
         raise ValueError("Four distinct directional sources are required.")
     if not 90 < hfov < 180:
         raise ValueError("Horizontal FOV must be between 90 and 180 degrees with overlap.")
@@ -110,7 +112,9 @@ def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_o
     valid = weight_sum > 0
     rgb = np.divide(weighted_rgb, np.maximum(weight_sum[..., None], 1e-6))
     rgb = fill_missing_vertical(rgb, valid)
-    if allow_partial:
+    if concept_only:
+        rgb[:] = 127
+    elif allow_partial:
         # Neutral initialization only, never represented as a generated view.
         rgb[:, ~valid.any(axis=0)] = np.mean([image.mean(axis=(0, 1)) for image in images.values()], axis=0)
 
@@ -127,7 +131,8 @@ def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_o
     Image.fromarray(np.where(seam_mask, 255, 0).astype(np.uint8), "L").save(mask_output)
 
     manifest = {
-        "workflow_version": "stylematch-partial-room-completion-v1" if allow_partial else WORKFLOW_VERSION,
+        "workflow_version": "stylematch-concept-room-v1" if concept_only else "stylematch-partial-room-completion-v1" if allow_partial else WORKFLOW_VERSION,
+        "concept_only": concept_only,
         "projection": "equirectangular_2_1",
         "ordered_directions": list(YAW_BY_DIRECTION),
         "camera": {"shared_center_required": True, "horizontal_fov_degrees": hfov},
@@ -147,6 +152,7 @@ def parse_args() -> argparse.Namespace:
     for direction in YAW_BY_DIRECTION:
         parser.add_argument(f"--{direction}", type=Path)
     parser.add_argument("--allow-partial", action="store_true")
+    parser.add_argument("--concept-only", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--mask-output", type=Path)
     parser.add_argument("--manifest-output", type=Path)
@@ -166,7 +172,7 @@ def main() -> None:
     missing = [str(path) for path in inputs.values() if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"Missing input files: {', '.join(missing)}")
-    manifest = compose(inputs, output, mask_output, manifest_output, args.width, args.height, args.hfov, args.seam_degrees, args.allow_partial)
+    manifest = compose(inputs, output, mask_output, manifest_output, args.width, args.height, args.hfov, args.seam_degrees, args.allow_partial, args.concept_only)
     print(json.dumps(manifest, ensure_ascii=False))
 
 

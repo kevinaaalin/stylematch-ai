@@ -181,6 +181,7 @@ export default function AIGenerate() {
   const [sourceRevisionId, setSourceRevisionId] = useState("");
   const [sourcePhotoKey, setSourcePhotoKey] = useState("");
   const [captureConfirmed, setCaptureConfirmed] = useState(false);
+  const [conceptProviderVerified, setConceptProviderVerified] = useState(false);
   const [directionSet, setDirectionSet] = useState(null);
   const [directionSetBusy, setDirectionSetBusy] = useState(false);
   const [directionReviewed, setDirectionReviewed] = useState(false);
@@ -251,6 +252,7 @@ export default function AIGenerate() {
 
 
   useEffect(() => {
+    fetch(`${API_BASE}/ai/direction-completion/schema`).then((response) => response.ok ? response.json() : null).then((data) => setConceptProviderVerified(data?.concept_generation_enabled === true)).catch(() => setConceptProviderVerified(false));
     fetch(`${API_BASE}/ai/health`)
       .then((response) => response.json())
       .then((data) => setHealth({ ...data, comfyui: data.local_image?.status || data.comfyui || "offline" }))
@@ -358,7 +360,7 @@ export default function AIGenerate() {
       if (!selectedProject) throw new Error("請先選擇 StyleMatch 專案。");
       if (!panorama && sourcePhotoKey && !selectedPhoto) throw new Error("原始照片已變動，請重新選取。");
       if (!panorama && spacePhotoInputs.length && !sourceImage) throw new Error("請先選擇一張空間原始照片，每張原圖各自生成對應參考圖。");
-      if (panorama && completeDirections && (!captureConfirmed || !Object.values(panoramaSources).some(Boolean))) throw new Error("請指定至少一個已知方向，並確認同一空間與共同拍攝中心。");
+      if (panorama && completeDirections && !captureConfirmed) throw new Error("請確認共同拍攝中心；零照片時請確認接受純概念設計。");
       if (panorama && !completeDirections && new Set(Object.values(panoramaSources).filter(Boolean)).size !== 4) throw new Error("請先補齊四方向參考圖，或提供四個已知方向。");
       if (panorama && !completeDirections && directionSet && !directionReviewed) throw new Error("請先核對四方向的門窗、家具、重疊與接縫。");
     } catch (accessError) {
@@ -394,7 +396,9 @@ export default function AIGenerate() {
         ),
         body: JSON.stringify({
           ...(selectedPhoto && !panorama ? { provider: "comfyui" } : {}),
-          prompt: completeDirections ? `${prompt} Some directions are unknown. Infer missing views only inside the masked region of the same room. One fixed camera center, shared wall layout, consistent materials and lighting. Unknown regions are an AI design hypothesis, not a measured reconstruction.` : prompt,
+          prompt: completeDirections ? (panoramaSourceEntries.some((entry) => entry.media_url)
+            ? `${prompt} Some directions are unknown. Infer missing views only inside the masked region of the same room. One fixed camera center, shared wall layout, consistent materials and lighting. Unknown regions are an AI design hypothesis, not a measured reconstruction.`
+            : `Create one seamless full-sphere 360-degree equirectangular 2:1 concept panorama of a single ${space}. No site photos exist; all geometry is hypothetical. ${styleDirection} ${openPlanNote} ${controlledDesign} Requested room dimensions: ${geometry}. ${requirements}. One shared camera center and level horizon, continuous floor and ceiling, coherent furniture and lighting, seamless wrap boundary, not an ordinary perspective photograph.`) : prompt,
           negative_prompt: selectedStyleProfile.negative_prompt,
           style_id: selectedStyleProfile.id,
           style_catalog_version: "stylematch.style-catalog.v1",
@@ -434,7 +438,8 @@ export default function AIGenerate() {
             material,
             color_palette: colorPalette,
             panorama_capture: panorama ? {
-              input_mode: completeDirections ? "partial_direction_completion" : "four_direction_photos",
+              input_mode: completeDirections ? (panoramaSourceEntries.some((entry) => entry.media_url) ? "partial_direction_completion" : "concept_direction_completion") : "four_direction_photos",
+              concept_only_confirmed: completeDirections && !panoramaSourceEntries.some((entry) => entry.media_url) && captureConfirmed,
               ordered_sources: completeDirections ? panoramaSourceEntries.filter((entry) => entry.media_url) : panoramaSourceEntries,
               shared_center_confirmed: captureConfirmed,
               horizontal_fov_degrees: 100,
@@ -626,10 +631,11 @@ export default function AIGenerate() {
                         </div>
                       ))}
                     </div>
-                    <label className="mt-3 flex gap-2 text-sm"><input type="checkbox" checked={captureConfirmed} onChange={(event) => setCaptureConfirmed(event.target.checked)} />已確認方向配置、同一空間與共同拍攝中心。未確認真實方位時，以前／右／後／左為準。</label>
-                    <Button type="button" variant="outline" className="mt-3 w-full" disabled={Boolean(busy) || directionSetBusy || health?.comfyui !== "online" || !captureConfirmed || !Object.values(panoramaSources).some(Boolean) || !selectedProject || !isBusinessPlan(planId)} onClick={() => generate(true)}>補生成四方向參考圖（{PANORAMA_GENERATION_COST} 點）</Button>
+                    <label className="mt-3 flex gap-2 text-sm"><input type="checkbox" checked={captureConfirmed} onChange={(event) => setCaptureConfirmed(event.target.checked)} />{Object.values(panoramaSources).some(Boolean) ? "已確認方向配置、同一空間與共同拍攝中心。未確認真實方位時，以前／右／後／左為準。" : "零照片：我接受依空間尺寸與設計需求產生四方向純概念圖，全部內容皆為 AI 推估，不代表現場重建。"}</label>
+                    {!Object.values(panoramaSources).some(Boolean) && !conceptProviderVerified && <p className="mt-2 text-sm text-amber-900">零照片模式暫未開放：目前模型尚未通過真正 360° ERP 品質驗收。請先提供已知方向照片。</p>}
+                    <Button type="button" variant="outline" className="mt-3 w-full" disabled={Boolean(busy) || directionSetBusy || health?.comfyui !== "online" || !captureConfirmed || (!Object.values(panoramaSources).some(Boolean) && !conceptProviderVerified) || !selectedProject || !isBusinessPlan(planId)} onClick={() => generate(true)}>補生成四方向參考圖（{PANORAMA_GENERATION_COST} 點）</Button>
                     {task?.status === "completed" && task.operation?.direction_completion && <Button type="button" variant="outline" className="mt-2 w-full" disabled={directionSetBusy} onClick={loadDirectionReferences}>{directionSetBusy ? "檢查並取出四方向中…" : "檢查並載入四方向參考圖"}</Button>}
-                    {directionSet && <div className="mt-3 text-sm"><p>四圖來自同一底圖；原圖未遮罩區域已保留。自動檢查不代表門窗與家具正確。</p><label className="mt-2 flex gap-2"><input type="checkbox" checked={directionReviewed} onChange={(event) => setDirectionReviewed(event.target.checked)} />已逐方向檢查門窗、家具、光線、重疊與左右接縫，接受 AI 推估內容後交給 360° 接合。</label></div>}
+                    {directionSet && <div className="mt-3 text-sm"><p>{directionSet.concept_only ? "四圖為同一底圖的純概念設計，沒有現場照片佐證。" : "四圖來自同一底圖；原圖未遮罩區域已保留。"}自動檢查不代表門窗與家具正確。</p><label className="mt-2 flex gap-2"><input type="checkbox" checked={directionReviewed} onChange={(event) => setDirectionReviewed(event.target.checked)} />已逐方向檢查門窗、家具、光線、重疊與左右接縫，接受 AI 推估內容後交給 360° 接合。</label></div>}
                     <p className="mt-3 text-xs leading-5 text-amber-900">系統會先校正與投影，再接合四方向照片並修補缺口與接縫；不是把四張照片當成切換選項。手機錄影與掃描資料之後也會轉成相同方向影格後進入此流程。</p>
                   </div>
                 ) : (

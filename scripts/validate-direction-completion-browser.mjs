@@ -13,6 +13,7 @@ try {
   await page.route("http://127.0.0.1:4180/api/v1/ai/**", async (route) => {
     const url = new URL(route.request().url()); let body = {};
     if (url.pathname.endsWith("/health")) body = { local_image: { status: "online" } };
+    else if (url.pathname.endsWith("/direction-completion/schema")) body = { concept_generation_enabled: true };
     else if (url.pathname.endsWith("/direction-references")) body = { task_id: "direction-1", known_pixels_preserved: true, shared_scene: true, inferred_directions: ["right", "back", "left"], ordered_sources: ["front", "right", "back", "left"].map((id, index) => ({ id, yaw: index * 90, media_url: `http://127.0.0.1:4173/home-showcase/living-room-after.jpg?direction=${id}` })) };
     else if (route.request().method() === "POST" && url.pathname.endsWith("/image-tasks")) {
       const submitted = route.request().postDataJSON(); submissions.push(submitted);
@@ -39,5 +40,17 @@ try {
   assert.equal(submissions[1].source_content.panorama_capture.ordered_sources.length, 4);
   assert.equal(submissions[1].operation.derived_direction_task_id, "direction-1");
   assert.equal(submissions[1].operation.direction_review_confirmed, true);
+  await page.reload();
+  await page.getByRole("tab", { name: "單一空間 360°" }).click();
+  const conceptConsent = page.getByRole("checkbox", { name: /零照片：我接受/ });
+  await conceptConsent.waitFor();
+  const complete = page.getByRole("button", { name: /補生成四方向參考圖/ });
+  assert.equal(await complete.isDisabled(), true);
+  await conceptConsent.check();
+  await complete.click();
+  await page.getByRole("button", { name: "檢查並載入四方向參考圖", exact: true }).waitFor();
+  assert.equal(submissions[2].source_content.panorama_capture.input_mode, "concept_direction_completion");
+  assert.equal(submissions[2].source_content.panorama_capture.concept_only_confirmed, true);
+  assert.equal(submissions[2].source_content.panorama_capture.ordered_sources.length, 0);
   console.log("PASS: Chrome partial source → completion → four references → required review → stitching lineage. Provider mocked, not AI quality acceptance.");
 } finally { await browser.close(); }

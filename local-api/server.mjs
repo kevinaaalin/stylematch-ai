@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { connect as connectNet } from "node:net";
 import { connect as connectTls } from "node:tls";
 import { dirname, join } from "node:path";
@@ -20,6 +20,9 @@ import { generateGeminiImage, GEMINI_IMAGE_MODELS } from "./gemini-image-provide
 import { validateDirectionCompletion } from "./direction-completion.mjs";
 
 const HOST = process.env.ISAFE_API_HOST || "127.0.0.1";
+// Experimental only: enable after the configured provider passes real ERP quality acceptance.
+const CONCEPT_PANORAMA_VERIFIED = process.env.COMFYUI_CONCEPT_PANORAMA_VERIFIED === "true";
+const RUNTIME_SOURCE_SHA256 = createHash("sha256").update(readFileSync(fileURLToPath(import.meta.url))).digest("hex");
 const PORT = Number(process.env.ISAFE_API_PORT || 4180);
 const SCHEMA_VERSION = "20260722_R5_2";
 const GOVERNANCE_VERSION = "20260820_R9_2_Consolidated";
@@ -2136,8 +2139,8 @@ function hydrateWorkflowTemplate(value, replacements) {
   return typeof value === "string" && Object.hasOwn(replacements, value) ? replacements[value] : value;
 }
 
-function buildPanoramaWorkflow({ prompt, negativePrompt, seed, filenamePrefix, sourceImage }) {
-  return hydrateWorkflowTemplate(panoramaWorkflowTemplate, {
+function buildPanoramaWorkflow({ prompt, negativePrompt, seed, filenamePrefix, sourceImage, conceptOnly = false }) {
+  const workflow = hydrateWorkflowTemplate(panoramaWorkflowTemplate, {
     "{{seed}}": seed,
     "{{checkpoint}}": COMFYUI_CHECKPOINT,
     "{{prompt}}": `${prompt} Preserve all unmasked geometry. Fill only masked unknown regions and polar gaps, blending seams continuously across the left/right ERP boundary.`,
@@ -2145,6 +2148,8 @@ function buildPanoramaWorkflow({ prompt, negativePrompt, seed, filenamePrefix, s
     "{{filename_prefix}}": filenamePrefix,
     "{{source_image}}": sourceImage,
   });
+  if (conceptOnly) workflow["3"].inputs.denoise = 1;
+  return workflow;
 }
 
 async function materializeImageSource(sourceUrl, outputBase) {
@@ -2174,9 +2179,11 @@ async function preparePanoramaInput(payload, aiTaskId, width, height) {
   const capture = payload.source_content?.panorama_capture;
   const ordered = Array.isArray(capture?.ordered_sources) ? capture.ordered_sources : [];
   const expected = ["front", "right", "back", "left"];
-  const completion = capture?.input_mode === "partial_direction_completion";
+  const concept = capture?.input_mode === "concept_direction_completion";
+  const completion = concept || capture?.input_mode === "partial_direction_completion";
   if (completion) {
     try { validateDirectionCompletion(capture); } catch (error) { fail(error.message, "DIRECTION_COMPLETION_INVALID", 400); }
+    if (concept && !CONCEPT_PANORAMA_VERIFIED) fail("零照片環景 Provider 尚未通過真實 ERP 品質驗收", "CONCEPT_PANORAMA_NOT_VERIFIED", 503);
   } else if (capture?.input_mode !== "four_direction_photos" || ordered.length !== 4 || expected.some((direction, index) => ordered[index]?.id !== direction || !ordered[index]?.media_url)) {
     fail("Panorama generation requires four ordered sources: front, right, back, left.", "PANORAMA_FOUR_DIRECTION_SOURCES_REQUIRED", 400, { expected_order: expected });
   }
@@ -2198,6 +2205,7 @@ async function preparePanoramaInput(payload, aiTaskId, width, height) {
   const args = [script,
     ...Object.entries(inputPaths).flatMap(([direction, path]) => [`--${direction}`, path]),
     ...(completion ? ["--allow-partial"] : []),
+    ...(concept ? ["--concept-only"] : []),
     "--output", outputPath, "--mask-output", maskPath, "--manifest-output", manifestPath,
     "--width", String(width), "--height", String(height), "--hfov", String(Number(capture.horizontal_fov_degrees) || 100),
   ];
@@ -2311,7 +2319,7 @@ async function createImageTask(payload, ctx) {
     fail(panorama ? "The four panorama sources could not be projected and imported into ComfyUI." : "The project reference image could not be imported into ComfyUI.", panorama ? "PANORAMA_PREPROCESS_FAILED" : "COMFYUI_SOURCE_IMPORT_FAILED", 502, { cause: error.message });
   }
   const workflow = panorama
-    ? buildPanoramaWorkflow({ prompt: payload.prompt.trim(), negativePrompt, seed, filenamePrefix: `StyleMatchAI/${aiTaskId}`, sourceImage })
+    ? buildPanoramaWorkflow({ prompt: payload.prompt.trim(), negativePrompt, seed, filenamePrefix: `StyleMatchAI/${aiTaskId}`, sourceImage, conceptOnly: panoramaManifest?.concept_only === true })
     : buildSdxlWorkflow({ prompt: payload.prompt.trim(), negativePrompt, seed, width, height, filenamePrefix: `StyleMatchAI/${aiTaskId}`, sourceImage });
   let response;
   try {
@@ -3200,6 +3208,7 @@ const server = createServer(async (req, res) => {
       return send(req, res, 200, { received: true });
     }
     if (req.method === "GET" && ["/api/v1/health", "/api/health"].includes(url.pathname)) return send(req, res, 200, { status: "ok", service: "isafe-local-api", governance_version: GOVERNANCE_VERSION, implementation_baseline: IMPLEMENTATION_BASELINE, governance_release_id: governanceRelease.release_id, governance_status: governanceRelease.status, active_baseline: governanceRelease.active_baseline, rag_active_version: governanceRelease.rag_active_version, archived_predecessors: governanceRelease.archived_predecessors, state_authority: governanceRelease.state_authority, patent_version: governanceRelease.patent_version, final_official_allowed: governanceRelease.final_official_allowed, schema_version: SCHEMA_VERSION, spatial_schema_version: SPATIAL_SCHEMA_VERSION, parity_contract_version: legacyParity.contract.contract_version, database: DATABASE_TYPE, auth_mode: OIDC_ISSUER ? "oidc_configured" : "local-development-token", production_adapters: productionAdapters.capabilities(), time: now() });
+    if (req.method === "GET" && url.pathname === "/api/v1/ai/direction-completion/schema") return send(req, res, 200, { schema_version: "StyleMatch.DirectionCompletion/1.1", source_sha256: RUNTIME_SOURCE_SHA256, storage_fingerprint: createHash("sha256").update(dbPath).digest("hex"), input_modes: ["partial_direction_completion", "concept_direction_completion"], concept_generation_enabled: CONCEPT_PANORAMA_VERIFIED, min_photos: CONCEPT_PANORAMA_VERIFIED ? 0 : 1, max_photos: 4, directions: ["front", "right", "back", "left"], review_required: true, semantic_consistency_verified: false });
     if (req.method === "GET" && url.pathname === "/api/v1/platform/capabilities") return send(req, res, 200, productionAdapters.capabilities());
     if (req.method === "GET" && url.pathname === "/api/v1/governance/release") return send(req, res, 200, governanceRelease);
     if (req.method === "GET" && url.pathname === "/api/v1/isafe/state-machine") return send(req, res, 200, stateMachine);
@@ -3610,7 +3619,7 @@ const server = createServer(async (req, res) => {
       const task = await refreshImageTask(id);
       if (task.tenant_id !== ctx.tenant_id || task.organization_id !== ctx.organization_id) fail("Direction task belongs to another tenant", "DIRECTION_SCOPE_MISMATCH", 403);
       const operation = JSON.parse(task.operation_metadata || "{}");
-      if (operation.panorama_capture?.workflow_version !== "stylematch-partial-room-completion-v1") fail("Not a direction completion task", "DIRECTION_TASK_REQUIRED", 400);
+      if (!["stylematch-partial-room-completion-v1", "stylematch-concept-room-v1"].includes(operation.panorama_capture?.workflow_version)) fail("Not a direction completion task", "DIRECTION_TASK_REQUIRED", 400);
       if (task.status !== "completed") fail("方向補生成尚未完成", "DIRECTION_TASK_PENDING", 409);
       const directory = join(dataDir, "panorama-tasks", task.ai_task_id);
       writeFileSync(join(directory, "generated.png"), (await readImageTaskOutput(task)).bytes);

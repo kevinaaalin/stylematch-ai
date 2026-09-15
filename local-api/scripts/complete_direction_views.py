@@ -52,6 +52,8 @@ def finish(directory: Path):
             "source_inputs": [{"direction": entry["direction"], "sha256": entry["sha256"]} for entry in manifest["inputs"]],
             "source_hashes": [entry["sha256"] for entry in manifest["inputs"]],
             "inferred_directions": manifest["inferred_directions"], "shared_scene": True,
+            "concept_only": manifest.get("concept_only", False),
+            "known_pixel_count": int(known.sum()),
             "known_pixels_preserved": bool(np.array_equal(generated[known], draft[:, :, :3][known])),
             "wrap_edge_mean_delta": round(float(np.abs(generated[:, 0].astype(float) - generated[:, -1].astype(float)).mean()), 3),
             "semantic_consistency_verified": False, "human_review_required": True}
