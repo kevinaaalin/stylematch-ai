@@ -88,12 +88,12 @@ const requestHeaders = (idempotencyKey, purpose, caseAuthorization = "*") => ({
   "Idempotency-Key": idempotencyKey,
 });
 
-function UploadField({ label, hint, preview, onChange }) {
+function UploadField({ label, hint, preview, onChange, disabled = false }) {
   return (
     <label className="block rounded-md border border-dashed border-stone-300 bg-white p-3 transition hover:border-amber-500">
       <span className="flex items-center gap-2 text-sm font-medium text-stone-800"><Upload className="h-4 w-4" />{label}</span>
       <span className="mt-1 block text-xs text-stone-500">{hint}</span>
-      <input className="sr-only" type="file" accept="image/*" onChange={onChange} />
+      <input className="sr-only" type="file" accept="image/*" disabled={disabled} onChange={onChange} />
       {preview && <img src={preview} alt={`${label}預覽`} className="mt-3 h-24 w-full rounded object-cover" />}
     </label>
   );
@@ -180,6 +180,10 @@ export default function AIGenerate() {
   const [sourceImage, setSourceImage] = useState("");
   const [sourceRevisionId, setSourceRevisionId] = useState("");
   const [sourcePhotoKey, setSourcePhotoKey] = useState("");
+  const [captureConfirmed, setCaptureConfirmed] = useState(false);
+  const [directionSet, setDirectionSet] = useState(null);
+  const [directionSetBusy, setDirectionSetBusy] = useState(false);
+  const [directionReviewed, setDirectionReviewed] = useState(false);
   const savingTask = useRef(null);
   const [panoramaSources, setPanoramaSources] = useState({ front: "", right: "", back: "", left: "" });
   const [imageStyleAnalysis, setImageStyleAnalysis] = useState(null);
@@ -206,6 +210,9 @@ export default function AIGenerate() {
   const spacePhotoInputs = projectSpacePhotos(selectedProject, roomMediaKeys[space] || []);
   const selectedPhoto = spacePhotoInputs.find((photo) => photo.key === sourcePhotoKey && photo.url === sourceImage);
   const handoffError = useRevisionHandoff(projects, (project, revision) => {
+    setDirectionSet(null);
+    setDirectionReviewed(false);
+    setCaptureConfirmed(false);
     setPanoramaSources({ front: "", right: "", back: "", left: "" });
     setUploadedPanorama("");
     setFloorPlan("");
@@ -335,12 +342,14 @@ export default function AIGenerate() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
+      setDirectionSet(null);
+      setDirectionReviewed(false);
       setPanoramaSources((current) => ({ ...current, [directionId]: String(reader.result || "") }));
     };
     reader.readAsDataURL(file);
   };
 
-  const generate = async () => {
+  const generate = async (completeDirections = false) => {
     setError("");
     setTask(null);
     const panorama = mode === "panorama";
@@ -349,7 +358,9 @@ export default function AIGenerate() {
       if (!selectedProject) throw new Error("請先選擇 StyleMatch 專案。");
       if (!panorama && sourcePhotoKey && !selectedPhoto) throw new Error("原始照片已變動，請重新選取。");
       if (!panorama && spacePhotoInputs.length && !sourceImage) throw new Error("請先選擇一張空間原始照片，每張原圖各自生成對應參考圖。");
-      if (panorama && new Set(Object.values(panoramaSources).filter(Boolean)).size !== 4) throw new Error("請提供前、右、後、左四張不同的照片，不可重複使用同一張圖片。");
+      if (panorama && completeDirections && (!captureConfirmed || !Object.values(panoramaSources).some(Boolean))) throw new Error("請指定至少一個已知方向，並確認同一空間與共同拍攝中心。");
+      if (panorama && !completeDirections && new Set(Object.values(panoramaSources).filter(Boolean)).size !== 4) throw new Error("請先補齊四方向參考圖，或提供四個已知方向。");
+      if (panorama && !completeDirections && directionSet && !directionReviewed) throw new Error("請先核對四方向的門窗、家具、重疊與接縫。");
     } catch (accessError) {
       setError(accessError.message);
       return;
@@ -358,7 +369,7 @@ export default function AIGenerate() {
       ...direction,
       media_url: panoramaSources[direction.id],
     }));
-    if (panorama && panoramaSourceEntries.some((entry) => !entry.media_url)) {
+    if (panorama && !completeDirections && panoramaSourceEntries.some((entry) => !entry.media_url)) {
       setError("請依序上傳前、右、後、左四個方向的空間照片，再生成 360° 環景圖。");
       return;
     }
@@ -383,7 +394,7 @@ export default function AIGenerate() {
         ),
         body: JSON.stringify({
           ...(selectedPhoto && !panorama ? { provider: "comfyui" } : {}),
-          prompt,
+          prompt: completeDirections ? `${prompt} Some directions are unknown. Infer missing views only inside the masked region of the same room. One fixed camera center, shared wall layout, consistent materials and lighting. Unknown regions are an AI design hypothesis, not a measured reconstruction.` : prompt,
           negative_prompt: selectedStyleProfile.negative_prompt,
           style_id: selectedStyleProfile.id,
           style_catalog_version: "stylematch.style-catalog.v1",
@@ -394,7 +405,8 @@ export default function AIGenerate() {
           output_type: panorama ? "equirectangular_2_1" : "perspective_draft",
           proposal_scope: "stylematch_pre_match_concept",
           operation: { parent_asset_id: panorama ? null : (sourceRevisionId || null), source_image_url: panorama ? null : (sourceImage || null), space,
-            ...(selectedPhoto && !panorama ? { source_photo_room: selectedPhoto.room, source_photo_number: selectedPhoto.index + 1 } : {}) },
+            ...(selectedPhoto && !panorama ? { source_photo_room: selectedPhoto.room, source_photo_number: selectedPhoto.index + 1 } : {}),
+            ...(panorama ? { direction_completion: completeDirections, derived_direction_task_id: !completeDirections ? directionSet?.task_id || null : null, direction_review_confirmed: !completeDirections && directionReviewed } : {}) },
           room: space,
           room_geometry: { ...roomSize, height_notes: heightNotes },
           viewpoint,
@@ -422,8 +434,10 @@ export default function AIGenerate() {
             material,
             color_palette: colorPalette,
             panorama_capture: panorama ? {
-              input_mode: "four_direction_photos",
-              ordered_sources: panoramaSourceEntries,
+              input_mode: completeDirections ? "partial_direction_completion" : "four_direction_photos",
+              ordered_sources: completeDirections ? panoramaSourceEntries.filter((entry) => entry.media_url) : panoramaSourceEntries,
+              shared_center_confirmed: captureConfirmed,
+              horizontal_fov_degrees: 100,
               processing_order: [
                 "camera_calibration",
                 "perspective_to_equirectangular_projection",
@@ -446,6 +460,22 @@ export default function AIGenerate() {
   };
 
   const busy = task && ["queued", "running"].includes(task.status);
+  const loadDirectionReferences = async () => {
+    setDirectionSetBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`${API_BASE}/ai/image-tasks/${task.ai_task_id}/direction-references`, {
+        headers: requestHeaders(`direction-set-${task.ai_task_id}`, "stylematch_direction_reference_read", selectedProject?.case_code || "*"),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "四方向參考圖尚未就緒，請確認後端已更新。");
+      if (result.ordered_sources?.length !== 4 || !result.known_pixels_preserved || !result.shared_scene) throw new Error("四方向共同底圖或原圖保留檢查未通過。");
+      setDirectionSet(result);
+      setDirectionReviewed(false);
+      setPanoramaSources(Object.fromEntries(result.ordered_sources.map((view) => [view.id, view.media_url])));
+    } catch (loadError) { setError(loadError.message); }
+    finally { setDirectionSetBusy(false); }
+  };
   const generatedImage = task?.status === "completed" ? `${task.image_url}?v=${task.updated_at}` : "";
   const panoramaImage = uploadedPanorama || (mode === "panorama" ? generatedImage : "");
   const downloadableImage = mode === "panorama" ? panoramaImage : generatedImage;
@@ -555,7 +585,7 @@ export default function AIGenerate() {
               <CardContent className="space-y-5">
                 <div>
                   <label className="mb-2 block text-sm font-medium">StyleMatch 專案</label>
-                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={projectId} disabled={Boolean(busy)} onChange={(event) => { setProjectId(event.target.value); setSourceImage(""); setSourceRevisionId(""); setTask(null); setImageStyleAnalysis(null); setPanoramaSources({ front: "", right: "", back: "", left: "" }); setUploadedPanorama(""); setFloorPlan(""); }}>
+                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={projectId} disabled={Boolean(busy) || directionSetBusy} onChange={(event) => { setProjectId(event.target.value); setDirectionSet(null); setDirectionReviewed(false); setCaptureConfirmed(false); setSourceImage(""); setSourceRevisionId(""); setTask(null); setImageStyleAnalysis(null); setPanoramaSources({ front: "", right: "", back: "", left: "" }); setUploadedPanorama(""); setFloorPlan(""); }}>
                     <option value="">未連結專案</option>
                     {projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.case_code || project.project_id}</option>)}
                   </select>
@@ -563,7 +593,7 @@ export default function AIGenerate() {
 
                 <div>
                   <label className="mb-2 block text-sm font-medium">單一空間</label>
-                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={space} disabled={Boolean(busy)} onChange={(event) => { setSpace(event.target.value); setSourcePhotoKey(""); setSourceImage(""); setSourceRevisionId(""); }}>
+                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={space} disabled={Boolean(busy) || directionSetBusy} onChange={(event) => { setSpace(event.target.value); setSourcePhotoKey(""); setSourceImage(""); setSourceRevisionId(""); setDirectionSet(null); setDirectionReviewed(false); setCaptureConfirmed(false); setPanoramaSources({ front: "", right: "", back: "", left: "" }); setTask(null); }}>
                     {roomPresets.map((room) => <option key={room}>{room}</option>)}
                   </select>
                 </div>
@@ -572,22 +602,34 @@ export default function AIGenerate() {
                   <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-stone-900">四方向空間照片</p>
+                        <p className="text-sm font-semibold text-stone-900">四方向參考圖與缺失方向補生成</p>
                         <p className="mt-1 text-xs leading-5 text-stone-600">站在同一位置、同一相機高度，依前、右、後、左順序拍攝，相鄰畫面需保留重疊區域。</p>
                       </div>
                       <span className="shrink-0 text-xs font-semibold text-amber-800">{Object.values(panoramaSources).filter(Boolean).length}/4</span>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {panoramaCaptureDirections.map((direction) => (
+                        <div key={direction.id}>
                         <UploadField
                           key={direction.id}
                           label={direction.label}
                           hint="JPG、PNG、WebP"
                           preview={panoramaSources[direction.id]}
+                          disabled={Boolean(busy) || directionSetBusy}
                           onChange={panoramaSourceHandler(direction.id)}
                         />
+                        {!directionSet && <select aria-label={`${direction.label}選用專案照片`} disabled={Boolean(busy)} className="mt-1 w-full border bg-white p-2 text-sm" value="" onChange={(event) => {
+                          const photo = spacePhotoInputs.find((item) => item.key === event.target.value);
+                          if (photo) { setPanoramaSources((old) => ({ ...old, [direction.id]: new URL(photo.url, window.location.origin).href })); setDirectionReviewed(false); }
+                        }}><option value="">選用此空間已上傳照片</option>{spacePhotoInputs.map((photo) => <option key={photo.key} value={photo.key}>原圖 {photo.index + 1}</option>)}</select>}
+                        {directionSet && <p className="mt-1 text-xs">{directionSet.inferred_directions.includes(direction.id) ? "AI 推估方向，非現場照片" : "原始方向投影＋缺口修補"}</p>}
+                        </div>
                       ))}
                     </div>
+                    <label className="mt-3 flex gap-2 text-sm"><input type="checkbox" checked={captureConfirmed} onChange={(event) => setCaptureConfirmed(event.target.checked)} />已確認方向配置、同一空間與共同拍攝中心。未確認真實方位時，以前／右／後／左為準。</label>
+                    <Button type="button" variant="outline" className="mt-3 w-full" disabled={Boolean(busy) || directionSetBusy || health?.comfyui !== "online" || !captureConfirmed || !Object.values(panoramaSources).some(Boolean) || !selectedProject || !isBusinessPlan(planId)} onClick={() => generate(true)}>補生成四方向參考圖（{PANORAMA_GENERATION_COST} 點）</Button>
+                    {task?.status === "completed" && task.operation?.direction_completion && <Button type="button" variant="outline" className="mt-2 w-full" disabled={directionSetBusy} onClick={loadDirectionReferences}>{directionSetBusy ? "檢查並取出四方向中…" : "檢查並載入四方向參考圖"}</Button>}
+                    {directionSet && <div className="mt-3 text-sm"><p>四圖來自同一底圖；原圖未遮罩區域已保留。自動檢查不代表門窗與家具正確。</p><label className="mt-2 flex gap-2"><input type="checkbox" checked={directionReviewed} onChange={(event) => setDirectionReviewed(event.target.checked)} />已逐方向檢查門窗、家具、光線、重疊與左右接縫，接受 AI 推估內容後交給 360° 接合。</label></div>}
                     <p className="mt-3 text-xs leading-5 text-amber-900">系統會先校正與投影，再接合四方向照片並修補缺口與接縫；不是把四張照片當成切換選項。手機錄影與掃描資料之後也會轉成相同方向影格後進入此流程。</p>
                   </div>
                 ) : (
@@ -659,7 +701,7 @@ export default function AIGenerate() {
                   </div>
                 )}
 
-                <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || health?.comfyui !== "online" || !isBusinessPlan(planId) || !selectedProject || (mode === "panorama" && Object.values(panoramaSources).some((image) => !image))} onClick={generate}>
+                <Button className="w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || directionSetBusy || health?.comfyui !== "online" || !isBusinessPlan(planId) || !selectedProject || (mode === "panorama" && (Object.values(panoramaSources).some((image) => !image) || (directionSet && !directionReviewed)))} onClick={() => generate(false)}>
                   {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : mode === "panorama" ? <Orbit className="mr-2 h-4 w-4" /> : <Wand2 className="mr-2 h-4 w-4" />}
                   {busy ? "ComfyUI 生成中" : mode === "panorama" ? `產生 2:1 環景草案（${PANORAMA_GENERATION_COST} 點）` : `產生空間創意彩現（${IMAGE_GENERATION_COST} 點）`}
                 </Button>

@@ -59,16 +59,16 @@ def fill_missing_vertical(rgb: np.ndarray, valid: np.ndarray) -> np.ndarray:
 
 
 def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_output: Path,
-            width: int, height: int, hfov: float, seam_degrees: float) -> dict:
+            width: int, height: int, hfov: float, seam_degrees: float, allow_partial: bool = False) -> dict:
     if width != height * 2:
         raise ValueError("Equirectangular output must use an exact 2:1 width-to-height ratio.")
-    if set(inputs) != set(YAW_BY_DIRECTION):
+    if (not allow_partial and set(inputs) != set(YAW_BY_DIRECTION)) or not inputs or not set(inputs).issubset(YAW_BY_DIRECTION):
         raise ValueError("Four distinct directional sources are required.")
     if not 90 < hfov < 180:
         raise ValueError("Horizontal FOV must be between 90 and 180 degrees with overlap.")
     images = {direction: load_rgb(path) for direction, path in inputs.items()}
     pixel_hashes = {hashlib.sha256(image.tobytes()).hexdigest() for image in images.values()}
-    if len(pixel_hashes) != 4:
+    if len(pixel_hashes) != len(inputs):
         raise ValueError("Duplicate directional images are not a valid four-direction capture.")
 
     x = (np.arange(width, dtype=np.float32) + 0.5) / width
@@ -84,6 +84,8 @@ def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_o
     hfov_tangent = math.tan(math.radians(hfov) / 2.0)
 
     for direction, yaw_degrees in YAW_BY_DIRECTION.items():
+        if direction not in images:
+            continue
         image = images[direction]
         source_height, source_width = image.shape[:2]
         aspect = source_width / source_height
@@ -108,6 +110,9 @@ def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_o
     valid = weight_sum > 0
     rgb = np.divide(weighted_rgb, np.maximum(weight_sum[..., None], 1e-6))
     rgb = fill_missing_vertical(rgb, valid)
+    if allow_partial:
+        # Neutral initialization only, never represented as a generated view.
+        rgb[:, ~valid.any(axis=0)] = np.mean([image.mean(axis=(0, 1)) for image in images.values()], axis=0)
 
     seam_mask = ~valid
     seam_radius = max(2, round(width * seam_degrees / 360.0 / 2.0))
@@ -122,13 +127,16 @@ def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_o
     Image.fromarray(np.where(seam_mask, 255, 0).astype(np.uint8), "L").save(mask_output)
 
     manifest = {
-        "workflow_version": WORKFLOW_VERSION,
+        "workflow_version": "stylematch-partial-room-completion-v1" if allow_partial else WORKFLOW_VERSION,
         "projection": "equirectangular_2_1",
         "ordered_directions": list(YAW_BY_DIRECTION),
         "camera": {"shared_center_required": True, "horizontal_fov_degrees": hfov},
         "output": {"path": str(output), "width": width, "height": height},
         "mask": {"path": str(mask_output), "coverage_ratio": round(float(seam_mask.mean()), 6)},
-        "inputs": [{"direction": direction, "path": str(inputs[direction]), "sha256": sha256(inputs[direction])} for direction in YAW_BY_DIRECTION],
+        "inputs": [{"direction": direction, "path": str(inputs[direction]), "sha256": sha256(inputs[direction])} for direction in YAW_BY_DIRECTION if direction in inputs],
+        "inferred_directions": [direction for direction in YAW_BY_DIRECTION if direction not in inputs],
+        "semantic_consistency_verified": False,
+        "human_review_required": True,
     }
     manifest_output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest
@@ -137,7 +145,8 @@ def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_o
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a masked 2:1 ERP draft from front/right/back/left photos.")
     for direction in YAW_BY_DIRECTION:
-        parser.add_argument(f"--{direction}", type=Path, required=True)
+        parser.add_argument(f"--{direction}", type=Path)
+    parser.add_argument("--allow-partial", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--mask-output", type=Path)
     parser.add_argument("--manifest-output", type=Path)
@@ -153,11 +162,11 @@ def main() -> None:
     output = args.output.resolve()
     mask_output = (args.mask_output or output.with_name(f"{output.stem}-mask.png")).resolve()
     manifest_output = (args.manifest_output or output.with_suffix(".json")).resolve()
-    inputs = {direction: getattr(args, direction).resolve() for direction in YAW_BY_DIRECTION}
+    inputs = {direction: getattr(args, direction).resolve() for direction in YAW_BY_DIRECTION if getattr(args, direction)}
     missing = [str(path) for path in inputs.values() if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"Missing input files: {', '.join(missing)}")
-    manifest = compose(inputs, output, mask_output, manifest_output, args.width, args.height, args.hfov, args.seam_degrees)
+    manifest = compose(inputs, output, mask_output, manifest_output, args.width, args.height, args.hfov, args.seam_degrees, args.allow_partial)
     print(json.dumps(manifest, ensure_ascii=False))
 
 

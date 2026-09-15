@@ -17,6 +17,7 @@ import { createProductionAdapters } from "./production-adapters.mjs";
 import { authenticateOidcRequest } from "./oidc-auth.mjs";
 import { createFieldEvidenceService } from "./field-evidence.mjs";
 import { generateGeminiImage, GEMINI_IMAGE_MODELS } from "./gemini-image-provider.mjs";
+import { validateDirectionCompletion } from "./direction-completion.mjs";
 
 const HOST = process.env.ISAFE_API_HOST || "127.0.0.1";
 const PORT = Number(process.env.ISAFE_API_PORT || 4180);
@@ -2139,7 +2140,7 @@ function buildPanoramaWorkflow({ prompt, negativePrompt, seed, filenamePrefix, s
   return hydrateWorkflowTemplate(panoramaWorkflowTemplate, {
     "{{seed}}": seed,
     "{{checkpoint}}": COMFYUI_CHECKPOINT,
-    "{{prompt}}": `${prompt} Preserve all unmasked geometry. Repair only masked polar gaps and blend seams continuously across the left/right ERP boundary.`,
+    "{{prompt}}": `${prompt} Preserve all unmasked geometry. Fill only masked unknown regions and polar gaps, blending seams continuously across the left/right ERP boundary.`,
     "{{negative_prompt}}": `${negativePrompt}, changed room layout, changed doors, changed windows, duplicated objects, visible seams, broken panorama boundary`,
     "{{filename_prefix}}": filenamePrefix,
     "{{source_image}}": sourceImage,
@@ -2173,17 +2174,21 @@ async function preparePanoramaInput(payload, aiTaskId, width, height) {
   const capture = payload.source_content?.panorama_capture;
   const ordered = Array.isArray(capture?.ordered_sources) ? capture.ordered_sources : [];
   const expected = ["front", "right", "back", "left"];
-  if (capture?.input_mode !== "four_direction_photos" || ordered.length !== 4 || expected.some((direction, index) => ordered[index]?.id !== direction || !ordered[index]?.media_url)) {
+  const completion = capture?.input_mode === "partial_direction_completion";
+  if (completion) {
+    try { validateDirectionCompletion(capture); } catch (error) { fail(error.message, "DIRECTION_COMPLETION_INVALID", 400); }
+  } else if (capture?.input_mode !== "four_direction_photos" || ordered.length !== 4 || expected.some((direction, index) => ordered[index]?.id !== direction || !ordered[index]?.media_url)) {
     fail("Panorama generation requires four ordered sources: front, right, back, left.", "PANORAMA_FOUR_DIRECTION_SOURCES_REQUIRED", 400, { expected_order: expected });
   }
   if (width !== height * 2) fail("Panorama output must use an exact 2:1 ratio.", "PANORAMA_RATIO_INVALID", 400, { width, height });
-  if (new Set(ordered.map((entry) => entry.media_url)).size !== 4) fail("Each direction must use a different source photo.", "PANORAMA_DUPLICATE_SOURCE", 400);
+  if (new Set(ordered.map((entry) => entry.media_url)).size !== ordered.length) fail("Each direction must use a different source photo.", "PANORAMA_DUPLICATE_SOURCE", 400);
 
   const taskDir = join(dataDir, "panorama-tasks", aiTaskId);
   mkdirSync(taskDir, { recursive: true });
   const inputPaths = {};
   for (const direction of expected) {
     const entry = ordered.find((item) => item.id === direction);
+    if (!entry && completion) continue;
     inputPaths[direction] = await materializeImageSource(entry.media_url, join(taskDir, direction));
   }
   const outputPath = join(taskDir, "erp-draft.png");
@@ -2191,7 +2196,8 @@ async function preparePanoramaInput(payload, aiTaskId, width, height) {
   const manifestPath = join(taskDir, "manifest.json");
   const script = join(root, "scripts", "four_direction_to_erp.py");
   const args = [script,
-    "--front", inputPaths.front, "--right", inputPaths.right, "--back", inputPaths.back, "--left", inputPaths.left,
+    ...Object.entries(inputPaths).flatMap(([direction, path]) => [`--${direction}`, path]),
+    ...(completion ? ["--allow-partial"] : []),
     "--output", outputPath, "--mask-output", maskPath, "--manifest-output", manifestPath,
     "--width", String(width), "--height", String(height), "--hfov", String(Number(capture.horizontal_fov_degrees) || 100),
   ];
@@ -2241,6 +2247,17 @@ async function createImageTask(payload, ctx) {
     fail(error.message, error.code || "VISUAL_EDIT_CONTRACT_INVALID", 400, error.details);
   }
   const existing = db.prepare("SELECT * FROM ai_image_tasks WHERE idempotency_key=?").get(ctx.idempotency_key);
+  if (operation.derived_direction_task_id) {
+    assertAiTaskAuthorization(operation.derived_direction_task_id, ctx);
+    const sourceTask = db.prepare("SELECT * FROM ai_image_tasks WHERE ai_task_id=?").get(operation.derived_direction_task_id);
+    if (sourceTask.tenant_id !== ctx.tenant_id || sourceTask.organization_id !== ctx.organization_id || sourceTask.stylematch_project_id !== (payload.stylematch_project_id || null)) fail("Direction source belongs to another project or tenant", "DIRECTION_SCOPE_MISMATCH", 403);
+    if (operation.direction_review_confirmed !== true) fail("Review inferred room views before stitching", "DIRECTION_REVIEW_REQUIRED", 400);
+    const referencesPath = join(dataDir, "panorama-tasks", sourceTask.ai_task_id, "direction-references.json");
+    if (sourceTask.status !== "completed" || !existsSync(referencesPath)) fail("Direction references not ready", "DIRECTION_REFERENCES_REQUIRED", 409);
+    const references = JSON.parse(readFileSync(referencesPath, "utf8"));
+    const supplied = payload.source_content?.panorama_capture?.ordered_sources || [];
+    if (supplied.length !== 4 || references.ordered_sources.some((view) => !supplied.some((item) => item.id === view.id && item.yaw === view.yaw && item.media_url === view.media_url))) fail("Direction references changed; review the new set", "DIRECTION_LINEAGE_MISMATCH", 400);
+  }
   if (existing) return { task: serializeImageTask(existing), created: false };
   const aiTaskId = uid("aitask");
   const at = now();
@@ -3585,6 +3602,22 @@ const server = createServer(async (req, res) => {
     }
     const imageTaskMatch = url.pathname.match(/^\/api\/v1\/ai\/image-tasks\/([^/]+)$/);
     if (req.method === "GET" && imageTaskMatch) { const id = decodeURIComponent(imageTaskMatch[1]); assertAiTaskAuthorization(id, ctx); return send(req, res, 200, { task: serializeImageTask(await refreshImageTask(id)) }); }
+    const directionReferencesMatch = url.pathname.match(/^\/api\/v1\/ai\/image-tasks\/([^/]+)\/direction-references$/);
+    if (req.method === "GET" && directionReferencesMatch) {
+      assertWriteAccess(req);
+      const id = decodeURIComponent(directionReferencesMatch[1]);
+      assertAiTaskAuthorization(id, ctx);
+      const task = await refreshImageTask(id);
+      if (task.tenant_id !== ctx.tenant_id || task.organization_id !== ctx.organization_id) fail("Direction task belongs to another tenant", "DIRECTION_SCOPE_MISMATCH", 403);
+      const operation = JSON.parse(task.operation_metadata || "{}");
+      if (operation.panorama_capture?.workflow_version !== "stylematch-partial-room-completion-v1") fail("Not a direction completion task", "DIRECTION_TASK_REQUIRED", 400);
+      if (task.status !== "completed") fail("方向補生成尚未完成", "DIRECTION_TASK_PENDING", 409);
+      const directory = join(dataDir, "panorama-tasks", task.ai_task_id);
+      writeFileSync(join(directory, "generated.png"), (await readImageTaskOutput(task)).bytes);
+      const result = spawnSync(COMFYUI_PYTHON, [join(root, "scripts", "complete_direction_views.py"), directory], { cwd: root, timeout: 120000, encoding: "utf8", windowsHide: true });
+      if (result.error || result.status !== 0) fail("四方向取景或尺寸檢查失敗", "DIRECTION_EXTRACTION_FAILED", 422);
+      return send(req, res, 200, { task_id: id, ...JSON.parse(readFileSync(join(directory, "direction-references.json"), "utf8")) });
+    }
     const downloadFileMatch = url.pathname.match(/^\/api\/v1\/ai\/image-tasks\/([^/]+)\/download$/);
     if (req.method === "GET" && downloadFileMatch) {
       const aiTaskId = decodeURIComponent(downloadFileMatch[1]);
