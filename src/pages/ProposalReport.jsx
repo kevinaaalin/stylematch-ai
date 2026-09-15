@@ -38,18 +38,20 @@ export default function ProposalReport() {
   const reportRef = useRef(null);
   const projectId = searchParams.get("project");
   const sampleMode = searchParams.get("sample") === "1";
+  const [versionId, setVersionId] = useState("");
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
     return localStore.subscribe(refresh);
   }, []);
 
-  const project = sampleMode
+  const currentProject = sampleMode
     ? buildSampleProject()
-    : database.projects.find((item) => item.id === projectId || item.project_id === projectId)
-      || database.projects[0]
-      || buildSampleProject();
-  const proposal = useMemo(() => buildProposal(project), [project]);
+    : database.projects.find((item) => item.id === projectId || item.project_id === projectId);
+  const versions = currentProject?.proposal_versions || [];
+  const project = versionId ? versions.find((item) => item.version_id === versionId)?.project_snapshot : currentProject;
+  const proposal = useMemo(() => project ? buildProposal(project) : null, [project]);
+  useEffect(() => setVersionId(""), [projectId, sampleMode]);
 
   const downloadPdf = async () => {
     setIsExporting(true);
@@ -83,12 +85,15 @@ export default function ProposalReport() {
     }
   };
 
+  if (!proposal) return <div className="mx-auto max-w-3xl p-6"><Alert><AlertDescription>找不到指定專案或提案版本，請返回我的專案重新選擇。</AlertDescription></Alert><Link to={createPageUrl("MyProjects")}>返回我的專案</Link></div>;
+
   return (
     <div className="min-h-screen bg-stone-100 py-6">
       <div className="mx-auto mb-5 flex max-w-[900px] flex-wrap items-center justify-between gap-3 px-4">
         <div>
           <p className="text-sm font-medium text-amber-700">StyleMatch AI 提案工作流</p>
           <h1 className="text-2xl font-bold text-stone-950">設計提案預覽</h1>
+          {versions.length > 0 && <label className="mt-3 block text-sm">提案版本<select className="ml-2 rounded-md border p-2" value={versionId} onChange={(event) => setVersionId(event.target.value)}><option value="">目前資料預覽</option>{versions.map((item) => <option key={item.version_id} value={item.version_id}>v{item.version} · {item.created_at}</option>)}</select></label>}
         </div>
         <div className="flex gap-2">
           <Link to={createPageUrl("MyProjects")}><Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" />返回專案</Button></Link>

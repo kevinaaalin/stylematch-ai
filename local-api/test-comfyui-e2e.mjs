@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const useExisting = process.env.E2E_USE_EXISTING === "1";
+const imageToImage = process.env.E2E_IMG2IMG === "1";
 const port = useExisting ? 4180 : 4281;
 const origin = process.env.STYLEMATCH_LOCAL_API || `http://127.0.0.1:${port}`;
 const temp = useExisting ? null : mkdtempSync(join(tmpdir(), "stylematch-comfy-e2e-"));
@@ -35,7 +36,8 @@ try {
   const healthResponse = await fetch(`${origin}/api/v1/ai/health`);
   assert.equal(healthResponse.ok, true);
   const health = await healthResponse.json();
-  if (health.comfyui !== "online") throw new Error(`COMFYUI_E2E_BLOCKED: ComfyUI is ${health.comfyui}; expected http://127.0.0.1:8188`);
+  const comfyStatus = health.local_image?.status || health.comfyui;
+  if (comfyStatus !== "online") throw new Error(`COMFYUI_E2E_BLOCKED: ComfyUI is ${comfyStatus}; expected http://127.0.0.1:8188`);
 
   const createResponse = await fetch(`${origin}/api/v1/ai/image-tasks`, {
     method: "POST", headers,
@@ -43,7 +45,8 @@ try {
       prompt: "Professional modern living room interior, clean lines, warm wood, practical circulation, photorealistic architectural visualization, no people, no text",
       negative_prompt: "distorted architecture, duplicated furniture, warped doors, text, logo, watermark, low resolution",
       style_id: "modern", style_catalog_version: "stylematch.style-catalog.v1", seed: 20260810,
-      width: 1024, height: 768, output_type: "perspective_draft", source_media_count: 0,
+      width: 1024, height: 768, output_type: "perspective_draft", source_media_count: imageToImage ? 1 : 0,
+      source_media_urls: imageToImage ? [`data:image/jpeg;base64,${readFileSync(new URL("../public/home-showcase/living-room-before.jpg", import.meta.url)).toString("base64")}`] : [],
       operation: { acceptance: "unified_ai_image_task_contract", proposal_scope: "stylematch_pre_match_concept" },
     }),
   });
@@ -51,7 +54,7 @@ try {
   assert.equal(createResponse.status, 202, JSON.stringify(created));
   assert.equal(created.task.style_id, "modern");
   assert.equal(created.task.seed, 20260810);
-  assert.equal(created.task.workflow_version, "stylematch-sdxl-v1");
+  assert.equal(created.task.workflow_version, imageToImage ? "stylematch-sdxl-img2img-v1" : "stylematch-sdxl-v1");
 
   let task = created.task;
   for (let attempt = 0; attempt < 120 && !["completed", "failed"].includes(task.status); attempt += 1) {

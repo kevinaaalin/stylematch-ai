@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { splitIntoChunks } from './lib/knowledge-chunks.mjs';
+const paragraph = '界'.repeat(3601) + '\u{1f642}' + 'end';
+const chunks = splitIntoChunks(`# Source\n${paragraph}`, 'fallback');
+assert.equal(chunks.map(item => item.text).join(''), paragraph);
+assert.ok(chunks.every(item => Array.from(item.text).length <= 1200));
+assert.equal(chunks.length, 4);
+assert.equal(chunks[3].chunkIndex, 3);
+assert.deepEqual(splitIntoChunks('', 'empty'), []);
+assert.equal(splitIntoChunks('# A\nfirst\n## B\nlast', 'fallback')[1].heading, 'B');
+assert.throws(() => splitIntoChunks('a', 'b', 0));
+console.log('Knowledge chunks preserve complete long paragraphs, Unicode and section provenance.');

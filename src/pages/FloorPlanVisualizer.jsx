@@ -14,6 +14,8 @@ import { localStore } from "@/lib/localStore";
 import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan, requireBusinessPlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
 import StructuredSpacePanel from "@/components/floorplan/StructuredSpacePanel";
+import RecentRevisionLauncher from "@/components/ai/RecentRevisionLauncher";
+import { projectFloorPlans } from "@/lib/projectFloorPlans";
 
 const POINT_COSTS = { birdseye: 10, redraw: 5, room: 10 };
 
@@ -40,6 +42,24 @@ export default function FloorPlanVisualizer() {
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
   const project = projects.find((item) => item.project_id === projectId || item.id === projectId);
+  const savedFloorPlans = projectFloorPlans(project);
+  const selectProject = (nextId) => {
+    if (nextId === projectId) return;
+    setProjectId(nextId);
+    setFloorPlanUrl("");
+    setBirdseyeUrl("");
+    setRoomUrl("");
+    setArea("");
+    setScale("");
+    setHeight("280");
+    setBeamNotes("");
+    setRedrawInstruction("");
+    setCameraPoint({ x: 50, y: 55 });
+    setDirection(0);
+    setFov(60);
+    setMessage("");
+    clearMask();
+  };
 
   const generateUnified = async ({ prompt, outputType, purpose, sourceMediaUrls, operation }) => {
     try {
@@ -50,11 +70,13 @@ export default function FloorPlanVisualizer() {
     }
   };
 
-  const saveGeneratedRevision = (generated, imageRole, prompt, detail = {}) => {
-    if (!project) return;
-    localStore.saveReferenceRevision(project.project_id, {
+  const saveGeneratedRevision = (generated, imageRole, prompt, cost, detail = {}) => {
+    if (!project) throw new Error("請先選擇專案。");
+    return localStore.commitGeneratedRevision(project.project_id, {
+      parent_asset_id: (project.reference_revisions || []).find((item) => item.image_url === detail.source_image_url)?.revision_id || null,
       image_url: generated.url, image_role: imageRole, prompt,
       source_task_id: generated.task?.ai_task_id || null,
+      task_status: generated.task?.status || null,
       workflow_version: generated.task?.workflow_version || null,
       checkpoint: generated.task?.checkpoint || null,
       seed: generated.task?.seed ?? null,
@@ -62,7 +84,7 @@ export default function FloorPlanVisualizer() {
       authoritative: generated.authoritative,
       fallback_reason: generated.fallback_reason || null,
       ...detail,
-    });
+    }, { type: imageRole, cost, detail: imageRole, idempotencyKey: `${imageRole}-${project.project_id}-${generated.task?.ai_task_id}` });
   };
 
   useEffect(() => localStore.subscribe(() => setDatabase(localStore.getAll())), []);
@@ -72,13 +94,6 @@ export default function FloorPlanVisualizer() {
     window.addEventListener("storage", refreshPlan);
     return () => { window.removeEventListener(PLAN_CHANGE_EVENT, refreshPlan); window.removeEventListener("storage", refreshPlan); };
   }, []);
-
-  const charge = (type, cost, detail) => localStore.consumePoints(projectId, {
-    type,
-    cost,
-    detail,
-    idempotencyKey: `${type}-${projectId}-${crypto.randomUUID()}`,
-  });
 
   const uploadFloorPlan = async (event) => {
     const file = event.target.files?.[0];
@@ -93,7 +108,7 @@ export default function FloorPlanVisualizer() {
     try { requireBusinessPlan("鳥瞰圖生成"); } catch (error) { return setMessage(error.message); }
     setBusy("birdseye");
     const prompt = `${style}住宅，依平面配置生成全屋等角鳥瞰概念圖，約${area || "未提供"}坪，層高${height}公分，保留空間分區與動線。`;
-    try { const result = await generateUnified({ prompt, outputType: "floorplan_birdseye", purpose: "stylematch_floorplan_birdseye", sourceMediaUrls: [floorPlanUrl], operation: { area, scale, height, beam_notes: beamNotes, style } }); const payment = charge("floorplan_birdseye", POINT_COSTS.birdseye, "平面圖鳥瞰生成"); setBirdseyeUrl(result.url); saveGeneratedRevision(result, "floorplan_birdseye", prompt, { source_image_url: floorPlanUrl }); setMessage(`鳥瞰概念圖已生成，扣除 ${POINT_COSTS.birdseye} 點，餘額 ${payment.balance} 點。`); } catch (error) { setMessage(error.message); } finally { setBusy(""); }
+    try { const result = await generateUnified({ prompt, outputType: "floorplan_birdseye", purpose: "stylematch_floorplan_birdseye", sourceMediaUrls: [floorPlanUrl], operation: { area, scale, height, beam_notes: beamNotes, style } }); const payment = await saveGeneratedRevision(result, "floorplan_birdseye", prompt, POINT_COSTS.birdseye, { source_image_url: floorPlanUrl }); setBirdseyeUrl(result.url); setMessage(`鳥瞰概念圖已生成，扣除 ${POINT_COSTS.birdseye} 點，餘額 ${payment.balance} 點。`); } catch (error) { setMessage(error.message); } finally { setBusy(""); }
   };
 
   const canvasPoint = (event) => {
@@ -109,7 +124,7 @@ export default function FloorPlanVisualizer() {
     if (!birdseyeUrl || !redrawInstruction.trim()) return setMessage("請先生成鳥瞰圖、圈選區域並輸入修正指示。");
     try { requireBusinessPlan("遮罩區域重繪"); } catch (error) { return setMessage(error.message); }
     setBusy("redraw");
-    try { const prompt = `${style}全屋鳥瞰圖，僅修改遮罩區域：${redrawInstruction}，其餘格局、家具與視角保持不變。`; const maskDataUrl = canvasRef.current?.toDataURL("image/png") || null; const result = await generateUnified({ prompt, outputType: "floorplan_region_redraw", purpose: "stylematch_floorplan_region_redraw", sourceMediaUrls: [birdseyeUrl, maskDataUrl], operation: { instruction: redrawInstruction, style } }); const payment = charge("floorplan_region_redraw", POINT_COSTS.redraw, "遮罩區域重繪"); setBirdseyeUrl(result.url); saveGeneratedRevision(result, "floorplan_region_redraw", prompt, { source_image_url: birdseyeUrl, instruction: redrawInstruction }); clearMask(); setMessage(`局部重繪完成，扣除 ${POINT_COSTS.redraw} 點，餘額 ${payment.balance} 點。`); } catch (error) { setMessage(error.message); } finally { setBusy(""); }
+    try { const prompt = `${style}全屋鳥瞰圖，僅修改遮罩區域：${redrawInstruction}，其餘格局、家具與視角保持不變。`; const maskDataUrl = canvasRef.current?.toDataURL("image/png") || null; const result = await generateUnified({ prompt, outputType: "floorplan_region_redraw", purpose: "stylematch_floorplan_region_redraw", sourceMediaUrls: [birdseyeUrl, maskDataUrl], operation: { instruction: redrawInstruction, style } }); const payment = await saveGeneratedRevision(result, "floorplan_region_redraw", prompt, POINT_COSTS.redraw, { source_image_url: birdseyeUrl, instruction: redrawInstruction }); setBirdseyeUrl(result.url); clearMask(); setMessage(`局部重繪完成，扣除 ${POINT_COSTS.redraw} 點，餘額 ${payment.balance} 點。`); } catch (error) { setMessage(error.message); } finally { setBusy(""); }
   };
 
   const setCamera = (event) => {
@@ -119,7 +134,7 @@ export default function FloorPlanVisualizer() {
   const generateRoom = async () => {
     try { requireBusinessPlan("指定視角空間生成"); } catch (error) { return setMessage(error.message); }
     setBusy("room");
-    try { const prompt = `${style}住宅單空間室內概念參考圖，相機位於平面圖 ${cameraPoint.x}%,${cameraPoint.y}%，朝向${direction}度，水平視角${fov}度。`; const result = await generateUnified({ prompt, outputType: "floorplan_room_view", purpose: "stylematch_floorplan_room_view", sourceMediaUrls: [floorPlanUrl, birdseyeUrl], operation: { camera_point: cameraPoint, direction, fov, style } }); const payment = charge("floorplan_room_view", POINT_COSTS.room, "指定視角空間生成"); setRoomUrl(result.url); saveGeneratedRevision(result, "floorplan_room_view", prompt, { source_image_url: birdseyeUrl || floorPlanUrl, viewpoint: { camera_point: cameraPoint, direction, fov } }); setMessage(`指定視角空間圖已生成，扣除 ${POINT_COSTS.room} 點，餘額 ${payment.balance} 點。`); } catch (error) { setMessage(error.message); } finally { setBusy(""); }
+    try { const prompt = `${style}住宅單空間室內概念參考圖，相機位於平面圖 ${cameraPoint.x}%,${cameraPoint.y}%，朝向${direction}度，水平視角${fov}度。`; const result = await generateUnified({ prompt, outputType: "floorplan_room_view", purpose: "stylematch_floorplan_room_view", sourceMediaUrls: [floorPlanUrl, birdseyeUrl], operation: { camera_point: cameraPoint, direction, fov, style } }); const payment = await saveGeneratedRevision(result, "floorplan_room_view", prompt, POINT_COSTS.room, { source_image_url: birdseyeUrl || floorPlanUrl, viewpoint: { camera_point: cameraPoint, direction, fov } }); setRoomUrl(result.url); setMessage(`指定視角空間圖已生成，扣除 ${POINT_COSTS.room} 點，餘額 ${payment.balance} 點。`); } catch (error) { setMessage(error.message); } finally { setBusy(""); }
   };
 
   return (
@@ -127,8 +142,15 @@ export default function FloorPlanVisualizer() {
       <header><Badge variant="outline">平面圖驅動空間提案引擎</Badge><h1 className="mt-3 flex items-center gap-2 text-3xl font-bold"><Layers3 className="h-7 w-7" />平面圖 AI 視覺化</h1><p className="mt-2 text-stone-600">解析平面圖、生成鳥瞰概念圖、遮罩區域重繪，再指定相機位置與 FOV 產生空間參考圖。</p></header>
       <Alert><AlertDescription>本工具輸出為 AI 概念提案，不是施工圖或精準 3D 模型；尺寸、樑位與可施工性仍須由專業人員確認。</AlertDescription></Alert>
       <div className="flex flex-wrap items-center gap-3 border border-stone-200 bg-white p-4 text-sm"><Badge className={isBusinessPlan(planId) ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-stone-200 text-stone-700 hover:bg-stone-200"}>{isBusinessPlan(planId) ? "商業方案已啟用" : "需升級商業方案"}</Badge><span className="text-stone-600"><Coins className="mr-1 inline h-4 w-4" />鳥瞰 {POINT_COSTS.birdseye} 點／局部重繪 {POINT_COSTS.redraw} 點／指定視角 {POINT_COSTS.room} 點</span>{!isBusinessPlan(planId) && <Button asChild size="sm" variant="outline"><Link to={createPageUrl("PricingPlans")}><Crown className="mr-2 h-4 w-4" />升級商業方案</Link></Button>}</div>
-      <label className="block max-w-xl text-sm font-medium">專案<select className="mt-2 h-10 w-full rounded-md border border-stone-300 bg-white px-3" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">請選擇專案</option>{projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.case_code} - {project.project_name || project.name || "未命名專案"}</option>)}</select></label>
+      <label className="block max-w-xl text-sm font-medium">專案<select className="mt-2 h-10 w-full rounded-md border border-stone-300 bg-white px-3" value={projectId} disabled={Boolean(busy)} onChange={(event) => selectProject(event.target.value)}><option value="">請選擇專案</option>{projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.case_code} - {project.project_name || project.name || "未命名專案"}</option>)}</select></label>
 
+      {projectId && !project && <Alert><AlertDescription>找不到指定專案，請重新選擇專案。</AlertDescription></Alert>}
+      <label className="block max-w-xl text-sm font-medium">專案已存平面圖
+        <select className="mt-2 h-10 w-full rounded-md border border-stone-300 bg-white px-3" disabled={Boolean(busy) || !savedFloorPlans.length} value={savedFloorPlans.includes(floorPlanUrl) ? floorPlanUrl : ""} onChange={(event) => { setFloorPlanUrl(event.target.value); setBirdseyeUrl(""); setRoomUrl(""); clearMask(); }}>
+          <option value="" disabled>{savedFloorPlans.length ? "選擇平面圖" : "尚無已存平面圖"}</option>
+          {savedFloorPlans.map((url, index) => <option key={url} value={url}>平面圖 {index + 1}</option>)}
+        </select>
+      </label>
       <Tabs defaultValue="upload" className="space-y-5"><TabsList className="h-auto flex-wrap justify-start"><TabsTrigger value="upload">1 上傳與分析</TabsTrigger><TabsTrigger value="birdseye">2 鳥瞰與區域重繪</TabsTrigger><TabsTrigger value="camera">3 指定視角</TabsTrigger></TabsList>
         <TabsContent value="upload"><div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
           <Card className="rounded-md"><CardHeader><CardTitle>平面圖來源</CardTitle></CardHeader><CardContent><label className="grid min-h-80 cursor-pointer place-items-center overflow-hidden border border-dashed border-stone-300 bg-stone-100">{floorPlanUrl ? <img src={floorPlanUrl} alt="上傳的平面圖" className="max-h-[520px] w-full object-contain" /> : <span className="text-center text-sm text-stone-600"><Upload className="mx-auto mb-2 h-7 w-7" />上傳 JPG、PNG 或 PDF 平面圖</span>}<input className="sr-only" type="file" accept="image/*,.pdf" onChange={uploadFloorPlan} /></label></CardContent></Card>
@@ -143,6 +165,7 @@ export default function FloorPlanVisualizer() {
           <Card className="rounded-md"><CardHeader><CardTitle>視角設定</CardTitle></CardHeader><CardContent className="space-y-5"><label className="block text-sm font-medium">朝向 {direction}°<input className="mt-2 w-full accent-amber-500" type="range" min="0" max="359" value={direction} onChange={(e) => setDirection(Number(e.target.value))} /></label><label className="block text-sm font-medium">水平 FOV {fov}°<input className="mt-2 w-full accent-amber-500" type="range" min="35" max="90" value={fov} onChange={(e) => setFov(Number(e.target.value))} /></label><p className="text-xs leading-5 text-stone-500">在左側平面圖點選相機位置；60° 為預設參考視角。</p><Button className="w-full" onClick={generateRoom} disabled={!floorPlanUrl || busy === "room" || !isBusinessPlan(planId) || !projectId}>{busy === "room" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}生成空間參考圖（{POINT_COSTS.room} 點）</Button></CardContent></Card>
         </div></TabsContent>
       </Tabs>
+      <RecentRevisionLauncher projects={projects} workflow="FloorPlanVisualizer" disabled={Boolean(busy)} />
       <StructuredSpacePanel projectId={projectId} project={project} floorPlanUrl={floorPlanUrl} />
       {message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}
     </div>

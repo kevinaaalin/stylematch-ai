@@ -8,7 +8,7 @@
     "R9",
     "R9.1"
   ],
-  "generatedAt": "2026-09-08T12:06:42.418Z",
+  "generatedAt": "2026-09-15T06:30:58.359Z",
   "networkDependency": false,
   "canonicalReadingOrder": [
     "engineering-master",
@@ -23,7 +23,7 @@
     "R9.2.1 Field Evidence Addendum"
   ],
   "documentCount": 5,
-  "chunkCount": 208,
+  "chunkCount": 441,
   "releaseStatus": "Approved Specification Baseline / Candidate Supplemental Knowledge",
   "phase0RepositoryAuditRequired": true,
   "finalOfficialAllowed": false,

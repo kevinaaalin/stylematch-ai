@@ -2177,6 +2177,7 @@ async function preparePanoramaInput(payload, aiTaskId, width, height) {
     fail("Panorama generation requires four ordered sources: front, right, back, left.", "PANORAMA_FOUR_DIRECTION_SOURCES_REQUIRED", 400, { expected_order: expected });
   }
   if (width !== height * 2) fail("Panorama output must use an exact 2:1 ratio.", "PANORAMA_RATIO_INVALID", 400, { width, height });
+  if (new Set(ordered.map((entry) => entry.media_url)).size !== 4) fail("Each direction must use a different source photo.", "PANORAMA_DUPLICATE_SOURCE", 400);
 
   const taskDir = join(dataDir, "panorama-tasks", aiTaskId);
   mkdirSync(taskDir, { recursive: true });

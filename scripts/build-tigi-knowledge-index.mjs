@@ -2,6 +2,7 @@ import { access, copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "n
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { splitIntoChunks } from './lib/knowledge-chunks.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const releaseRoot = path.resolve(appRoot, "..", "TIGI_4_Technical_Masters_20260820_R9_2_Consolidated");
@@ -45,27 +46,6 @@ const normalizeText = (value) => String(value || "").replace(/\r\n/g, "\n").repl
 const titleFromMarkdown = (markdown, fileName) => markdown.match(/^#\s+(.+)$/m)?.[1]?.trim() || fileName.replace(/\.md$/i, "").replace(/[_-]+/g, " ");
 const headingsFromMarkdown = (markdown) => Array.from(markdown.matchAll(/^#{1,4}\s+(.+)$/gm)).map((match) => normalizeText(match[1])).filter(Boolean).slice(0, 60);
 const escapeHtml = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
-
-function splitIntoChunks(markdown, fallbackTitle) {
-  const sections = []; let current = { heading: fallbackTitle, body: [] };
-  for (const line of markdown.split("\n")) {
-    const heading = line.match(/^#{1,3}\s+(.+)$/);
-    if (heading && current.body.join("\n").trim()) { sections.push(current); current = { heading: normalizeText(heading[1]), body: [] }; }
-    else if (heading) current.heading = normalizeText(heading[1]);
-    else current.body.push(line);
-  }
-  if (current.body.join("\n").trim()) sections.push(current);
-  return sections.flatMap((section, sectionIndex) => {
-    const paragraphs = section.body.join("\n").split(/\n\s*\n/).map(normalizeText).filter(Boolean);
-    const chunks = []; let buffer = "";
-    for (const paragraph of paragraphs) {
-      if (`${buffer} ${paragraph}`.length > 1200 && buffer) { chunks.push(buffer); buffer = paragraph; }
-      else buffer = `${buffer} ${paragraph}`.trim();
-    }
-    if (buffer) chunks.push(buffer);
-    return chunks.map((text, chunkIndex) => ({ heading: section.heading, sectionIndex, chunkIndex, text: text.slice(0, 1400) }));
-  });
-}
 
 async function build() {
   if (await useBundledCorpusWhenSourceIsUnavailable()) return;

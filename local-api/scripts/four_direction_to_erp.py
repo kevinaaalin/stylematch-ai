@@ -62,7 +62,14 @@ def compose(inputs: dict[str, Path], output: Path, mask_output: Path, manifest_o
             width: int, height: int, hfov: float, seam_degrees: float) -> dict:
     if width != height * 2:
         raise ValueError("Equirectangular output must use an exact 2:1 width-to-height ratio.")
+    if set(inputs) != set(YAW_BY_DIRECTION):
+        raise ValueError("Four distinct directional sources are required.")
+    if not 90 < hfov < 180:
+        raise ValueError("Horizontal FOV must be between 90 and 180 degrees with overlap.")
     images = {direction: load_rgb(path) for direction, path in inputs.items()}
+    pixel_hashes = {hashlib.sha256(image.tobytes()).hexdigest() for image in images.values()}
+    if len(pixel_hashes) != 4:
+        raise ValueError("Duplicate directional images are not a valid four-direction capture.")
 
     x = (np.arange(width, dtype=np.float32) + 0.5) / width
     y = (np.arange(height, dtype=np.float32) + 0.5) / height

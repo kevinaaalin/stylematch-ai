@@ -6,6 +6,13 @@ import {
 } from "@/lib/isafeContract";
 import { analyzeProject } from "@/lib/projectAnalysis";
 import { requireBusinessPlan } from "@/lib/planAccess";
+import { revisionLineage } from "@/lib/revisionLineage";
+import { imageResultTransaction } from "@/lib/imageResultTransaction";
+import { validateGeneratedImage } from "@/lib/validateGeneratedImage";
+import { appendProposalVersion } from "@/lib/proposalVersions";
+import { calculateBudgetScenario } from "@/lib/budgetScenario";
+import { proposalContextIssues } from "@/lib/proposalContext";
+import { assetType } from "@/lib/assetCompatibility";
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 4;
@@ -558,11 +565,52 @@ export const localStore = {
     return record;
   },
 
+  saveProposalContext(projectId, values) {
+    requireBusinessPlan("補充提案資料");
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.project_id === projectId);
+    if (!project) throw new Error("找不到專案。");
+    const area = Number(values.square_footage);
+    if (!Number.isFinite(area) || area <= 0 || area > 100000) throw new Error("請填寫有效坪數。");
+    for (const field of ["room_layout", "budget_range", "primary_style"]) {
+      if (typeof values[field] !== "string" || !values[field].trim() || values[field].length > 500) throw new Error("請完整填寫提案資料。");
+      project[field] = values[field].trim();
+    }
+    project.square_footage = area;
+    project.analysis = analyzeProject(project);
+    project.updated_at = nowIso();
+    writeDatabase(database);
+    return project;
+  },
+
+  saveBudgetScenario(projectId, { name, rows, parentId = null }) {
+    requireBusinessPlan("商業預算小管家");
+    if (!name?.trim() || name.trim().length > 120) throw new Error("請填寫 1 至 120 字的情境名稱。");
+    const calculation = calculateBudgetScenario(rows);
+    const database = readDatabase();
+    const project = database.projects.find((item) => item.project_id === projectId || item.id === projectId);
+    if (!project) throw new Error("找不到專案。");
+    const scenarios = project.budget_scenarios || [];
+    if (parentId && !scenarios.some((item) => item.scenario_id === parentId)) throw new Error("來源預算不屬於此專案。");
+    const scenario = { ...calculation, scenario_id: randomId("budget"), name: name.trim(), parent_scenario_id: parentId, version: scenarios.length + 1, status: "candidate", created_at: nowIso() };
+    project.budget_scenarios = [scenario, ...scenarios];
+    project.updated_at = scenario.created_at;
+    writeDatabase(database);
+    return scenario;
+  },
+
+  createWorkflowProject({ name, workflow }) {
+    requireBusinessPlan("建立工具草稿");
+    if (!name?.trim() || name.trim().length > 120) throw new Error("請輸入 1 至 120 字的草稿名稱。");
+    if (!["AIGenerate", "ReferenceCanvas", "FloorPlanVisualizer"].includes(workflow)) throw new Error("不支援的工具。");
+    return this.createProject({ project_name: name.trim(), name: name.trim(), workflow_type: workflow, workflow_only: true });
+  },
+
   createProject(data) {
     const database = readDatabase();
     const createdAt = nowIso();
     const traceId = makeTraceId();
-    const stageStatus = initialStageForService(data.service_option);
+    const stageStatus = data.workflow_only ? "intake_created" : initialStageForService(data.service_option);
     const record = {
       ...compactProjectData(data),
       id: crypto.randomUUID(),
@@ -580,9 +628,9 @@ export const localStore = {
       current_stage: stageStatus,
       gate_status: "not_started",
       pgp_url: "",
-      match_status: serviceMatchStatus(data.service_option),
+      match_status: data.workflow_only ? "not_requested" : serviceMatchStatus(data.service_option),
       trace_id: traceId,
-      timeline: [
+      timeline: data.workflow_only ? [makeTimelineEvent({ title: "工具草稿建立", status: "intake_created", actor: "商業工具", detail: data.workflow_type, at: createdAt, traceId })] : [
         makeTimelineEvent({
           title: "案件建立",
           status: "intake_created",
@@ -630,7 +678,7 @@ export const localStore = {
 
     database.projects.unshift(record);
     database.auditLogs.unshift(auditLog);
-    database.jobs.unshift(makeJob({
+    if (!data.workflow_only) database.jobs.unshift(makeJob({
       project: record,
       type: stageStatus === "matching" ? "twcid_match_request" : "ai_review",
       status: "queued",
@@ -642,6 +690,23 @@ export const localStore = {
     return record;
   },
 
+  async commitGeneratedRevision(projectId, data, payment) {
+    requireBusinessPlan("生成成果儲存與扣點");
+    if (!navigator.locks) throw new Error("此瀏覽器不支援安全的本地圖片交易，請使用最新版 Edge 或 Chrome。");
+    await validateGeneratedImage(data.image_url);
+    return navigator.locks.request("stylematch-image-result", () => {
+      const result = imageResultTransaction(readDatabase(), projectId, data, payment, {
+        revisionId: randomId("refrev"), transactionId: randomId("points"), at: nowIso(),
+      });
+      if (!result.reused) {
+        const project = result.database.projects.find((item) => item.project_id === result.revision.project_id);
+        result.database.jobs.unshift(makeJob({ project, type: "reference_revision", status: "completed", detail: result.revision.revision_id, at: result.revision.created_at }));
+        writeDatabase(result.database);
+      }
+      return result;
+    });
+  },
+
   saveReferenceRevision(projectId, data) {
     const database = readDatabase();
     const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
@@ -650,8 +715,11 @@ export const localStore = {
     const space = data.space || "general";
     const version = revisions.filter((item) => item.space === space).length + 1;
     const at = nowIso();
+    const revisionId = randomId("refrev");
     const revision = {
-      revision_id: randomId("refrev"),
+      revision_id: revisionId,
+      ...revisionLineage(revisions, data, revisionId),
+      asset_type: assetType(data),
       project_id: project.project_id,
       space,
       image_role: data.image_role || "ai_revision",
@@ -741,6 +809,9 @@ export const localStore = {
     if (existing) return { project, transaction: existing, balance: database.point_balance, reused: true };
     const confirmedSet = (project.confirmed_reference_sets || []).find((item) => item.confirmed_reference_set_id === project.active_confirmed_reference_set_id);
     if (!confirmedSet) throw new Error("請先確認採用的參考圖片。");
+    const missingContext = proposalContextIssues(project, confirmedSet);
+    if (missingContext.length) throw new Error(`提案資料不足：${missingContext.join("、")}。`);
+    if (!Number.isFinite(cost) || cost <= 0) throw new Error("提案點數設定無效。");
     if ((database.point_balance || 0) < cost) throw new Error(`點數不足，需要 ${cost} 點。`);
     const at = nowIso();
     const transaction = {
@@ -764,6 +835,7 @@ export const localStore = {
     };
     project.proposal_images = confirmedSet.images.map((item) => item.image_url);
     project.updated_at = at;
+    project.proposal_versions = appendProposalVersion(project, randomId("proposal"), at);
     writeDatabase(database);
     return { project, transaction, balance: database.point_balance, reused: false };
   },

@@ -14,6 +14,10 @@ import { visualEditingIntent } from "@/lib/visualEditing";
 import VisualEditingIntentControls from "@/components/ai/VisualEditingIntentControls";
 import ImageMaskCanvas from "@/components/ai/ImageMaskCanvas";
 import ImageDifferenceViewer from "@/components/ai/ImageDifferenceViewer";
+import ProjectRevisionPicker from "@/components/ai/ProjectRevisionPicker";
+import ProposalContextEditor from "@/components/ai/ProposalContextEditor";
+import RecentRevisionLauncher from "@/components/ai/RecentRevisionLauncher";
+import { useRevisionHandoff } from "@/components/ai/useRevisionHandoff";
 import { localStore } from "@/lib/localStore";
 import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
@@ -31,6 +35,7 @@ export default function ReferenceCanvas() {
   const [selectedRevisionIds, setSelectedRevisionIds] = useState([]);
   const [space, setSpace] = useState("客廳");
   const [instruction, setInstruction] = useState("");
+  const [newBranch, setNewBranch] = useState(false);
   const [visualIntentId, setVisualIntentId] = useState("VE-01");
   const [semanticRegion, setSemanticRegion] = useState("");
   const [referenceAssetIds, setReferenceAssetIds] = useState("");
@@ -44,12 +49,29 @@ export default function ReferenceCanvas() {
 
   const project = projects.find((item) => item.project_id === projectId || item.id === projectId);
   const revisions = useMemo(() => project?.reference_revisions || [], [project]);
-  const activeRevision = revisions.find((item) => item.revision_id === activeRevisionId) || revisions[0];
+  const handoffError = useRevisionHandoff(projects, (sourceProject, revision) => {
+    setSelectedRevisionIds([]);
+    maskCanvasRef.current?.clear();
+    setActiveRevisionId(revision?.revision_id || "invalid-handoff");
+    setAssetCandidate(null);
+    setShowDifference(false);
+    if (sourceProject) { setProjectId(sourceProject.project_id || sourceProject.id); setSpace(revision.space || "客廳"); }
+  });
+  const activeRevision = revisions.find((item) => item.revision_id === activeRevisionId);
   const confirmedSet = (project?.confirmed_reference_sets || []).find(
     (item) => item.confirmed_reference_set_id === project?.active_confirmed_reference_set_id
   );
 
   useEffect(() => localStore.subscribe(() => setDatabase(localStore.getAll())), []);
+  useEffect(() => {
+    setSelectedRevisionIds([]);
+    setAssetCandidate(null);
+    setShowDifference(false);
+    setInstruction("");
+    setSemanticRegion("");
+    setReferenceAssetIds("");
+    maskCanvasRef.current?.clear();
+  }, [projectId]);
   useEffect(() => {
     const refreshPlan = () => setPlanId(readActivePlan());
     window.addEventListener(PLAN_CHANGE_EVENT, refreshPlan);
@@ -57,17 +79,32 @@ export default function ReferenceCanvas() {
     return () => { window.removeEventListener(PLAN_CHANGE_EVENT, refreshPlan); window.removeEventListener("storage", refreshPlan); };
   }, []);
   useEffect(() => {
-    if (projects.length && !projects.some((item) => item.project_id === projectId || item.id === projectId)) {
-      setProjectId(projects[0].project_id);
-    }
-  }, [projectId, projects]);
-  useEffect(() => {
-    if (revisions.length && !revisions.some((item) => item.revision_id === activeRevisionId)) {
+    if (!searchParams.get("revision") && revisions.length && !revisions.some((item) => item.revision_id === activeRevisionId)) {
       setActiveRevisionId(revisions[0].revision_id);
     }
-  }, [activeRevisionId, revisions]);
+  }, [activeRevisionId, revisions, searchParams]);
 
   const clearStatus = () => { setMessage(""); setError(""); };
+  const createBranch = () => {
+    if (!project || !activeRevision || busy) return;
+    clearStatus();
+    try {
+      const revision = localStore.saveReferenceRevision(project.project_id, {
+        image_url: activeRevision.image_url,
+        source_image_url: activeRevision.image_url,
+        parent_asset_id: activeRevision.revision_id,
+        new_branch: true,
+        image_role: activeRevision.image_role,
+        space: activeRevision.space,
+        instruction: "建立獨立分支",
+      });
+      if (!revision) throw new Error("無法建立分支。");
+      setActiveRevisionId(revision.revision_id);
+      setAssetCandidate(null);
+      setSelectedRevisionIds([]);
+      setMessage("獨立候選分支已建立，未扣點；原版本保持不變。");
+    } catch (branchError) { setError(branchError.message); }
+  };
   const toggleRevision = (revisionId) => setSelectedRevisionIds((current) => (
     current.includes(revisionId) ? current.filter((id) => id !== revisionId) : [...current, revisionId]
   ));
@@ -121,20 +158,17 @@ export default function ReferenceCanvas() {
         const fallback = await GenerateImage({ prompt });
         generated = { url: fallback.url, task: null, generation_source: "local_sdk_fallback", authoritative: false, fallback_reason: apiError.message };
       }
-      const payment = localStore.consumePoints(project.project_id, {
-        type: "reference_image_revision",
-        cost: REVISION_COST,
-        detail: "提案候選圖片改版",
-        idempotencyKey: `reference-revision-${project.project_id}-${crypto.randomUUID()}`,
-      });
-      const revision = localStore.saveReferenceRevision(project.project_id, {
+      const { revision, ...payment } = await localStore.commitGeneratedRevision(project.project_id, {
         image_url: generated.url,
         source_image_url: activeRevision?.image_url || null,
+        parent_asset_id: activeRevision?.revision_id || null,
+        new_branch: newBranch,
         image_role: "ai_revision",
         instruction,
         prompt,
         space,
         source_task_id: generated.task?.ai_task_id || null,
+        task_status: generated.task?.status || null,
         workflow_version: generated.task?.workflow_version || null,
         checkpoint: generated.task?.checkpoint || null,
         seed: generated.task?.seed ?? null,
@@ -142,6 +176,9 @@ export default function ReferenceCanvas() {
         authoritative: generated.authoritative,
         fallback_reason: generated.fallback_reason || null,
         visual_edit_intent: visualIntent.id,
+      }, {
+        type: "reference_image_revision", cost: REVISION_COST, detail: "提案候選圖片改版",
+        idempotencyKey: `reference-revision-${project.project_id}-${generated.task?.ai_task_id}`,
       });
       const candidate = await createApprovedAsset(project.project_id, {
         logical_asset_id: `reference-${space}`,
@@ -155,12 +192,13 @@ export default function ReferenceCanvas() {
           local_revision_id: revision.revision_id,
           authoritative: generated.authoritative,
         },
-      });
+      }).catch(() => null);
       setAssetCandidate(candidate);
       setShowDifference(true);
       maskCanvasRef.current?.clear();
       setActiveRevisionId(revision.revision_id);
       setMessage(`已產生 ${space} v${revision.version}，扣除 ${REVISION_COST} 點，餘額 ${payment.balance} 點。`);
+      if (!candidate) setError("圖片與點數已儲存；資產登錄服務暫時無法連線，尚未取得可核准的資產紀錄。");
     } catch (requestError) { setError(requestError.message || "AI 修改版本產生失敗，請稍後再試。"); }
     finally { setBusy(false); }
   };
@@ -183,6 +221,8 @@ export default function ReferenceCanvas() {
       const revision = localStore.saveReferenceRevision(project.project_id, {
         image_url: activeRevision.source_image_url,
         source_image_url: activeRevision.image_url,
+        parent_asset_id: activeRevision.revision_id,
+        new_branch: true,
         image_role: "reverted_revision",
         instruction: `回退自 ${activeRevision.revision_id}`,
         space: activeRevision.space || space,
@@ -232,7 +272,14 @@ export default function ReferenceCanvas() {
 
       <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-2"><label className="text-sm font-medium">專案<select className="mt-2 h-10 w-full rounded-md border border-stone-200 bg-white px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelectedRevisionIds([]); }}><option value="">請選擇專案</option>{projects.map((item) => <option key={item.project_id} value={item.project_id}>{item.case_code}－{item.project_name || item.name || "未命名專案"}</option>)}</select></label><label className="text-sm font-medium">空間<Input className="mt-2" value={space} onChange={(event) => setSpace(event.target.value)} /></label></CardContent></Card>
 
-      {!project ? <Alert><AlertDescription>請先完成需求表並建立專案。</AlertDescription></Alert> : (
+      <RecentRevisionLauncher projects={projects} disabled={busy} />
+      {project && <ProposalContextEditor key={project.project_id} project={project} disabled={busy} />}
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newBranch} disabled={busy} onChange={(event) => setNewBranch(event.target.checked)} />下次改版建立獨立分支</label>
+      <Button type="button" variant="outline" disabled={busy || !activeRevision} onClick={createBranch}><Layers3 className="mr-2 h-4 w-4" />從此版本建立分支</Button>
+      {activeRevision && <p className="break-all text-xs text-stone-600">分支：{activeRevision.branch_id || activeRevision.revision_id} · 來源版本：{activeRevision.parent_asset_id || "原始版本／舊版未記錄"}</p>}
+      {handoffError && <p role="alert">{handoffError}</p>}
+      <ProjectRevisionPicker target="AIGenerate" project={project} value={activeRevisionId} disabled={busy} onSelect={(revision) => { setActiveRevisionId(revision.revision_id); setSpace(revision.space || "客廳"); setAssetCandidate(null); setShowDifference(false); maskCanvasRef.current?.clear(); }} />
+      {!project ? <Alert><AlertDescription>{projectId ? "找不到指定專案，請重新選擇專案。" : "請先完成需求表並建立專案。"}</AlertDescription></Alert> : (
         <div className="grid gap-5 lg:grid-cols-[280px_1fr_330px]">
           <Card><CardHeader><CardTitle className="text-lg">圖片版本</CardTitle></CardHeader><CardContent className="space-y-3"><label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed border-stone-300 p-3 text-sm font-medium hover:bg-stone-50"><Upload className="mr-2 h-4 w-4" />上傳參考圖片<input className="sr-only" type="file" accept="image/*" onChange={uploadImage} /></label>{revisions.length ? revisions.map((revision) => <button key={revision.revision_id} type="button" onClick={() => setActiveRevisionId(revision.revision_id)} className={`w-full rounded-md border p-2 text-left ${activeRevision?.revision_id === revision.revision_id ? "border-amber-500 bg-amber-50" : "border-stone-200"}`}><img src={revision.image_url} alt={`${revision.space} v${revision.version}`} className="h-24 w-full rounded object-cover" /><span className="mt-2 flex justify-between text-xs"><span>{revision.space} v{revision.version}</span><span>{revision.status === "adopted" ? "已採用" : "候選"}</span></span></button>) : <div className="rounded-md bg-stone-100 p-5 text-center text-sm text-stone-500"><ImagePlus className="mx-auto mb-2 h-7 w-7" />請先由 AI 生成或上傳圖片</div>}</CardContent></Card>
 

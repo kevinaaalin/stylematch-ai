@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import { revisionLineage } from "../src/lib/revisionLineage.js";
+const roots = [{ revision_id: "parent", branch_id: "original", status: "adopted" }];
+const before = JSON.stringify(roots);
+assert.equal(revisionLineage(roots, {}, "new").branch_id, "new");
+const child = revisionLineage(roots, { parent_asset_id: "parent" }, "child");
+assert.equal(child.branch_id, "original");
+assert.deepEqual(child.derived_from_asset_ids, ["parent"]);
+assert.equal(revisionLineage(roots, { parent_asset_id: "parent", new_branch: true }, "branch").branch_id, "branch");
+assert.throws(() => revisionLineage(roots, { parent_asset_id: "other-case" }, "bad"));
+assert.throws(() => revisionLineage(roots, { derived_from_asset_ids: ["other-case"] }, "bad"));
+assert.equal(JSON.stringify(roots), before);
+console.log("Revision lineage: root, child, branch, isolation and immutability passed.");

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { localStore } from "@/lib/localStore";
 import { createPageUrl } from "@/utils";
+import BudgetScenarioEditor from "@/components/ai/BudgetScenarioEditor";
 
 const tools = [
   { title: "提案總覽", description: "需求、風格、預算與初版提案", page: "MyProjects", icon: FolderKanban },
@@ -19,8 +20,13 @@ export default function Workspace() {
   const [database, setDatabase] = useState(() => localStore.getAll());
   const projects = database.projects || [];
   const [projectId, setProjectId] = useState(searchParams.get("project") || projects[0]?.project_id || "");
+  const project = projects.find((item) => item.project_id === projectId);
 
   useEffect(() => localStore.subscribe(() => setDatabase(localStore.getAll())), []);
+  useEffect(() => {
+    const requested = searchParams.get("project");
+    if (requested !== null) setProjectId(requested);
+  }, [searchParams]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -35,12 +41,14 @@ export default function Workspace() {
 
       {!projects.length && <div className="mt-8 border border-amber-200 bg-amber-50 p-5"><p className="font-semibold">請先建立專案</p><p className="mt-1 text-sm text-stone-600">完成裝修需求後，工作區會沿用同一個專案識別碼。</p><Button asChild className="mt-4"><Link to={createPageUrl("AIProposal")}>建立 AI 裝修規劃提案</Link></Button></div>}
 
+      {projectId && !project && <p role="alert" className="mt-6 text-red-700">指定專案不存在，請重新選擇專案。</p>}
+      <BudgetScenarioEditor key={projectId} project={project} />
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         {tools.map((tool, index) => (
           <Card key={tool.title} className="rounded-md border-stone-200 shadow-none"><CardContent className="flex min-h-40 flex-col p-5">
             <div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><tool.icon className="h-5 w-5" /></span><div><p className="text-xs font-semibold text-amber-700">步驟 {index + 1}</p><h2 className="text-lg font-bold">{tool.title}</h2></div></div></div>
             <p className="mt-4 text-sm text-stone-600">{tool.description}</p>
-            <Button asChild variant="outline" className="mt-auto self-start" disabled={!projectId && tool.page !== "MyProjects"}><Link to={`${createPageUrl(tool.page)}${projectId ? `?project=${projectId}` : ""}`}>開啟<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+            {!project && tool.page !== "MyProjects" ? <Button variant="outline" className="mt-auto self-start" disabled>開啟<ArrowRight className="ml-2 h-4 w-4" /></Button> : <Button asChild variant="outline" className="mt-auto self-start"><Link to={`${createPageUrl(tool.page)}${project ? `?${new URLSearchParams({ project: project.project_id })}` : ""}`}>開啟<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>}
           </CardContent></Card>
         ))}
       </div>
@@ -49,4 +57,3 @@ export default function Workspace() {
     </div>
   );
 }
-

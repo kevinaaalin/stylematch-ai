@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -24,6 +24,10 @@ import { Textarea } from "@/components/ui/textarea";
 import PanoramaViewer from "@/components/ai/PanoramaViewer";
 import { styleImages } from "@/components/styletest/styleImageData";
 import { localStore } from "@/lib/localStore";
+import ProjectRevisionPicker from "@/components/ai/ProjectRevisionPicker";
+import { imageTaskBelongsToProject } from "@/lib/imageTaskOwnership";
+import RecentRevisionLauncher from "@/components/ai/RecentRevisionLauncher";
+import { useRevisionHandoff } from "@/components/ai/useRevisionHandoff";
 import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan, requireBusinessPlan } from "@/lib/planAccess";
 import { Link, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -173,6 +177,8 @@ export default function AIGenerate() {
   const [material, setMaterial] = useState(materialOptions[0]);
   const [colorPalette, setColorPalette] = useState(colorOptions[0]);
   const [sourceImage, setSourceImage] = useState("");
+  const [sourceRevisionId, setSourceRevisionId] = useState("");
+  const savingTask = useRef(null);
   const [panoramaSources, setPanoramaSources] = useState({ front: "", right: "", back: "", left: "" });
   const [imageStyleAnalysis, setImageStyleAnalysis] = useState(null);
   const [roomSize, setRoomSize] = useState({ length: "5.2", width: "4.0", clearHeight: "2.8" });
@@ -180,7 +186,8 @@ export default function AIGenerate() {
   const [viewpoint, setViewpoint] = useState("空間中央，視線高度 150 cm");
   const [task, setTask] = useState(() => {
     try {
-      return JSON.parse(window.sessionStorage.getItem(AI_TASK_SESSION_KEY)) || null;
+      const cached = JSON.parse(window.sessionStorage.getItem(AI_TASK_SESSION_KEY));
+      return imageTaskBelongsToProject(cached, projects.find((item) => item.project_id === projectId)) ? cached : null;
     } catch {
       return null;
     }
@@ -194,6 +201,16 @@ export default function AIGenerate() {
   const [uploadedPanorama, setUploadedPanorama] = useState("");
   const [planId, setPlanId] = useState(readActivePlan);
   const selectedProject = projects.find((item) => item.project_id === projectId);
+  const handoffError = useRevisionHandoff(projects, (project, revision) => {
+    setPanoramaSources({ front: "", right: "", back: "", left: "" });
+    setUploadedPanorama("");
+    setFloorPlan("");
+    setSourceImage(revision?.image_url || "");
+    setSourceRevisionId(revision?.revision_id || "");
+    setTask(null);
+    setImageStyleAnalysis(null);
+    if (project) { setProjectId(project.project_id || project.id); setMode("image"); setInputType("3D 設計圖／場景"); }
+  });
   const projectStyleTest = styleTests.find((test) => test.user_email && test.user_email === selectedProject?.user_email);
   const projectStyleKey = selectedProject?.primary_style
     || projectStyleTest?.primary_style
@@ -220,17 +237,11 @@ export default function AIGenerate() {
     return () => { window.removeEventListener(PLAN_CHANGE_EVENT, refreshPlan); window.removeEventListener("storage", refreshPlan); };
   }, []);
 
-  useEffect(() => {
-    if (!projects.length) return;
-    if (!projects.some((project) => project.project_id === projectId)) {
-      setProjectId(projects[0].project_id);
-    }
-  }, [projectId, projects]);
 
   useEffect(() => {
     fetch(`${API_BASE}/ai/health`)
       .then((response) => response.json())
-      .then(setHealth)
+      .then((data) => setHealth({ ...data, comfyui: data.local_image?.status || data.comfyui || "offline" }))
       .catch(() => setHealth({ comfyui: "offline" }));
   }, []);
 
@@ -305,7 +316,7 @@ export default function AIGenerate() {
     if (!file) return;
     setImageStyleAnalysis(null);
     const reader = new FileReader();
-    reader.onload = () => setSourceImage(String(reader.result || ""));
+    reader.onload = () => { setSourceImage(String(reader.result || "")); setSourceRevisionId(""); };
     reader.readAsDataURL(file);
     try {
       setImageStyleAnalysis(await analyzeImageStyleFallback(file));
@@ -331,6 +342,7 @@ export default function AIGenerate() {
     try {
       requireBusinessPlan(panorama ? "360° 環景生成" : "空間創意彩現");
       if (!selectedProject) throw new Error("請先選擇 StyleMatch 專案。");
+      if (panorama && new Set(Object.values(panoramaSources).filter(Boolean)).size !== 4) throw new Error("請提供前、右、後、左四張不同的照片，不可重複使用同一張圖片。");
     } catch (accessError) {
       setError(accessError.message);
       return;
@@ -373,18 +385,19 @@ export default function AIGenerate() {
           height: panorama ? 768 : 768,
           output_type: panorama ? "equirectangular_2_1" : "perspective_draft",
           proposal_scope: "stylematch_pre_match_concept",
+          operation: { parent_asset_id: panorama ? null : (sourceRevisionId || null), source_image_url: panorama ? null : (sourceImage || null), space },
           room: space,
           room_geometry: { ...roomSize, height_notes: heightNotes },
           viewpoint,
           source_media_urls: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : [
-            ...importedMedia.referenceImages,
             sourceImage,
+            ...importedMedia.referenceImages,
             floorPlan,
             ...importedMedia.all,
           ]).filter(Boolean))],
           source_media_count: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : [
-            ...importedMedia.referenceImages,
             sourceImage,
+            ...importedMedia.referenceImages,
             floorPlan,
             ...importedMedia.all,
           ]).filter(Boolean))].length,
@@ -416,12 +429,6 @@ export default function AIGenerate() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(readableTraditionalChineseError(data.message, "無法建立 AI 圖片生成任務，請稍後再試。"));
-      localStore.consumePoints(selectedProject.project_id, {
-        type: panorama ? "space_panorama_generation" : "space_image_generation",
-        cost: panorama ? PANORAMA_GENERATION_COST : IMAGE_GENERATION_COST,
-        detail: panorama ? "單一空間 360° 環景生成" : "單張空間創意彩現",
-        idempotencyKey: `ai-task-${data.task.ai_task_id}`,
-      });
       setTask(data.task);
       setHealth((value) => ({ ...value, comfyui: "online" }));
     } catch (requestError) {
@@ -435,17 +442,28 @@ export default function AIGenerate() {
   const downloadableImage = mode === "panorama" ? panoramaImage : generatedImage;
 
   useEffect(() => {
-    if (!selectedProject || !generatedImage || !task?.ai_task_id) return;
+    if (!imageTaskBelongsToProject(task, selectedProject) || !generatedImage || !task?.ai_task_id) return;
     const alreadySaved = (selectedProject.reference_revisions || []).some((item) => item.source_task_id === task.ai_task_id);
-    if (alreadySaved) return;
-    localStore.saveReferenceRevision(selectedProject.project_id, {
+    if (alreadySaved || savingTask.current === task.ai_task_id) return;
+    savingTask.current = task.ai_task_id;
+    const panorama = task.requested_output_type === "equirectangular_2_1";
+    localStore.commitGeneratedRevision(selectedProject.project_id, {
       image_url: generatedImage,
-      image_role: mode === "panorama" ? "ai_panorama" : "ai_reference",
+      image_role: task.requested_output_type === "equirectangular_2_1" ? "ai_panorama" : "ai_reference",
       prompt: task.prompt || "",
       source_task_id: task.ai_task_id,
-      space,
-    });
-  }, [generatedImage, mode, selectedProject, space, task?.ai_task_id, task?.prompt]);
+      task_status: task.status,
+      workflow_version: task.workflow_version,
+      checkpoint: task.checkpoint,
+      parent_asset_id: task.operation?.parent_asset_id || null,
+      source_image_url: task.operation?.source_image_url || null,
+      space: task.operation?.space || space,
+    }, {
+      type: panorama ? "space_panorama_generation" : "space_image_generation",
+      cost: panorama ? PANORAMA_GENERATION_COST : IMAGE_GENERATION_COST,
+      idempotencyKey: `ai-task-${task.ai_task_id}`,
+    }).catch((saveError) => setError(saveError.message)).finally(() => { savingTask.current = null; });
+  }, [generatedImage, selectedProject, space, task]);
 
   const downloadResult = async () => {
     if (!downloadableImage || !task?.ai_task_id || !entitlement?.download_unlocked) return;
@@ -510,6 +528,10 @@ export default function AIGenerate() {
           {!isBusinessPlan(planId) && <Button asChild size="sm" variant="outline"><Link to={createPageUrl("PricingPlans")}><Crown className="mr-2 h-4 w-4" />升級商業方案</Link></Button>}
         </div>
 
+        {projectId && !selectedProject && <p role="alert">找不到指定專案，請重新選擇專案。</p>}
+        <RecentRevisionLauncher projects={projects} target="AIGenerate" disabled={Boolean(busy)} />
+        {handoffError && <p role="alert">{handoffError}</p>}
+        {mode === "image" && <ProjectRevisionPicker target="ReferenceCanvas" project={selectedProject} value={sourceRevisionId} disabled={Boolean(busy)} onSelect={(revision) => { setSourceRevisionId(revision.revision_id); setSourceImage(revision.image_url); setInputType("3D 設計圖／場景"); setImageStyleAnalysis(null); }} />}
         <Tabs value={mode} onValueChange={(value) => { setMode(value); setTask(null); setError(""); }}>
           <TabsList className="grid h-auto w-full max-w-md grid-cols-2">
             <TabsTrigger value="image" className="gap-2 py-2"><ImagePlus className="h-4 w-4" />單張空間創意彩現</TabsTrigger>
@@ -522,7 +544,7 @@ export default function AIGenerate() {
               <CardContent className="space-y-5">
                 <div>
                   <label className="mb-2 block text-sm font-medium">StyleMatch 專案</label>
-                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={projectId} disabled={Boolean(busy)} onChange={(event) => { setProjectId(event.target.value); setSourceImage(""); setSourceRevisionId(""); setTask(null); setImageStyleAnalysis(null); setPanoramaSources({ front: "", right: "", back: "", left: "" }); setUploadedPanorama(""); setFloorPlan(""); }}>
                     <option value="">未連結專案</option>
                     {projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.case_code || project.project_id}</option>)}
                   </select>

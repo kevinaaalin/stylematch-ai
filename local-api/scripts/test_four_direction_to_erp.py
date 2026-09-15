@@ -48,6 +48,12 @@ def main() -> None:
         assert manifest["ordered_directions"] == ["front", "right", "back", "left"]
         assert 0 < manifest["mask"]["coverage_ratio"] < 1
         assert json.loads(manifest_path.read_text(encoding="utf-8"))["projection"] == "equirectangular_2_1"
+        for invalid in [{**inputs, "right": inputs["front"]}, {"front": inputs["front"]}]:
+            try:
+                compose(invalid, output, mask, manifest_path, 800, 400, 100.0, 8.0)
+                raise AssertionError("Invalid directional inputs were accepted")
+            except ValueError:
+                pass
     print("Four-direction panorama projection passed.")
 
 
