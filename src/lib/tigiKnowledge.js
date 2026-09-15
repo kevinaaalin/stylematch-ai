@@ -37,8 +37,7 @@ function projectToQuery(project = {}) {
 function scoreChunk(chunk, queryTokens) {
   const haystack = normalize(`${chunk.title} ${chunk.heading} ${chunk.categoryLabel} ${chunk.text}`);
   const title = normalize(`${chunk.title} ${chunk.heading}`);
-  return queryTokens.reduce((score, token) => score + (title.includes(token) ? 6 : 0) + (haystack.includes(token) ? 2 : 0), 0)
-    + Math.max(0, 10 - Number(chunk.categoryOrder ?? Math.floor(Number(chunk.canonicalOrder || 0) / 1000))) * 0.05;
+  return queryTokens.reduce((score, token) => score + (title.includes(token) ? 6 : 0) + (haystack.includes(token) ? 2 : 0), 0);
 }
 
 function recommendation(result) {
@@ -55,7 +54,7 @@ export async function loadTigiKnowledgeIndex() {
       const allowedSources = new Set(["active:R9.2", "candidate-addendum:R9.2.1-candidate"]);
       if (index.documents?.some((document) => !allowedSources.has(`${document.baselineStatus}:${document.releaseVersion}`))) throw new Error("Knowledge 索引含有未核准或未知版本來源，已停止查詢。");
       return index;
-    });
+    }).catch((error) => { indexPromise = undefined; throw error; });
   }
   return indexPromise;
 }

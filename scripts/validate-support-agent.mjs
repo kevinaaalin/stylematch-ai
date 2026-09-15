@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { answerSupport, SUPPORT_TOPICS } from '../src/lib/supportAgent.js';
+for (const topic of SUPPORT_TOPICS) assert.equal(answerSupport(topic.terms[0]).topic, topic.id);
+assert.equal(answerSupport('然後呢', { previousTopic: 'style' }).text, SUPPORT_TOPICS[0].next);
+assert.equal(answerSupport('這一頁怎麼用', { pathname: '/FloorPlanVisualizer' }).topic, 'floor');
+assert.match(answerSupport('找真人客服').text, /尚未接通/);
+assert.match(answerSupport('幫我付款').text, /不會替您/);
+assert.match(answerSupport('我的密碼').text, /不要/);
+assert.equal(answerSupport('zznonexistent').topic, null);
+console.log('Support: 11 topics, follow-up, page context, unknown, secrets and action boundaries passed.');

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   BadgeDollarSign,
-  BookOpen,
   BriefcaseBusiness,
   Camera,
   ChevronDown,
@@ -25,9 +24,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
+import KnowledgeChat from "@/components/knowledge/KnowledgeChat";
 
 const generalNavigation = [
-  { title: "本地 Knowledge", url: createPageUrl("Knowledge"), icon: BookOpen },
   { title: "首頁", url: createPageUrl("Home"), icon: Home },
   { title: "風格測驗", url: createPageUrl("StyleTest"), icon: Sparkles },
   { title: "AI室內設計提案", url: createPageUrl("AIProposal"), icon: PenTool },
@@ -90,6 +89,7 @@ export default function Layout({ children }) {
       </header>
 
       <main className="min-h-screen">{children}</main>
+      <KnowledgeChat />
       <footer className="border-t border-stone-800 bg-stone-950 text-stone-300"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-sm sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8"><div><strong className="text-white">StyleMatch AI</strong><span className="ml-3 text-stone-400">裝修規劃、設計媒合與工程治理流程</span></div><div className="flex gap-4 text-stone-400"><Link to={createPageUrl("MyProjects")}>我的專案</Link><Link to={createPageUrl("PricingPlans")}>方案價格</Link></div></div></footer>
     </div>
   );
