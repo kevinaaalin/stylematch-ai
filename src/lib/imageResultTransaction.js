@@ -1,10 +1,12 @@
 import { revisionLineage } from "./revisionLineage.js";
 import { assetType } from "./assetCompatibility.js";
+import { assertPhotoResultSource } from "./spacePhotoContract.js";
 
 export function imageResultTransaction(database, projectId, data, payment, ids) {
   if (!payment?.idempotencyKey || !payment.type || !Number.isFinite(payment.cost) || payment.cost <= 0) throw new Error("圖片交易資料不完整。");
   const project = database.projects.find((item) => item.project_id === projectId || item.id === projectId);
   if (!project) throw new Error("找不到專案。");
+  assertPhotoResultSource(project, data);
   const existing = database.point_ledger.find((item) => item.idempotency_key === payment.idempotencyKey);
   if (existing) {
     const revision = (project.reference_revisions || []).find((item) => item.revision_id === existing.revision_id);

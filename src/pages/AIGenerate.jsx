@@ -33,6 +33,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { STYLE_CATALOG, getStyleById, normalizeStyleId } from "@/data/styleCatalog";
 import { analyzeImageStyleFallback } from "@/lib/imageStyleFallback";
+import { projectSpacePhotos, sourcePhotoResults } from "@/lib/spacePhotoContract";
 
 const API_BASE = "http://127.0.0.1:4180/api/v1";
 const AI_TASK_SESSION_KEY = "stylematch_ai_current_task_v1";
@@ -57,7 +58,7 @@ const roomMediaKeys = {
   "客餐廳（開放式）": ["living_room", "dining_room"],
   主臥室: ["master_bedroom"],
   次臥室: ["bedroom1", "bedroom2"],
-  書房: ["study", "bedroom1"],
+  書房: ["study_room", "study"],
   廚房: ["kitchen"],
   衛浴: ["bathroom"],
   辦公室: ["office"],
@@ -178,6 +179,7 @@ export default function AIGenerate() {
   const [colorPalette, setColorPalette] = useState(colorOptions[0]);
   const [sourceImage, setSourceImage] = useState("");
   const [sourceRevisionId, setSourceRevisionId] = useState("");
+  const [sourcePhotoKey, setSourcePhotoKey] = useState("");
   const savingTask = useRef(null);
   const [panoramaSources, setPanoramaSources] = useState({ front: "", right: "", back: "", left: "" });
   const [imageStyleAnalysis, setImageStyleAnalysis] = useState(null);
@@ -201,12 +203,15 @@ export default function AIGenerate() {
   const [uploadedPanorama, setUploadedPanorama] = useState("");
   const [planId, setPlanId] = useState(readActivePlan);
   const selectedProject = projects.find((item) => item.project_id === projectId);
+  const spacePhotoInputs = projectSpacePhotos(selectedProject, roomMediaKeys[space] || []);
+  const selectedPhoto = spacePhotoInputs.find((photo) => photo.key === sourcePhotoKey && photo.url === sourceImage);
   const handoffError = useRevisionHandoff(projects, (project, revision) => {
     setPanoramaSources({ front: "", right: "", back: "", left: "" });
     setUploadedPanorama("");
     setFloorPlan("");
     setSourceImage(revision?.image_url || "");
     setSourceRevisionId(revision?.revision_id || "");
+    setSourcePhotoKey("");
     setTask(null);
     setImageStyleAnalysis(null);
     if (project) { setProjectId(project.project_id || project.id); setMode("image"); setInputType("3D 設計圖／場景"); }
@@ -316,7 +321,7 @@ export default function AIGenerate() {
     if (!file) return;
     setImageStyleAnalysis(null);
     const reader = new FileReader();
-    reader.onload = () => { setSourceImage(String(reader.result || "")); setSourceRevisionId(""); };
+    reader.onload = () => { setSourceImage(String(reader.result || "")); setSourceRevisionId(""); setSourcePhotoKey(""); };
     reader.readAsDataURL(file);
     try {
       setImageStyleAnalysis(await analyzeImageStyleFallback(file));
@@ -342,6 +347,8 @@ export default function AIGenerate() {
     try {
       requireBusinessPlan(panorama ? "360° 環景生成" : "空間創意彩現");
       if (!selectedProject) throw new Error("請先選擇 StyleMatch 專案。");
+      if (!panorama && sourcePhotoKey && !selectedPhoto) throw new Error("原始照片已變動，請重新選取。");
+      if (!panorama && spacePhotoInputs.length && !sourceImage) throw new Error("請先選擇一張空間原始照片，每張原圖各自生成對應參考圖。");
       if (panorama && new Set(Object.values(panoramaSources).filter(Boolean)).size !== 4) throw new Error("請提供前、右、後、左四張不同的照片，不可重複使用同一張圖片。");
     } catch (accessError) {
       setError(accessError.message);
@@ -375,6 +382,7 @@ export default function AIGenerate() {
           selectedProject?.case_code || "*"
         ),
         body: JSON.stringify({
+          ...(selectedPhoto && !panorama ? { provider: "comfyui" } : {}),
           prompt,
           negative_prompt: selectedStyleProfile.negative_prompt,
           style_id: selectedStyleProfile.id,
@@ -385,17 +393,18 @@ export default function AIGenerate() {
           height: panorama ? 768 : 768,
           output_type: panorama ? "equirectangular_2_1" : "perspective_draft",
           proposal_scope: "stylematch_pre_match_concept",
-          operation: { parent_asset_id: panorama ? null : (sourceRevisionId || null), source_image_url: panorama ? null : (sourceImage || null), space },
+          operation: { parent_asset_id: panorama ? null : (sourceRevisionId || null), source_image_url: panorama ? null : (sourceImage || null), space,
+            ...(selectedPhoto && !panorama ? { source_photo_room: selectedPhoto.room, source_photo_number: selectedPhoto.index + 1 } : {}) },
           room: space,
           room_geometry: { ...roomSize, height_notes: heightNotes },
           viewpoint,
-          source_media_urls: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : [
+          source_media_urls: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : selectedPhoto ? [selectedPhoto.url] : [
             sourceImage,
             ...importedMedia.referenceImages,
             floorPlan,
             ...importedMedia.all,
           ]).filter(Boolean))],
-          source_media_count: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : [
+          source_media_count: [...new Set((panorama ? panoramaSourceEntries.map((entry) => entry.media_url) : selectedPhoto ? [selectedPhoto.url] : [
             sourceImage,
             ...importedMedia.referenceImages,
             floorPlan,
@@ -457,6 +466,8 @@ export default function AIGenerate() {
       checkpoint: task.checkpoint,
       parent_asset_id: task.operation?.parent_asset_id || null,
       source_image_url: task.operation?.source_image_url || null,
+      source_photo_room: task.operation?.source_photo_room || null,
+      source_photo_number: task.operation?.source_photo_number || null,
       space: task.operation?.space || space,
     }, {
       type: panorama ? "space_panorama_generation" : "space_image_generation",
@@ -531,7 +542,7 @@ export default function AIGenerate() {
         {projectId && !selectedProject && <p role="alert">找不到指定專案，請重新選擇專案。</p>}
         <RecentRevisionLauncher projects={projects} target="AIGenerate" disabled={Boolean(busy)} />
         {handoffError && <p role="alert">{handoffError}</p>}
-        {mode === "image" && <ProjectRevisionPicker target="ReferenceCanvas" project={selectedProject} value={sourceRevisionId} disabled={Boolean(busy)} onSelect={(revision) => { setSourceRevisionId(revision.revision_id); setSourceImage(revision.image_url); setInputType("3D 設計圖／場景"); setImageStyleAnalysis(null); }} />}
+        {mode === "image" && <ProjectRevisionPicker target="ReferenceCanvas" project={selectedProject} value={sourceRevisionId} disabled={Boolean(busy)} onSelect={(revision) => { setSourcePhotoKey(""); setSourceRevisionId(revision.revision_id); setSourceImage(revision.image_url); setInputType("3D 設計圖／場景"); setImageStyleAnalysis(null); }} />}
         <Tabs value={mode} onValueChange={(value) => { setMode(value); setTask(null); setError(""); }}>
           <TabsList className="grid h-auto w-full max-w-md grid-cols-2">
             <TabsTrigger value="image" className="gap-2 py-2"><ImagePlus className="h-4 w-4" />單張空間創意彩現</TabsTrigger>
@@ -552,7 +563,7 @@ export default function AIGenerate() {
 
                 <div>
                   <label className="mb-2 block text-sm font-medium">單一空間</label>
-                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={space} onChange={(event) => setSpace(event.target.value)}>
+                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" value={space} disabled={Boolean(busy)} onChange={(event) => { setSpace(event.target.value); setSourcePhotoKey(""); setSourceImage(""); setSourceRevisionId(""); }}>
                     {roomPresets.map((room) => <option key={room}>{room}</option>)}
                   </select>
                 </div>
@@ -581,6 +592,17 @@ export default function AIGenerate() {
                   </div>
                 ) : (
                   <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
+                    {spacePhotoInputs.length > 0 && <div className="mb-4 space-y-3">
+                      <p className="text-sm font-semibold">原圖 → 參考圖（一張對一張）</p>
+                      {spacePhotoInputs.map((photo) => {
+                        const results = sourcePhotoResults(selectedProject, photo);
+                        return <div key={photo.key} className="rounded border border-stone-300 bg-white p-3">
+                          <Button variant="outline" disabled={Boolean(busy)} onClick={() => { setSourcePhotoKey(photo.key); setSourceImage(photo.url); setSourceRevisionId(""); setInputType("空間實景照片"); }}>選用{space}原圖 {photo.index + 1}{selectedPhoto?.key === photo.key ? "（已選）" : ""}</Button>
+                          <div className="mt-2 flex flex-wrap gap-2"><img src={photo.url} alt={`${space}原圖 ${photo.index + 1}`} className="h-20 w-24 object-contain" />{results.map((result) => <img key={result.revision_id} src={result.image_url} alt={`${space}原圖 ${photo.index + 1}的參考圖`} className="h-20 w-24 object-contain" />)}</div>
+                          <p className="mt-1 text-sm">{results.length ? `已生成 ${results.length} 個版本，核准狀態請至提案圖確認檢視` : "尚未生成對應參考圖"}</p>
+                        </div>;
+                      })}
+                    </div>}
                     <UploadField label="自行上傳空間圖片（或 3D 設計圖）" hint="JPG、PNG、WebP；建議 16:9 或 4:3，避免過度裁切" preview={sourceImage} onChange={sourceImageHandler} />
                     {imageStyleAnalysis && (
                       <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-xs text-stone-700">

@@ -14,6 +14,7 @@ import { calculateBudgetScenario } from "@/lib/budgetScenario";
 import { proposalContextIssues } from "@/lib/proposalContext";
 import { assetType } from "@/lib/assetCompatibility";
 import { compactProjectMedia } from "@/lib/proposalMedia";
+import { assertSpacePhotoCount } from "@/lib/spacePhotoContract";
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 4;
@@ -565,6 +566,7 @@ export const localStore = {
   },
 
   createProject(data) {
+    for (const [room, photos] of Object.entries(data.space_photos || data.proposal_media?.space_photos || {})) assertSpacePhotoCount(room, photos.length);
     const database = readDatabase();
     const createdAt = nowIso();
     const traceId = makeTraceId();

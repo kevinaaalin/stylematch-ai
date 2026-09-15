@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Camera, Upload, X, Image as ImageIcon, Loader2, Home } from "lucide-react";
 import { UploadFile } from "@/lib/localAdapters";
+import { assertSpacePhotoCount, MAX_SPACE_PHOTOS } from "@/lib/spacePhotoContract";
 
 const spaceTypes = [
   { id: "floor_plan", name: "平面圖", icon: "🗺️", description: "上傳您的房屋平面圖" },
@@ -27,14 +28,19 @@ export default function PhotoUploadForm({ formData, onChange }) {
   const [uploadError, setUploadError] = useState("");
   const [activeSpace, setActiveSpace] = useState("floor_plan");
   const fileInputRef = useRef(null);
+  const uploadLock = useRef(false);
+  const latestForm = useRef(formData);
+  latestForm.current = formData;
 
   const handleFileUpload = async (files, spaceType) => {
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0 || uploadLock.current) return;
+    uploadLock.current = true;
     
     setIsUploading(true);
     setUploadError("");
     
     try {
+      assertSpacePhotoCount(spaceType, (latestForm.current.space_photos[spaceType]?.length || 0) + files.length);
       const newPhotoUrls = [];
       
       // 逐一上傳每個檔案
@@ -51,34 +57,32 @@ export default function PhotoUploadForm({ formData, onChange }) {
           throw new Error('本地版圖片檔案不能超過 1MB');
         }
         
-        console.log(`正在上傳檔案 ${i + 1}/${files.length}: ${file.name}, 大小: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
         
         // 直接傳遞 File 物件給 UploadFile 整合
         const result = await UploadFile({ file: file });
         
         if (result && result.file_url) {
           newPhotoUrls.push(result.file_url);
-          console.log(`檔案 ${i + 1} 上傳成功: ${result.file_url}`);
         } else {
-          console.error('上傳結果異常:', result);
           throw new Error('上傳服務回應格式錯誤');
         }
       }
       
       // 更新狀態
-      const currentPhotos = formData.space_photos[spaceType] || [];
+      const currentPhotos = latestForm.current.space_photos[spaceType] || [];
+      assertSpacePhotoCount(spaceType, currentPhotos.length + newPhotoUrls.length);
       const updatedSpacePhotos = {
-        ...formData.space_photos,
+        ...latestForm.current.space_photos,
         [spaceType]: [...currentPhotos, ...newPhotoUrls]
       };
       
       onChange({ space_photos: updatedSpacePhotos });
-      console.log('所有檔案上傳完成，已更新狀態');
       
     } catch (error) {
       console.error("詳細上傳錯誤:", error);
       setUploadError(error.message || "上傳失敗，請檢查網路連線或稍後再試");
     } finally {
+      uploadLock.current = false;
       setIsUploading(false);
       // 清空檔案輸入
       if (fileInputRef.current) {
@@ -90,7 +94,6 @@ export default function PhotoUploadForm({ formData, onChange }) {
   const handleFileInputChange = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      console.log('選擇了檔案:', files.map(f => f.name));
       handleFileUpload(files, activeSpace);
     }
   };
@@ -99,7 +102,6 @@ export default function PhotoUploadForm({ formData, onChange }) {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files || []);
     if (files.length > 0) {
-      console.log('拖放檔案:', files.map(f => f.name));
       handleFileUpload(files, activeSpace);
     }
   };
@@ -109,6 +111,7 @@ export default function PhotoUploadForm({ formData, onChange }) {
   };
 
   const removePhoto = (spaceType, indexToRemove) => {
+    if (uploadLock.current) return;
     const currentPhotos = formData.space_photos[spaceType] || [];
     const updatedPhotos = currentPhotos.filter((_, index) => index !== indexToRemove);
     const updatedSpacePhotos = {
@@ -137,7 +140,7 @@ export default function PhotoUploadForm({ formData, onChange }) {
           <Camera className="w-5 h-5" />
           空間照片上傳
         </CardTitle>
-        <p className="text-stone-600">請選擇空間類型並上傳對應的照片，幫助我們更好地了解您的空間現況</p>
+        <p className="text-stone-600">每個空間最多 4 張照片，每張原圖分別對應生成參考圖；平面圖另外提供作為配置依據。</p>
       </CardHeader>
       <CardContent className="space-y-6">
         
@@ -160,6 +163,7 @@ export default function PhotoUploadForm({ formData, onChange }) {
             {spaceTypes.map((space) => (
               <Button
                 key={space.id}
+                disabled={isUploading}
                 variant="outline"
                 onClick={() => setActiveSpace(space.id)}
                 className={`h-auto p-4 flex flex-col items-center text-center transition-all ${
@@ -199,6 +203,7 @@ export default function PhotoUploadForm({ formData, onChange }) {
               ref={fileInputRef}
               type="file"
               multiple
+              aria-label={`${activeSpaceData.name}照片上傳`}
               accept="image/*"
               onChange={handleFileInputChange}
               className="hidden"
@@ -225,11 +230,11 @@ export default function PhotoUploadForm({ formData, onChange }) {
             <Button
               variant="outline"
               onClick={handleBrowseClick}
-              disabled={isUploading}
+              disabled={isUploading || (activeSpace !== "floor_plan" && (formData.space_photos[activeSpace]?.length || 0) >= MAX_SPACE_PHOTOS)}
               className="gap-2"
             >
               <ImageIcon className="w-4 h-4" />
-              {isUploading ? "上傳中..." : "選擇照片"}
+              {isUploading ? "上傳中..." : activeSpace !== "floor_plan" && (formData.space_photos[activeSpace]?.length || 0) >= MAX_SPACE_PHOTOS ? "已達 4 張上限" : "選擇照片"}
             </Button>
           </div>
         </div>
@@ -255,12 +260,15 @@ export default function PhotoUploadForm({ formData, onChange }) {
                   </div>
                   <Button
                     variant="destructive"
+                    disabled={isUploading}
+                    aria-label={`移除${activeSpaceData.name}照片 ${index + 1}`}
                     size="icon"
                     className="absolute top-2 right-2 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => removePhoto(activeSpace, index)}
                   >
                     <X className="w-3 h-3" />
                   </Button>
+                  <p className="mt-2 text-sm text-stone-600">{activeSpaceData.name}原圖 {index + 1}{activeSpace === "floor_plan" ? " · 配置依據" : " → 對應參考圖待生成"}</p>
                 </div>
               ))}
             </div>
@@ -294,7 +302,7 @@ export default function PhotoUploadForm({ formData, onChange }) {
           <ul className="text-sm text-amber-700 space-y-1">
             <li>• 確保照片光線充足，避免過暗或過亮</li>
             <li>• 盡量拍攝空間的整體視角，包含主要傢具配置</li>
-            <li>• 每個空間建議上傳2-4張不同角度的照片</li>
+            <li>• 每個空間最多 4 張，建議選擇不同角度；不是所有空間合計 4 張</li>
             <li>• 可以拍攝需要特別關注的細節區域</li>
           </ul>
         </div>
