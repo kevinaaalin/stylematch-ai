@@ -13,6 +13,7 @@ import { appendProposalVersion } from "@/lib/proposalVersions";
 import { calculateBudgetScenario } from "@/lib/budgetScenario";
 import { proposalContextIssues } from "@/lib/proposalContext";
 import { assetType } from "@/lib/assetCompatibility";
+import { compactProjectMedia } from "@/lib/proposalMedia";
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 4;
@@ -65,51 +66,8 @@ const legacyStageMap = {
   "已結案": "closed",
 };
 
-function getPhotoSummary(spacePhotos = {}) {
-  return Object.fromEntries(
-    Object.entries(spacePhotos).map(([space, photos]) => [
-      space,
-      Array.isArray(photos) ? photos.length : 0,
-    ])
-  );
-}
-
-function compactMediaUrls(urls = [], limit = 2) {
-  return (Array.isArray(urls) ? urls : [])
-    .filter((url) => typeof url === "string" && (
-      !url.startsWith("data:") || url.length <= 450000
-    ))
-    .slice(0, limit);
-}
-
-function compactProposalMedia(spacePhotos = {}, referencePhotos = []) {
-  return {
-    space_photos: Object.fromEntries(
-      Object.entries(spacePhotos)
-        .map(([space, photos]) => [space, compactMediaUrls(photos)])
-        .filter(([, photos]) => photos.length > 0)
-    ),
-    reference_photos: compactMediaUrls(referencePhotos, 3),
-  };
-}
-
 export function compactProjectData(data) {
-  const {
-    space_photos: spacePhotos = {},
-    reference_photos: referencePhotos = [],
-    ...projectFields
-  } = data;
-
-  return {
-    ...projectFields,
-    photo_summary: getPhotoSummary(spacePhotos),
-    total_photo_count: Object.values(spacePhotos).reduce(
-      (total, photos) => total + (Array.isArray(photos) ? photos.length : 0),
-      0
-    ),
-    reference_photo_count: Array.isArray(referencePhotos) ? referencePhotos.length : 0,
-    proposal_media: compactProposalMedia(spacePhotos, referencePhotos),
-  };
+  return compactProjectMedia(data);
 }
 
 function nowIso() {

@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { localStore } from "@/lib/localStore";
 import { buildProposal, buildSampleProject } from "@/lib/proposalBuilder";
 import { createPageUrl } from "@/utils";
+import { chunks, proposalDeliveryContent } from "@/lib/proposalDeliveryContent";
+import { captureProposalPdf } from "@/lib/proposalPdf";
 
 function Page({ children, className = "", style }) {
   return (
-    <section style={style} className={`proposal-page relative mx-auto aspect-[210/297] w-full max-w-[794px] overflow-hidden bg-white p-[7%] text-stone-900 shadow-md ${className}`}>
+    <section style={style} className={`proposal-page relative mx-auto min-h-[650px] w-full max-w-[794px] bg-white p-[7%] text-stone-900 shadow-md [overflow-wrap:anywhere] ${className}`}>
       {children}
     </section>
   );
@@ -23,8 +25,8 @@ function ImageGrid({ images, emptyText }) {
   }
   return (
     <div className={`grid gap-3 ${images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
-      {images.slice(0, 4).map((image, index) => (
-        <img key={`${image}-${index}`} src={image} crossOrigin="anonymous" className="h-64 w-full object-cover" />
+      {images.map((image, index) => (
+        <img key={`${image}-${index}`} src={image} alt={`提案圖片 ${index + 1}`} crossOrigin="anonymous" className="h-64 w-full object-contain" />
       ))}
     </div>
   );
@@ -51,35 +53,24 @@ export default function ProposalReport() {
   const versions = currentProject?.proposal_versions || [];
   const project = versionId ? versions.find((item) => item.version_id === versionId)?.project_snapshot : currentProject;
   const proposal = useMemo(() => project ? buildProposal(project) : null, [project]);
+  const delivery = useMemo(() => project ? proposalDeliveryContent(project) : null, [project]);
   useEffect(() => setVersionId(""), [projectId, sampleMode]);
 
   const downloadPdf = async () => {
     setIsExporting(true);
     setError("");
     try {
-      const pages = [...reportRef.current.querySelectorAll(".proposal-page")];
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-      for (let index = 0; index < pages.length; index += 1) {
-        const canvas = await html2canvas(pages[index], {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-        });
-        if (index > 0) pdf.addPage();
-        pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, 297, undefined, "FAST");
-      }
-      const blobUrl = URL.createObjectURL(pdf.output("blob"));
+      const blobUrl = URL.createObjectURL(await captureProposalPdf(reportRef.current, { html2canvas, jsPDF }));
       const anchor = document.createElement("a");
       anchor.href = blobUrl;
-      anchor.download = `StyleMatch-${proposal.caseCode}-設計提案.pdf`;
+      anchor.download = `StyleMatch-${proposal.caseCode.replace(/[^\p{L}\p{N}_-]/gu, "_")}-${versionId || "current"}-設計提案.pdf`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (exportError) {
       console.error(exportError);
-      setError("PDF 產生失敗，請確認專案圖片可正常顯示後再試一次。");
+      setError("PDF 未完成。請確認所有圖片可讀取並允許跨來源下載，或縮短過長的單一章節後重試；未交付缺圖或被裁切的版本。");
     } finally {
       setIsExporting(false);
     }
@@ -93,7 +84,8 @@ export default function ProposalReport() {
         <div>
           <p className="text-sm font-medium text-amber-700">StyleMatch AI 提案工作流</p>
           <h1 className="text-2xl font-bold text-stone-950">設計提案預覽</h1>
-          {versions.length > 0 && <label className="mt-3 block text-sm">提案版本<select className="ml-2 rounded-md border p-2" value={versionId} onChange={(event) => setVersionId(event.target.value)}><option value="">目前資料預覽</option>{versions.map((item) => <option key={item.version_id} value={item.version_id}>v{item.version} · {item.created_at}</option>)}</select></label>}
+          <p className="mt-2 text-sm text-stone-600">包含完整圖像、概念、方案、材料、預算依據與待確認事項。下載不重新生圖、不扣點。</p>
+          {versions.length > 0 && <label className="mt-3 block text-sm">提案版本<select disabled={isExporting} className="ml-2 max-w-full rounded-md border p-2" value={versionId} onChange={(event) => setVersionId(event.target.value)}><option value="">目前資料預覽</option>{versions.map((item) => <option key={item.version_id} value={item.version_id}>v{item.version} · {item.created_at}</option>)}</select></label>}
         </div>
         <div className="flex gap-2">
           <Link to={createPageUrl("MyProjects")}><Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" />返回專案</Button></Link>
@@ -113,7 +105,7 @@ export default function ProposalReport() {
             <h2 className="max-w-xl text-5xl font-bold leading-tight">{proposal.title}</h2>
             <p className="mt-5 max-w-lg text-lg leading-8 text-stone-300">{proposal.concept.title}</p>
           </div>
-          {proposal.hero && <img src={proposal.hero} crossOrigin="anonymous" className="h-[42%] w-full object-cover" />}
+          {proposal.hero && <img src={proposal.hero} alt="專案風格封面" crossOrigin="anonymous" className="my-6 h-80 w-full object-contain" />}
           <div className="flex justify-between text-sm text-stone-400"><span>前期概念提案</span><span>{proposal.date}</span></div>
         </Page>
 
@@ -232,35 +224,45 @@ export default function ProposalReport() {
           </div>
         </Page>
 
-        <Page>
-          <p className="text-sm font-semibold text-amber-700">06 / REFERENCES</p>
+        {(chunks(proposal.references).length ? chunks(proposal.references) : [[]]).map((images, index) => <Page key={`references-${index}`}>
+          <p className="text-sm font-semibold text-amber-700">06 / REFERENCES · {index + 1}</p>
           <h2 className="mt-3 text-4xl font-bold">風格參考圖片</h2>
           <p className="mt-4 leading-7 text-stone-600">圖片來自專案偏好資料，用於對齊色彩、材質、光感與家具語彙，不直接等同最終成果。</p>
-          <div className="mt-8"><ImageGrid images={proposal.references} emptyText="此專案尚未提供風格參考圖片" /></div>
-        </Page>
+          <div className="mt-8"><ImageGrid images={images} emptyText="此專案尚未提供風格參考圖片" /></div>
+        </Page>)}
 
-        {proposal.floorPlans.length > 0 && (
-          <Page>
+        {chunks(proposal.floorPlans).map((images, index) => (
+          <Page key={`floor-${index}`}>
             <p className="text-sm font-semibold text-amber-700">07 / LAYOUT</p>
             <h2 className="mt-3 text-4xl font-bold">平面配置參考</h2>
             <p className="mt-4 leading-7 text-stone-600">依使用者提供的平面資料整理；正式尺寸、牆體與設備位置仍須現場丈量及專業設計師確認。</p>
-            <div className="mt-8"><ImageGrid images={proposal.floorPlans} emptyText="" /></div>
+            <div className="mt-8"><ImageGrid images={images} emptyText="" /></div>
           </Page>
-        )}
+        ))}
 
-        <Page>
+        {(chunks(proposal.spaces).length ? chunks(proposal.spaces) : [[]]).map((spaces, index) => <Page key={`space-${index}`}>
           <p className="text-sm font-semibold text-amber-700">08 / SPACE REVIEW</p>
           <h2 className="mt-3 text-4xl font-bold">空間現況與規劃方向</h2>
           <div className="mt-8 grid grid-cols-2 gap-4">
-            {proposal.spaces.slice(0, 4).map((space) => (
+            {spaces.map((space) => (
               <figure key={`${space.room}-${space.url}`} className="border border-stone-200">
-                <img src={space.url} crossOrigin="anonymous" className="h-52 w-full object-cover" />
+                <img src={space.url} alt={space.label} crossOrigin="anonymous" className="h-52 w-full object-contain" />
                 <figcaption className="p-3 text-sm font-medium">{space.label}</figcaption>
               </figure>
             ))}
           </div>
           {!proposal.spaces.length && <div className="mt-8 grid h-72 place-items-center border border-dashed border-stone-300 text-stone-500">尚無可納入提案的空間照片</div>}
-        </Page>
+        </Page>)}
+
+        {chunks(delivery.adopted, 2).map((images, index) => <Page key={`adopted-${index}`}>
+          <p className="text-sm font-semibold text-amber-700">ADOPTED DESIGNS · {index + 1}</p>
+          <h2 className="mt-3 text-3xl font-bold">提案採用圖像</h2>
+          <p className="mt-4 text-sm text-stone-600">使用生成此提案時確認的圖片組，不以工作區後續修改覆蓋。圖像為概念示意，非施工依據。</p>
+          {images.map((image) => <figure key={image.revision_id} className="mt-6 border border-stone-200 p-3">
+            <img src={image.image_url} alt={image.space || "採用設計圖"} crossOrigin="anonymous" className="h-72 w-full object-contain" />
+            <figcaption className="mt-2 text-sm">{image.space || "設計圖"} · v{image.version || 1} · {image.revision_id}</figcaption>
+          </figure>)}
+        </Page>)}
 
         <Page>
           <p className="text-sm font-semibold text-amber-700">09 / MATERIAL DIRECTION</p>
@@ -278,6 +280,26 @@ export default function ProposalReport() {
             <p className="mt-2 text-sm leading-6 text-stone-300">{proposal.budgetNote}</p>
           </div>
           <p className="mt-8 text-xs leading-5 text-stone-500">{proposal.disclaimer}</p>
+        </Page>
+
+        <Page>
+          <p className="text-sm font-semibold text-amber-700">DELIVERY / REVIEW</p>
+          <h2 className="mt-3 text-3xl font-bold">預算依據與交付核對</h2>
+          <dl className="mt-8 space-y-4 text-base">
+            <div><dt className="font-semibold">估算方式</dt><dd>{proposal.analysis.budget.basis === "area_material_model" ? "依坪數與材質模型估算" : "依使用者提供的預算區間規劃"}</dd></div>
+            <div><dt className="font-semibold">假設條件</dt><dd>{proposal.analysis.budget.assumptions.area_ping} 坪；{proposal.analysis.budget.assumptions.material_label}；屋齡係數 {proposal.analysis.budget.assumptions.age_factor}</dd></div>
+            <div><dt className="font-semibold">備用金規劃參考</dt><dd>NT$ {Number(proposal.analysis.budget.contingency).toLocaleString("zh-TW")}（區間中值 × {proposal.analysis.budget.assumptions.contingency_rate * 100}%，非分項報價或已核准追加預算）</dd></div>
+          </dl>
+          <h3 className="mt-8 text-xl font-bold">下一步待確認</h3>
+          <ul className="mt-4 list-disc space-y-3 pl-6">{delivery.pending.map((item) => <li key={item}>{item}</li>)}</ul>
+          <div className="mt-8 border-t pt-6 text-sm leading-7 text-stone-600">
+            <p>專案：{proposal.caseCode} · {proposal.id}</p>
+            <p>版本：{versionId || "目前資料預覽（未凍結版本）"}</p>
+            <p>採用圖片組：{delivery.setId || "尚未建立"}</p>
+            <p>生成時間：{delivery.generatedAt || "尚未生成"}</p>
+            <p>內容核對：參考圖 {proposal.references.length}、平面圖 {proposal.floorPlans.length}、空間照片 {proposal.spaces.length}、採用圖 {delivery.adopted.length}。</p>
+            <p>{proposal.disclaimer}</p>
+          </div>
         </Page>
       </div>
     </div>
