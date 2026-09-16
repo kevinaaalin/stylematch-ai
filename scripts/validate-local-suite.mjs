@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const suites = {
   core: ['style-catalog', 'style-analysis', 'image-style-fallback', 'style-test-images', 'style-test-scoring', 'unified-image-tasks', 'tigi-knowledge-index', 'knowledge-chunks'],
-  workflow: ['project-floor-plans', 'workflow-revisions', 'asset-compatibility', 'revision-lineage', 'image-result-transaction', 'generated-image', 'proposal-versions', 'budget-scenario', 'image-task-ownership', 'proposal-context', 'proposal-delivery', 'space-photos'],
+  workflow: ['project-floor-plans', 'workflow-revisions', 'asset-compatibility', 'revision-lineage', 'image-result-transaction', 'generated-image', 'proposal-versions', 'budget-scenario', 'budget-engine', 'image-task-ownership', 'proposal-context', 'proposal-delivery', 'proposal-space-coverage', 'space-photos'],
   browser: ['revision-handoff-browser', 'generation-billing-browser', 'panorama-browser'],
 };
 const group = process.argv[2] || 'local';

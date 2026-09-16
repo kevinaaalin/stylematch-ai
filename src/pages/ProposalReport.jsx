@@ -215,7 +215,7 @@ export default function ProposalReport() {
               <article key={option.id} className={`border p-6 ${option.recommended ? "border-amber-500 bg-amber-50" : "border-stone-200"}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div><h3 className="text-xl font-bold">{option.name}</h3><p className="mt-1 text-sm font-semibold text-amber-700">{option.ratio}</p></div>
-                  {option.recommended && <span className="bg-amber-600 px-3 py-1 text-xs font-bold text-white">建議深化</span>}
+                  {option.recommended && <span className="inline-block self-start bg-amber-600 px-3 py-2 text-xs font-bold leading-6 text-white">建議深化</span>}
                 </div>
                 <p className="mt-4 leading-7 text-stone-700">{option.description}</p>
                 <p className="mt-3 border-t border-stone-200 pt-3 text-sm text-stone-500">取捨：{option.tradeoff}</p>
@@ -301,6 +301,18 @@ export default function ProposalReport() {
             <p>{proposal.disclaimer}</p>
           </div>
         </Page>
+        {chunks(delivery.spaceCoverage, 6).map((rooms, index) => <Page key={`coverage-${index}`}>
+          <p className="text-sm font-semibold text-amber-700">SPACE / SOURCE CHECK</p>
+          <h2 className="mt-3 text-3xl font-bold">逐空間圖片交付核對</h2>
+          <p className="mt-4 text-sm leading-6">每個空間最多上傳 4 張原照，每張原照應有對應參考圖；不足時仍需補足四方向素材。下表只核對本專案已保存的來源與成果，不會自動生圖或扣點，也不把圖片張數視為環景驗收。</p>
+          <div className="mt-6 space-y-5">{rooms.map(room => <section key={room.room} className="rounded border p-4">
+            <h3 className="font-semibold">{proposal.spaces.find(space => space.room === room.room)?.label || room.room}</h3>
+            <p className="mt-2">原照 {room.original_count} 張；已有對應成果 {room.covered_original_count} 張原照；尚缺對應成果 {room.missing_original_count} 張。</p>
+            <p className="mt-2">可核對生成參考圖 {room.generated_reference_count} 張；距離至少 4 張尚差 {room.additional_reference_count} 張。</p>
+            {room.upload_limit_exceeded && <p className="mt-2 text-amber-800">歷史資料超過上傳上限，已完整保留；請人工確認，不自動刪圖。</p>}
+            <p className="mt-2 text-sm text-amber-800">四方向／360° 品質未驗證：仍需核對方向、共同拍攝中心、門窗家具一致性、接縫與頂底覆蓋。</p>
+          </section>)}</div>
+        </Page>)}
       </div>
     </div>
   );

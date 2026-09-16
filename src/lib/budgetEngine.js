@@ -21,7 +21,8 @@ function materialFactor(materialGrade = "") {
 
 export class BudgetEngine {
   static analyze(project = {}) {
-    const area = Math.max(1, Number(project.square_footage) || 25);
+    const suppliedArea = Number(project.square_footage);
+    const area = Number.isFinite(suppliedArea) && suppliedArea > 0 ? suppliedArea : 25;
     const selected = selectedBudgetRange(project.budget_range);
     const grade = materialFactor(project.material_grade);
     const ageText = String(project.house_age || "");
@@ -30,8 +31,11 @@ export class BudgetEngine {
     const basePerPing = 85000;
     const modeledLow = area * basePerPing * 0.82 * grade.value * ageFactor;
     const modeledHigh = area * basePerPing * 1.18 * grade.value * ageFactor;
-    const low = Math.round((selected?.low || modeledLow) / 10000) * 10000;
-    const high = Math.max(low, Math.round((selected?.high || modeledHigh) / 10000) * 10000);
+    // Preserve an explicit TWD interval; rounding it to ten thousands can turn
+    // a small-space budget into zero or change the user's selected bounds.
+    const roundModeled = (value) => value < 10000 ? Math.round(value) : Math.round(value / 10000) * 10000;
+    const low = selected ? Math.round(selected.low) : roundModeled(modeledLow);
+    const high = Math.max(low, selected ? Math.round(selected.high) : roundModeled(modeledHigh));
     const midpoint = (low + high) / 2;
     const contingencyRate = oldHouse ? 0.15 : 0.1;
     const riskFlags = [];
@@ -40,10 +44,10 @@ export class BudgetEngine {
     if (oldHouse) riskFlags.push({ level: "high", code: "OLD_HOUSE_ALLOWANCE", message: "屋齡較高，已提高基礎工程與不可預見項目係數。" });
     if ((project.reference_photo_count || project.proposal_media?.reference_photos?.length || 0) === 0) riskFlags.push({ level: "low", code: "REFERENCE_MISSING", message: "缺少參考圖片，材料與工法假設仍需設計師確認。" });
     return {
-      engine_version: ANALYSIS_ENGINE_VERSION,
+      engine_version: `${ANALYSIS_ENGINE_VERSION}-budget-2026.09.16`,
       currency: "TWD",
       estimated_range: { low, high },
-      formatted_range: `NT$ ${Math.round(low / 10000)}–${Math.round(high / 10000)} 萬`,
+      formatted_range: `NT$ ${low.toLocaleString("en-US")}–${high.toLocaleString("en-US")}`,
       basis: selected?.source || "area_material_model",
       assumptions: {
         area_ping: area,
