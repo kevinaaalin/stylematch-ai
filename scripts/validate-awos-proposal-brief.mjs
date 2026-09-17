@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {createProposalBrief,validateProposalBrief} from '../src/lib/awosProposalBrief.js';
+const project={id:'local-fixture',square_footage:30,atmosphere_description:'明亮',email:'excluded@example.test',proposal_media:{reference_photos:['/private.png']}};
+const before=JSON.stringify(project),envelope=await createProposalBrief(project,'frozen-v2','modern');
+assert.equal(JSON.stringify(project),before);
+assert.equal(envelope.source.version_ref,'frozen-v2');assert.equal(envelope.brief.primary_style,'modern');
+assert.ok(!JSON.stringify(envelope).includes('excluded@example.test'));assert.ok(!JSON.stringify(envelope).includes('private.png'));
+assert.deepEqual(await validateProposalBrief(envelope),envelope);
+await assert.rejects(validateProposalBrief({...envelope,source:{...envelope.source,version_ref:'changed'}}));
+const oversized={...project,...Object.fromEntries(['house_age','house_type','room_layout','budget_range','material_grade','atmosphere_description','special_requirements','primary_style','preferred_style'].map(key=>[key,'字'.repeat(4000)]))};
+await assert.rejects(createProposalBrief(oversized,'v1'));
+console.log('PASS: version-bound brief, no mutation, excluded private fields/media, tamper rejection and bounded UTF-8 export.');

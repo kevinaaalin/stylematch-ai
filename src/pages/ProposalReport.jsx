@@ -10,6 +10,7 @@ import { buildProposal, buildSampleProject } from "@/lib/proposalBuilder";
 import { createPageUrl } from "@/utils";
 import { chunks, proposalDeliveryContent } from "@/lib/proposalDeliveryContent";
 import { captureProposalPdf } from "@/lib/proposalPdf";
+import { createProposalBrief } from "@/lib/awosProposalBrief";
 
 function Page({ children, className = "", style }) {
   return (
@@ -76,6 +77,16 @@ export default function ProposalReport() {
     }
   };
 
+  const downloadAwosBrief = async () => {
+    setError("");
+    try {
+      const handoff = await createProposalBrief(project, versionId || "current-unfrozen", proposal.analysis.style.primary_style);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(handoff,null,2)],{type:"application/json"}));
+      const anchor = document.createElement("a");anchor.href=url;anchor.download="stylematch-awos-proposal-brief.json";
+      document.body.appendChild(anchor);anchor.click();anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+    } catch (failure) { setError(failure.message); }
+  };
+
   if (!proposal) return <div className="mx-auto max-w-3xl p-6"><Alert><AlertDescription>找不到指定專案或提案版本，請返回我的專案重新選擇。</AlertDescription></Alert><Link to={createPageUrl("MyProjects")}>返回我的專案</Link></div>;
 
   return (
@@ -88,6 +99,7 @@ export default function ProposalReport() {
           {versions.length > 0 && <label className="mt-3 block text-sm">提案版本<select disabled={isExporting} className="ml-2 max-w-full rounded-md border p-2" value={versionId} onChange={(event) => setVersionId(event.target.value)}><option value="">目前資料預覽</option>{versions.map((item) => <option key={item.version_id} value={item.version_id}>v{item.version} · {item.created_at}</option>)}</select></label>}
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={downloadAwosBrief} disabled={isExporting}>匯出 AWOS 案件交接檔</Button>
           <Link to={createPageUrl("MyProjects")}><Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" />返回專案</Button></Link>
           <Button onClick={downloadPdf} disabled={isExporting} className="bg-stone-900 text-white hover:bg-stone-800">
             {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
@@ -95,6 +107,7 @@ export default function ProposalReport() {
           </Button>
         </div>
       </div>
+      <p className="mx-auto mb-4 max-w-[900px] px-4 text-sm text-stone-600">AWOS 交接檔僅包含本版本的案件需求與來源識別，不匯出聯絡信箱、生日欄位或圖片內容；需求自由文字仍請自行核對。匯入後仍須核准計畫，再重新產生概念成果；它不是完整圖文提案或治理核准。</p>
       {error && <Alert variant="destructive" className="mx-auto mb-4 max-w-[794px]"><AlertDescription>{error}</AlertDescription></Alert>}
 
       <div ref={reportRef} className="space-y-5 px-4">
