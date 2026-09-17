@@ -1,9 +1,10 @@
-const API_ORIGIN = import.meta.env.VITE_ISAFE_API_ORIGIN || "http://127.0.0.1:4180";
+import { API_ORIGIN, localDevelopmentToken } from './deploymentConfig.js';
 
 function headers(write = false) {
+  localDevelopmentToken(); // Read requests also carry development identity headers.
   return {
     "Content-Type": "application/json",
-    ...(write ? { Authorization: "Bearer local-dev-headquarter", "Idempotency-Key": crypto.randomUUID() } : {}),
+    ...(write ? { Authorization: `Bearer ${localDevelopmentToken()}`, "Idempotency-Key": crypto.randomUUID() } : {}),
     "X-Tenant-Id": "tenant_local_tigi",
     "X-Organization-Id": "org_local_headquarter",
     "X-User-Id": "stylematch-local-user",

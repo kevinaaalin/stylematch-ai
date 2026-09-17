@@ -1,10 +1,9 @@
 import { getIsafeIdentity } from "@/lib/isafeContract";
 
-const ISAFE_API_ORIGIN = import.meta.env.VITE_ISAFE_API_ORIGIN || "http://127.0.0.1:4180";
+import { API_ORIGIN as ISAFE_API_ORIGIN, localDevelopmentToken } from './deploymentConfig.js';
 const R5_CONTEXT = {
   tenantId: import.meta.env.VITE_TIGI_TENANT_ID || "tenant_local_tigi",
   organizationId: import.meta.env.VITE_TIGI_ORGANIZATION_ID || "org_local_headquarter",
-  token: import.meta.env.VITE_ISAFE_LOCAL_TOKEN || "local-dev-headquarter",
 };
 
 async function request(path, options = {}) {
@@ -13,7 +12,7 @@ async function request(path, options = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${R5_CONTEXT.token}`,
+      Authorization: `Bearer ${localDevelopmentToken()}`,
       "X-Tenant-Id": R5_CONTEXT.tenantId,
       "X-Organization-Id": R5_CONTEXT.organizationId,
       "X-Purpose": "isafe_governance_handover",

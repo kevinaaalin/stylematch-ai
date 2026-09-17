@@ -35,7 +35,8 @@ import { STYLE_CATALOG, getStyleById, normalizeStyleId } from "@/data/styleCatal
 import { analyzeImageStyleFallback } from "@/lib/imageStyleFallback";
 import { projectSpacePhotos, sourcePhotoResults } from "@/lib/spacePhotoContract";
 
-const API_BASE = "http://127.0.0.1:4180/api/v1";
+import { API_ORIGIN, localDevelopmentToken } from '@/lib/deploymentConfig';
+const API_BASE = `${API_ORIGIN}/api/v1`;
 const AI_TASK_SESSION_KEY = "stylematch_ai_current_task_v1";
 const IMAGE_GENERATION_COST = 10;
 const PANORAMA_GENERATION_COST = 15;
@@ -76,7 +77,7 @@ const readableTraditionalChineseError = (value, fallback) => {
 
 const requestHeaders = (idempotencyKey, purpose, caseAuthorization = "*") => ({
   "Content-Type": "application/json",
-  Authorization: "Bearer local-dev-headquarter",
+  Authorization: `Bearer ${localDevelopmentToken()}`,
   "X-Tenant-Id": "tenant_local_tigi",
   "X-Organization-Id": "org_local_headquarter",
   "X-Purpose": purpose,

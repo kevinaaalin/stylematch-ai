@@ -1,5 +1,6 @@
 import { localStore } from "./localStore.js";
 import { aiTaskHeaders } from "./aiImageTasks.js";
+import { API_ORIGIN } from './deploymentConfig.js';
 
 const referenceImages = [
   "https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=1200&q=80",
@@ -41,7 +42,7 @@ export async function SendEmail(message) {
     });
     return { success: true, local: true, delivery_status: "outbox_only" };
   }
-  const response = await fetch("http://127.0.0.1:4180/api/v1/stylematch/style-test-deliveries", {
+  const response = await fetch(`${API_ORIGIN}/api/v1/stylematch/style-test-deliveries`, {
     method: "POST",
     headers: aiTaskHeaders({
       idempotencyKey: `style-test-delivery-${crypto.randomUUID()}`,

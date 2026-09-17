@@ -1,10 +1,11 @@
-const API_BASE = "http://127.0.0.1:4180/api/v1";
+import { API_ORIGIN, localDevelopmentToken } from './deploymentConfig.js';
+const API_BASE = `${API_ORIGIN}/api/v1`;
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export const aiTaskHeaders = ({ idempotencyKey, purpose, caseCode = "*" }) => ({
   "Content-Type": "application/json",
-  Authorization: "Bearer local-dev-headquarter",
+  Authorization: `Bearer ${localDevelopmentToken()}`,
   "X-Tenant-Id": "tenant_local_tigi",
   "X-Organization-Id": "org_local_headquarter",
   "X-User-Id": "stylematch-local-user",
