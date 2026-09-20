@@ -32,7 +32,9 @@ try {
   await page.getByLabel("提案版本").selectOption("");
   await page.getByText(/需求最後一行/).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
+  if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) console.log(await page.evaluate(() => [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right > innerWidth).slice(0, 12).map(element => ({ tag: element.tagName, className: element.className, text: element.textContent.slice(0, 80), right: element.getBoundingClientRect().right }))));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({ path: path.join(output, "proposal-mobile.png") });
   const downloadPromise = page.waitForEvent("download", { timeout: 120000 });
   await page.getByRole("button", { name: "下載完整 PDF" }).click();
   const download = await downloadPromise;

@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const output = new URL("../../analysis_output/panorama-browser-20260914/", import.meta.url);
 mkdirSync(output, { recursive: true });
-const browser = await chromium.launch({ channel: "msedge", headless: true });
+const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.goto("http://127.0.0.1:4173/#/Home");

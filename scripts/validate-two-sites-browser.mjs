@@ -7,7 +7,7 @@ const config = readFileSync(new URL('../src/pages.config.js', import.meta.url), 
 const routes = [...config.slice(config.lastIndexOf('export const PAGES = {')).split('}')[0].matchAll(/"([^"]+)":/g)].map(match => match[1]);
 const html = readFileSync(new URL('../../github_isafe2_website_work/index.html', import.meta.url), 'utf8');
 const views = [...new Set([...html.matchAll(/data-view="([^"]+)"/g)].map(match => match[1]))];
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const context = await browser.newContext();
   const page = await context.newPage();

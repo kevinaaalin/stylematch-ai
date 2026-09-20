@@ -98,7 +98,7 @@ export default function ProposalReport() {
           <p className="mt-2 text-sm text-stone-600">包含完整圖像、概念、方案、材料、預算依據與待確認事項。下載不重新生圖、不扣點。</p>
           {versions.length > 0 && <label className="mt-3 block text-sm">提案版本<select disabled={isExporting} className="ml-2 max-w-full rounded-md border p-2" value={versionId} onChange={(event) => setVersionId(event.target.value)}><option value="">目前資料預覽</option>{versions.map((item) => <option key={item.version_id} value={item.version_id}>v{item.version} · {item.created_at}</option>)}</select></label>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex max-w-full flex-wrap gap-2">
           <Button variant="outline" onClick={downloadAwosBrief} disabled={isExporting}>匯出 AWOS 案件交接檔</Button>
           <Link to={createPageUrl("MyProjects")}><Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" />返回專案</Button></Link>
           <Button onClick={downloadPdf} disabled={isExporting} className="bg-stone-900 text-white hover:bg-stone-800">

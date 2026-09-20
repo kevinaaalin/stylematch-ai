@@ -1,0 +1,7 @@
+{
+  "release": "20260920-pages-frontend-01",
+  "site": "StyleMatchAI",
+  "scope": "static-frontend",
+  "productionReady": false,
+  "cloudApiDeployed": false
+}

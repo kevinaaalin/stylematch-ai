@@ -2,9 +2,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $workspaceRoot = Split-Path -Parent $projectRoot
 $vite = Join-Path $projectRoot "node_modules\vite\bin\vite.js"
-$bundledApiServer = Join-Path $projectRoot "local-api\server.mjs"
-$workspaceApiServer = Join-Path $workspaceRoot "local-api\server.mjs"
-$apiServer = if (Test-Path $bundledApiServer) { $bundledApiServer } else { $workspaceApiServer }
+$apiServer = Join-Path $projectRoot "local-api\server.mjs"
 $env:ISAFE_DB_PATH = Join-Path $workspaceRoot "local-api\data\isafe.db"
 $comfyRoot = "C:\Users\Kevin\Desktop\ComfyUI_windows_portable"
 $comfyPython = Join-Path $comfyRoot "python_embeded\python.exe"
@@ -82,6 +80,14 @@ if (-not (Test-LocalService "http://127.0.0.1:4180/api/v1/health")) {
   Write-Host "Starting local API: http://127.0.0.1:4180" -ForegroundColor Cyan
 }
 
+$apiDeadline = (Get-Date).AddSeconds(30)
+while (-not (Test-LocalService "http://127.0.0.1:4180/api/v1/health")) {
+  if ((Get-Date) -ge $apiDeadline) { throw "Unified API did not become ready. Check local-api.err.log." }
+  Start-Sleep -Seconds 1
+}
+& $node (Join-Path $projectRoot 'scripts/verify-local-runtime.mjs')
+if ($LASTEXITCODE -ne 0) { throw "Unified API runtime verification failed. Existing processes and data were retained." }
+
 Set-Location $projectRoot
 Write-Host "Starting StyleMatch AI: http://127.0.0.1:4173" -ForegroundColor Green
-& $node $vite --host 127.0.0.1 --port 4173
+& $node $vite --host 127.0.0.1 --port 4173 --strictPort
