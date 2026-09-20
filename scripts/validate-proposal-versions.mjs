@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appendProposalVersion } from "../src/lib/proposalVersions.js";
+import { appendProposalVersion, resolveProposalVersion } from "../src/lib/proposalVersions.js";
 for (const budget of [100000, 1000000, 3000000]) {
   const project = { project_id: "p", budget, proposal_images: ["first.png"] };
   const first = appendProposalVersion(project, "v1", "2026-09-14");
@@ -11,5 +11,14 @@ for (const budget of [100000, 1000000, 3000000]) {
   assert.deepEqual(second[1].project_snapshot.proposal_images, ["first.png"]);
   assert.equal(JSON.stringify(first), serialized);
   assert.equal(second[0].project_snapshot.proposal_versions, undefined);
+  const current = { ...project, proposal_versions: second };
+  assert.equal(resolveProposalVersion(current, 'v1').budget, budget);
+  assert.equal(resolveProposalVersion(current, 'missing'), null);
+  assert.equal(resolveProposalVersion(current), current);
+  assert.throws(() => appendProposalVersion(current, 'v1', '2026-09-16'));
+  assert.throws(() => appendProposalVersion(current, '', '2026-09-16'));
+  assert.throws(() => appendProposalVersion(current, 'v3', 'invalid'));
+  assert.equal(resolveProposalVersion({ ...current, project_id: 'foreign' }, 'v1'), null);
+  assert.equal(resolveProposalVersion({ ...current, proposal_versions: [...second, second[1]] }, 'v1'), null);
 }
 console.log("Proposal V1/V2 immutable snapshots: 3 fixtures passed.");

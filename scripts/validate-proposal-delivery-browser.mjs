@@ -20,15 +20,25 @@ try {
       reference_revisions: [{ revision_id: "r1", image_url: image }],
       confirmed_reference_sets: [{ confirmed_reference_set_id: "confirmed-qa", project_id: "delivery-qa", revision_ids: ["r1"], images: [{ revision_id: "r1", image_url: image, space: "採用客廳", version: 1 }] }],
     };
+    project.payment = { status: 'paid_test' };
     project.proposal_versions = [{ version_id: "v1", version: 1, created_at: "2026-09-14", project_snapshot: { ...structuredClone(project), special_requirements: "歷史版本需求" } }];
     localStorage.setItem("stylematch_active_plan_v1", "pro");
     localStorage.setItem("stylematch_local_mvp_v1", JSON.stringify({ storage_schema_version: 4, projects: [project], styleTests: [], isafeCases: [], notifications: [], auditLogs: [], jobs: [], point_balance: 100, point_ledger: [] }));
   });
-  await page.goto("http://127.0.0.1:4173/#/ProposalReport?project=delivery-qa");
+  await page.goto("http://127.0.0.1:4173/#/ProjectDetail?project=delivery-qa");
+  await page.getByRole('heading', { name: '提案歷史版本' }).waitFor();
+  await page.getByRole('link', { name: '查看此版本' }).click();
+  assert.ok(page.url().includes('version=v1'));
+  await page.getByText('歷史版本需求', { exact: true }).waitFor();
+  await page.getByLabel('提案版本').selectOption('');
   await page.getByRole("heading", { name: "預算依據與交付核對" }).waitFor();
   assert.equal(await page.locator(".proposal-page img").count(), 18); // cover + 6 + 5 + 5 + adopted
   await page.getByLabel("提案版本").selectOption("v1");
   await page.getByText("歷史版本需求", { exact: true }).waitFor();
+  assert.ok(page.url().includes('version=v1'));
+  await page.reload();
+  await page.getByText("歷史版本需求", { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('提案版本').inputValue(), 'v1');
   await page.getByLabel("提案版本").selectOption("");
   await page.getByText(/需求最後一行/).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });

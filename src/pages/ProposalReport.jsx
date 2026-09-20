@@ -11,6 +11,7 @@ import { createPageUrl } from "@/utils";
 import { chunks, proposalDeliveryContent } from "@/lib/proposalDeliveryContent";
 import { captureProposalPdf } from "@/lib/proposalPdf";
 import { createProposalBrief } from "@/lib/awosProposalBrief";
+import { resolveProposalVersion } from "@/lib/proposalVersions";
 
 function Page({ children, className = "", style }) {
   return (
@@ -34,14 +35,20 @@ function ImageGrid({ images, emptyText }) {
 }
 
 export default function ProposalReport() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState("");
   const [database, setDatabase] = useState(() => localStore.getAll());
   const reportRef = useRef(null);
   const projectId = searchParams.get("project");
   const sampleMode = searchParams.get("sample") === "1";
-  const [versionId, setVersionId] = useState("");
+  const versionId = searchParams.get("version") || "";
+  const setVersionId = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set("version", value);
+    else next.delete("version");
+    setSearchParams(next);
+  };
 
   useEffect(() => {
     const refresh = () => setDatabase(localStore.getAll());
@@ -52,10 +59,9 @@ export default function ProposalReport() {
     ? buildSampleProject()
     : database.projects.find((item) => item.id === projectId || item.project_id === projectId);
   const versions = currentProject?.proposal_versions || [];
-  const project = versionId ? versions.find((item) => item.version_id === versionId)?.project_snapshot : currentProject;
+  const project = resolveProposalVersion(currentProject, versionId);
   const proposal = useMemo(() => project ? buildProposal(project) : null, [project]);
   const delivery = useMemo(() => project ? proposalDeliveryContent(project) : null, [project]);
-  useEffect(() => setVersionId(""), [projectId, sampleMode]);
 
   const downloadPdf = async () => {
     setIsExporting(true);

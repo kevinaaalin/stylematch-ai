@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 import { localStore } from "@/lib/localStore";
 import { createPageUrl } from "@/utils";
+import { resolveProposalVersion } from "@/lib/proposalVersions";
 
 const roomLabels = {
   floor_plan: "平面配置",
@@ -48,6 +49,9 @@ export default function ProjectDetail() {
   const media = project.proposal_media || {};
   const photos = Object.entries(media.space_photos || {}).flatMap(([room, images]) => images.map((url) => ({ room, url })));
   const proposalPaid = ["paid", "paid_test"].includes(project.payment?.status);
+  const proposalProjectRef = encodeURIComponent(project.project_id || project.id);
+  const proposalUrl = `${createPageUrl("ProposalReport")}?project=${proposalProjectRef}`;
+  const proposalVersions = project.proposal_versions || [];
 
   return (
     <div className="min-h-screen bg-stone-50 py-8">
@@ -90,8 +94,24 @@ export default function ProjectDetail() {
         <section className="border-t border-stone-200 py-7">
           <div className="flex flex-wrap items-center justify-between gap-4 bg-amber-50 p-6">
             <div><h2 className="text-xl font-bold">設計提案預覽</h2><p className="mt-1 text-sm text-stone-600">{proposalPaid ? "付款已確認，可查看本專案提案並下載 PDF。" : "完成單次方案付款確認後，即可查看專案提案結果。"}</p></div>
-            <Link to={proposalPaid ? `${createPageUrl("ProposalReport")}?project=${project.project_id}` : `${createPageUrl("PricingPlans")}?checkout=single&project=${project.project_id}`}><Button className="bg-stone-900 text-white hover:bg-stone-800">{proposalPaid ? "開啟設計提案" : "前往付費頁面"}<ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+            <Link to={proposalPaid ? proposalUrl : `${createPageUrl("PricingPlans")}?checkout=single&project=${proposalProjectRef}`}><Button className="bg-stone-900 text-white hover:bg-stone-800">{proposalPaid ? "查看目前草稿" : "前往付費頁面"}<ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
           </div>
+          <h3 className="mt-6 text-lg font-semibold">提案歷史版本</h3>
+          {!proposalVersions.length ? <p className="mt-3 text-sm text-stone-600">尚無已保存的提案版本，目前資料為未凍結草稿。</p> : (
+            <ul className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
+              {proposalVersions.map((version, index) => {
+                const valid = Boolean(version.version_id && resolveProposalVersion(project, version.version_id));
+                return <li key={`${version.version_id}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <div className="min-w-0 [overflow-wrap:anywhere]">
+                    <p className="font-semibold">V{version.version} · 歷史快照</p>
+                    <p className="text-sm text-stone-600">建立時間：{version.created_at || "未記錄"}</p>
+                    <p className="text-xs text-stone-500">版本：{version.version_id || "未記錄"} · 上一版本：{version.parent_version_id || "未記錄／首版"}</p>
+                  </div>
+                  {valid && proposalPaid ? <Link to={`${proposalUrl}&version=${encodeURIComponent(version.version_id)}`} className="inline-flex items-center text-sm font-medium underline">查看此版本<ArrowRight className="ml-2 h-4 w-4" /></Link> : <span className="text-sm text-stone-600">{valid ? "付款確認後開放" : "版本來源異常，暫不開放"}</span>}
+                </li>;
+              })}
+            </ul>
+          )}
         </section>
 
 
