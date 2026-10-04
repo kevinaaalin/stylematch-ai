@@ -25,6 +25,12 @@ const materialDirections = [
 ];
 
 function allSpaceImages(project) {
+  const confirmed = (project.confirmed_reference_sets || []).find(set => set.confirmed_reference_set_id === project.active_confirmed_reference_set_id);
+  if (confirmed) return confirmed.images.map(image => ({
+    room: image.space, label: roomLabels[image.space] || image.space || '待確認空間',
+    url: image.image_url, revision_id: image.revision_id, version: image.version,
+    source: 'confirmed_reference_set',
+  }));
   return Object.entries(project.proposal_media?.space_photos || {})
     .filter(([room]) => room !== "floor_plan")
     .flatMap(([room, images]) => images.map((url) => ({ room, label: roomLabels[room] || room, url })));
@@ -105,9 +111,9 @@ export function buildProposal(project) {
     floorPlans,
     spaces,
     analysis,
-    materials: materialDirections.map(([category, standard, high, note], index) => ({
+    materials: materialDirections.map(([category, standard, high, note]) => ({
       category,
-      suggestion: index < 3 ? `${selectedStyle.materials[index]}；${premium ? high : standard}` : premium ? high : standard,
+      suggestion: premium ? high : standard,
       note,
     })),
     budgetNote: `本提案以「${project.budget_range || "預算待確認"}」作為初步規劃邊界。正式工程金額仍須依現場丈量、施工圖、材料樣品及分項估價確認。`,

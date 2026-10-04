@@ -63,6 +63,7 @@ const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const Workspace = lazy(() => import('./pages/Workspace'));
 const FloorPlanVisualizer = lazy(() => import('./pages/FloorPlanVisualizer'));
 const Knowledge = lazy(() => import('./pages/Knowledge'));
+const StyleMix = lazy(() => import('./pages/StyleMix'));
 import __Layout from './Layout.jsx';
 
 
@@ -83,6 +84,7 @@ export const PAGES = {
     "Workspace": Workspace,
     "FloorPlanVisualizer": FloorPlanVisualizer,
     "Knowledge": Knowledge,
+    "StyleMix": StyleMix,
 }
 
 export const pagesConfig = {

@@ -128,12 +128,12 @@ export default function ProjectDetail() {
               {project.isafe_case_id && <p className="mt-2 break-all font-mono text-xs text-teal-200">{buildIsafeWorkspaceUrl(project.isafe_case_id)}</p>}
             </div>
             {project.isafe_case_id ? (
-              <a href={buildIsafeWorkspaceUrl(project.isafe_case_id)}>
-                <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">直接進入 iSAFE<ArrowUpRight className="ml-2 h-4 w-4" /></Button>
+              <a href={buildIsafeWorkspaceUrl(project.isafe_case_id)} target="_blank" rel="noopener noreferrer" aria-label="進入 iSAFE（另開分頁）">
+                <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">進入 iSAFE（另開分頁）<ArrowUpRight className="ml-2 h-4 w-4" /></Button>
               </a>
             ) : (
-              <Link to={createPageUrl("Cases") + "?project=" + project.project_id}>
-                <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">前往 iSAFE 交接<ArrowRight className="ml-2 h-4 w-4" /></Button>
+              <Link to={createPageUrl("Cases") + "?project=" + encodeURIComponent(project.project_id || project.id)} target="_blank" rel="noopener noreferrer">
+                <Button className="bg-teal-500 text-teal-950 hover:bg-teal-400">前往 iSAFE（另開分頁）<ArrowUpRight className="ml-2 h-4 w-4" /></Button>
               </Link>
             )}
           </div>

@@ -12,6 +12,8 @@ import { chunks, proposalDeliveryContent } from "@/lib/proposalDeliveryContent";
 import { captureProposalPdf } from "@/lib/proposalPdf";
 import { createProposalBrief } from "@/lib/awosProposalBrief";
 import { resolveProposalVersion } from "@/lib/proposalVersions";
+import { getFrozenProposalDocument } from "@/lib/proposalDocument";
+import ProposalImage from "@/components/ProposalImage";
 
 function Page({ children, className = "", style }) {
   return (
@@ -28,7 +30,7 @@ function ImageGrid({ images, emptyText }) {
   return (
     <div className={`grid gap-3 ${images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
       {images.map((image, index) => (
-        <img key={`${image}-${index}`} src={image} alt={`提案圖片 ${index + 1}`} crossOrigin="anonymous" className="h-64 w-full object-contain" />
+        <ProposalImage key={`${image}-${index}`} src={image} alt={`提案圖片 ${index + 1}`} className="h-64 w-full object-contain" />
       ))}
     </div>
   );
@@ -60,8 +62,8 @@ export default function ProposalReport() {
     : database.projects.find((item) => item.id === projectId || item.project_id === projectId);
   const versions = currentProject?.proposal_versions || [];
   const project = resolveProposalVersion(currentProject, versionId);
-  const proposal = useMemo(() => project ? buildProposal(project) : null, [project]);
-  const delivery = useMemo(() => project ? proposalDeliveryContent(project) : null, [project]);
+  const proposal = useMemo(() => project ? project.proposal_document?.proposal || buildProposal(project) : null, [project]);
+  const delivery = useMemo(() => project ? project.proposal_document?.delivery || proposalDeliveryContent(project) : null, [project]);
 
   const downloadPdf = async () => {
     setIsExporting(true);
@@ -93,6 +95,34 @@ export default function ProposalReport() {
     } catch (failure) { setError(failure.message); }
   };
 
+  const downloadDocument = () => {
+    setError('');
+    try {
+      const documentData = getFrozenProposalDocument(currentProject, versionId);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(documentData, null, 2)], { type: 'application/json' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `StyleMatch-proposal-${versionId.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (failure) { setError(failure.message); }
+  };
+
+  const downloadOffice = async (format) => {
+    setError(''); setIsExporting(true);
+    try {
+      const documentData = getFrozenProposalDocument(currentProject, versionId);
+      const { exportFrozenProposal } = await import('@/lib/proposalOfficeExport');
+      const blob = await exportFrozenProposal(documentData, format);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url; anchor.download = `StyleMatch-${versionId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${format}`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (failure) { setError(`匯出未完成：${failure.message}`); }
+    finally { setIsExporting(false); }
+  };
+
   if (!proposal) return <div className="mx-auto max-w-3xl p-6"><Alert><AlertDescription>找不到指定專案或提案版本，請返回我的專案重新選擇。</AlertDescription></Alert><Link to={createPageUrl("MyProjects")}>返回我的專案</Link></div>;
 
   return (
@@ -105,6 +135,8 @@ export default function ProposalReport() {
           {versions.length > 0 && <label className="mt-3 block text-sm">提案版本<select disabled={isExporting} className="ml-2 max-w-full rounded-md border p-2" value={versionId} onChange={(event) => setVersionId(event.target.value)}><option value="">目前資料預覽</option>{versions.map((item) => <option key={item.version_id} value={item.version_id}>v{item.version} · {item.created_at}</option>)}</select></label>}
         </div>
         <div className="flex max-w-full flex-wrap gap-2">
+          {['docx', 'pptx', 'pdf'].map(format => <Button key={format} variant="outline" onClick={() => downloadOffice(format)} disabled={isExporting || !versionId}><Download className="mr-2 h-4 w-4" />版本 {format.toUpperCase()}</Button>)}
+          <Button variant="outline" onClick={downloadDocument} disabled={isExporting || !versionId}><Download className="mr-2 h-4 w-4" />匯出版本資料 JSON</Button>
           <Button variant="outline" onClick={downloadAwosBrief} disabled={isExporting}>匯出 AWOS 案件交接檔</Button>
           <Link to={createPageUrl("MyProjects")}><Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" />返回專案</Button></Link>
           <Button onClick={downloadPdf} disabled={isExporting} className="bg-stone-900 text-white hover:bg-stone-800">
@@ -124,7 +156,7 @@ export default function ProposalReport() {
             <h2 className="max-w-xl text-5xl font-bold leading-tight">{proposal.title}</h2>
             <p className="mt-5 max-w-lg text-lg leading-8 text-stone-300">{proposal.concept.title}</p>
           </div>
-          {proposal.hero && <img src={proposal.hero} alt="專案風格封面" crossOrigin="anonymous" className="my-6 h-80 w-full object-contain" />}
+          {proposal.hero && <ProposalImage src={proposal.hero} alt="專案風格封面" className="my-6 h-80 w-full object-contain" />}
           <div className="flex justify-between text-sm text-stone-400"><span>前期概念提案</span><span>{proposal.date}</span></div>
         </Page>
 
@@ -265,7 +297,7 @@ export default function ProposalReport() {
           <div className="mt-8 grid grid-cols-2 gap-4">
             {spaces.map((space) => (
               <figure key={`${space.room}-${space.url}`} className="border border-stone-200">
-                <img src={space.url} alt={space.label} crossOrigin="anonymous" className="h-52 w-full object-contain" />
+                <ProposalImage src={space.url} alt={space.label} className="h-52 w-full object-contain" />
                 <figcaption className="p-3 text-sm font-medium">{space.label}</figcaption>
               </figure>
             ))}
@@ -278,7 +310,7 @@ export default function ProposalReport() {
           <h2 className="mt-3 text-3xl font-bold">提案採用圖像</h2>
           <p className="mt-4 text-sm text-stone-600">使用生成此提案時確認的圖片組，不以工作區後續修改覆蓋。圖像為概念示意，非施工依據。</p>
           {images.map((image) => <figure key={image.revision_id} className="mt-6 border border-stone-200 p-3">
-            <img src={image.image_url} alt={image.space || "採用設計圖"} crossOrigin="anonymous" className="h-72 w-full object-contain" />
+            <ProposalImage src={image.image_url} alt={image.space || "採用設計圖"} className="h-72 w-full object-contain" />
             <figcaption className="mt-2 text-sm">{image.space || "設計圖"} · v{image.version || 1} · {image.revision_id}</figcaption>
           </figure>)}
         </Page>)}

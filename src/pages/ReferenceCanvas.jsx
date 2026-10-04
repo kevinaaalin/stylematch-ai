@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { GenerateImage, UploadFile } from "@/lib/localAdapters";
+import { UploadFile } from "@/lib/localAdapters";
 import { createAndWaitForImageTask } from "@/lib/aiImageTasks";
-import { approveAsset, createApprovedAsset } from "@/lib/structuredSpaceApi";
+import { approveAsset, createApprovedAsset, listApprovedAssets } from "@/lib/structuredSpaceApi";
+import { registerReferenceAsset, selectApprovedReferenceAssets } from "@/lib/referenceAssetRegistration";
 import { visualEditingIntent } from "@/lib/visualEditing";
 import VisualEditingIntentControls from "@/components/ai/VisualEditingIntentControls";
 import ImageMaskCanvas from "@/components/ai/ImageMaskCanvas";
@@ -21,6 +22,7 @@ import { useRevisionHandoff } from "@/components/ai/useRevisionHandoff";
 import { localStore } from "@/lib/localStore";
 import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
+import { completionRooms, completeProposalImages } from '@/lib/proposalImageCompletion';
 
 const PROPOSAL_COST = 30;
 const REVISION_COST = 5;
@@ -133,12 +135,11 @@ export default function ReferenceCanvas() {
       const parsedReferenceAssetIds = referenceAssetIds.split(",").map((item) => item.trim()).filter(Boolean);
       if (visualIntent.referenceRequired && parsedReferenceAssetIds.length === 0) throw new Error("請填寫至少一筆參考資產 ID。");
       const prompt = `${project.primary_style || project.preferred_style || "現代簡約"} ${space}室內設計。編輯方式：${visualIntent.label}。修改要求：${instruction || "維持原需求並提升空間完整度"}`;
-      let generated;
-      try {
-        generated = await createAndWaitForImageTask({
+      const generated = await createAndWaitForImageTask({
           project,
           prompt,
           outputType: "reference_image_revision",
+          compactPreview: true,
           purpose: "stylematch_reference_image_revision",
           sourceMediaUrls: [activeRevision?.image_url, maskDataUrl].filter(Boolean),
           operation: {
@@ -154,10 +155,6 @@ export default function ReferenceCanvas() {
             space,
           },
         });
-      } catch (apiError) {
-        const fallback = await GenerateImage({ prompt });
-        generated = { url: fallback.url, task: null, generation_source: "local_sdk_fallback", authoritative: false, fallback_reason: apiError.message };
-      }
       const { revision, ...payment } = await localStore.commitGeneratedRevision(project.project_id, {
         image_url: generated.url,
         source_image_url: activeRevision?.image_url || null,
@@ -168,6 +165,7 @@ export default function ReferenceCanvas() {
         prompt,
         space,
         source_task_id: generated.task?.ai_task_id || null,
+        original_image_url: generated.source_url, preview_encoding: 'jpeg-1280-q86',
         task_status: generated.task?.status || null,
         workflow_version: generated.task?.workflow_version || null,
         checkpoint: generated.task?.checkpoint || null,
@@ -214,6 +212,19 @@ export default function ReferenceCanvas() {
     finally { setBusy(false); }
   };
 
+  const loadCandidate = async () => {
+    if (!project || !activeRevision) return;
+    clearStatus(); setBusy(true);
+    try {
+      const candidate = await registerReferenceAsset(project.project_id, activeRevision, { listApprovedAssets, createApprovedAsset });
+      setAssetCandidate(candidate);
+      setMessage(`已取得資產版本 v${candidate.revision}，狀態：${candidate.status}`);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setBusy(false); }
+  };
+
+  useEffect(() => { setAssetCandidate(null); }, [projectId, activeRevisionId]);
+
   const revertToSource = async () => {
     if (!project || !activeRevision?.source_image_url) return;
     clearStatus(); setBusy(true);
@@ -252,15 +263,33 @@ export default function ReferenceCanvas() {
     } catch (requestError) { setError(requestError.message || "參考圖組確認失敗，請重新選擇圖片後再試。"); }
   };
 
-  const generateProposal = () => {
-    clearStatus();
+  const generateProposal = async (completionOnly = false) => {
+    clearStatus(); setBusy(true);
     try {
+      const readProject = () => localStore.getAll().projects.find(p => p.project_id === project.project_id);
+      if (!navigator.locks) throw new Error('請使用支援本地安全交易的 Chrome。');
+      const completed = await navigator.locks.request(`proposal-fill-${project.project_id}`, async () => {
+        const rooms = completionRooms(readProject());
+        const missing = rooms.reduce((sum, r) => sum + r.missing, 0);
+        if (localStore.getAll().point_balance < missing * REVISION_COST) throw new Error(`需補 ${missing} 張，需 ${missing * REVISION_COST} 點；尚未生成或扣點。`);
+        return completeProposalImages({ getProject: readProject, generate: createAndWaitForImageTask, onProgress: setMessage,
+          save: (data, key) => localStore.commitGeneratedRevision(project.project_id, data, { type: 'proposal_space_completion', cost: REVISION_COST, detail: '逐空間提案補圖', idempotencyKey: key }),
+        });
+      });
+      if (completed.saved) { setMessage(`已補齊 ${completed.saved} 張候選圖，每張 ${REVISION_COST} 點。請逐張核准並確認採用圖片後生成提案；尚未扣提案點數。`); return; }
+      if (completionOnly === true) { setMessage('每空間已具備至少 4 張候選圖，未重複生成或扣點。請核准並確認採用圖片。'); return; }
+      const chosen = new Set(confirmedSet?.revision_ids || []);
+      if (completed.rooms.some(r => r.revisions.filter(v => chosen.has(v.revision_id)).length < 4)) throw new Error('每空間需確認採用至少 4 張已生成圖片，請先核准並確認圖片組。');
+      const { assets } = await listApprovedAssets(project.project_id);
+      const approvedAssets = selectApprovedReferenceAssets(project.project_id, confirmedSet, assets);
       const result = localStore.generateProposalWithPoints(project.project_id, {
         idempotencyKey: `proposal-${project.project_id}-${project.active_confirmed_reference_set_id}`,
         cost: PROPOSAL_COST,
+        approvedAssets,
       });
-      setMessage(result.reused ? "此參考圖組已生成過提案，未重複扣點。" : `正式提案已生成，扣除 ${PROPOSAL_COST} 點。`);
+      setMessage(result.reused ? "此參考圖組已生成過提案，未重複扣點。" : `提案草稿已生成，扣除 ${PROPOSAL_COST} 點；仍須完成提案審核。`);
     } catch (requestError) { setError(requestError.message || "正式提案產生失敗，點數不會被扣除，請稍後再試。"); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -273,6 +302,9 @@ export default function ReferenceCanvas() {
       <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-2"><label className="text-sm font-medium">專案<select className="mt-2 h-10 w-full rounded-md border border-stone-200 bg-white px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelectedRevisionIds([]); }}><option value="">請選擇專案</option>{projects.map((item) => <option key={item.project_id} value={item.project_id}>{item.case_code}－{item.project_name || item.name || "未命名專案"}</option>)}</select></label><label className="text-sm font-medium">空間<Input className="mt-2" value={space} onChange={(event) => setSpace(event.target.value)} /></label></CardContent></Card>
 
       <RecentRevisionLauncher projects={projects} disabled={busy} />
+      <Button type="button" variant="outline" disabled={busy || !activeRevision} onClick={loadCandidate}><Check className="mr-2 h-4 w-4" />登錄／讀取目前版本的核准紀錄</Button>
+      <Button type="button" disabled={busy || !project || !isBusinessPlan(planId)} onClick={() => generateProposal(true)}><Wand2 className="mr-2 h-4 w-4" />補齊每空間 4 張候選圖（每張 {REVISION_COST} 點，成功保存才扣點）</Button>
+      {activeRevision?.provenance && <p className="text-sm text-amber-800">{activeRevision.provenance === 'no_photo_concept' ? '無原照概念圖：空間幾何為推估。' : '原照衍生設計圖：新增內容須核對。'}非四方向實測重建，仍須人工核准。</p>}
       {project && <ProposalContextEditor key={project.project_id} project={project} disabled={busy} />}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newBranch} disabled={busy} onChange={(event) => setNewBranch(event.target.checked)} />下次改版建立獨立分支</label>
       <Button type="button" variant="outline" disabled={busy || !activeRevision} onClick={createBranch}><Layers3 className="mr-2 h-4 w-4" />從此版本建立分支</Button>

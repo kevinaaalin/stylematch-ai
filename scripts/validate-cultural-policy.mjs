@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { evaluateCulturalPreference as evaluate } from '../src/lib/culturalPreferencePolicy.js';
+const base = { modern: 80, minimalist: 20 };
+const signal = { verified: true, confidence: 1, source_ref: 'fixture', style_id: 'modern' };
+const input = { consent: true, verified: true, bazi: signal, zodiac: signal };
+assert.equal(evaluate(base, input).eligible_weight, 0.25);
+assert.equal(evaluate(base, input).status, 'WAITING_APPROVAL');
+assert.equal(evaluate(base, input).applied_weight, 0);
+for (const patch of [{ consent: false }, { verified: false }, { revoked_at: '2026-09-26' }]) assert.equal(evaluate(base, { ...input, ...patch }).eligible_weight, 0);
+for (const confidence of [0, -1, NaN, Infinity, 2]) assert.equal(evaluate(base, { ...input, bazi: null, zodiac: { ...signal, confidence } }).eligible_weight, 0);
+assert.equal(evaluate(base, { ...input, zodiac: null }).status, 'READY');
+assert.equal(evaluate(base, { ...input, bazi: null }).applied_weight, 0.1);
+assert.equal(evaluate(base, { ...input, zodiac: null, birth_time_uncertain: true }).status, 'WAITING_APPROVAL');
+assert.equal(evaluate({modern:51,minimalist:49}, { ...input, bazi: null, zodiac: { ...signal, style_id: 'minimalist' } }).status, 'WAITING_APPROVAL');
+assert.deepEqual(evaluate(base, {}).distribution, evaluate(base, { ...input, consent: false }).distribution);
+console.log('Cultural policy checks passed');

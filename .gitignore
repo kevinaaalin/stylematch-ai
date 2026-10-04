@@ -18,6 +18,7 @@ dist-ssr
 local-api/data/
 local-api/**/*.log
 local-api/scripts/__pycache__/
+analysis_output/
 
 # Full local image corpora stay on the workstation. GitHub carries only the
 # explicitly staged representative images used as browser fallbacks.

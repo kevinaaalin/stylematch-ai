@@ -410,6 +410,7 @@ export default function AIGenerate() {
           output_type: panorama ? "equirectangular_2_1" : "perspective_draft",
           proposal_scope: "stylematch_pre_match_concept",
           operation: { parent_asset_id: panorama ? null : (sourceRevisionId || null), source_image_url: panorama ? null : (sourceImage || null), space,
+            ...(!panorama ? { creative_mode: creativeMode } : {}),
             ...(selectedPhoto && !panorama ? { source_photo_room: selectedPhoto.room, source_photo_number: selectedPhoto.index + 1 } : {}),
             ...(panorama ? { direction_completion: completeDirections, derived_direction_task_id: !completeDirections ? directionSet?.task_id || null : null, direction_review_confirmed: !completeDirections && directionReviewed } : {}) },
           room: space,

@@ -44,14 +44,14 @@ test("shared ProjectAnalysisSchema accepts the composed engine output", () => {
   assert.equal(result.deterministic, true);
 });
 
-test("cultural preference remains optional, deterministic, and capped at five percent", () => {
+test("legacy cultural opt-in without verification does not contribute", () => {
   const result = StyleAnalysisEngine.analyze({
     project: { ...project, cultural_preference_enabled: true, birth_date: "1990-10-10", zodiac_sign: "天秤座" },
     styleTest,
   });
-  assert.equal(result.evidence.cultural_preference_weight, 0.05);
-  assert.equal(result.evidence.zodiac_sign, "天秤座");
-  assert.ok(result.reasons.some((reason) => reason.includes("5%")));
+  assert.equal(result.evidence.cultural_preference_weight, 0);
+  assert.equal(result.evidence.zodiac_sign, null);
+  assert.equal(result.cultural_policy.eligible_weight, 0);
   assert.deepEqual(result, StyleAnalysisEngine.analyze({
     project: { ...project, cultural_preference_enabled: true, birth_date: "1990-10-10", zodiac_sign: "天秤座" },
     styleTest,

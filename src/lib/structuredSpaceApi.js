@@ -28,6 +28,12 @@ export function listStructuredSpaces(projectId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/structured-spaces`, { headers: headers() }).then(read);
 }
 
+export function analyzeStyleMixImage(image) {
+  return fetch(`${API_ORIGIN}/api/v1/stylematch/stylemix/analyze`, {
+    method: 'POST', headers: headers(true), body: JSON.stringify({ image }),
+  }).then(read);
+}
+
 export function createStructuredSpace(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/structured-spaces`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),

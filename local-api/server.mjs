@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
+import { photoDesignPolicy } from "../src/lib/photoDesignPolicy.js";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { connect as connectNet } from "node:net";
@@ -18,6 +19,7 @@ import { authenticateOidcRequest } from "./oidc-auth.mjs";
 import { createFieldEvidenceService } from "./field-evidence.mjs";
 import { generateGeminiImage, GEMINI_IMAGE_MODELS } from "./gemini-image-provider.mjs";
 import { validateDirectionCompletion } from "./direction-completion.mjs";
+import { analyzeStyleMixImage } from './stylemix-vision.mjs';
 
 const HOST = process.env.ISAFE_API_HOST || "127.0.0.1";
 // Experimental only: enable after the configured provider passes real ERP quality acceptance.
@@ -892,7 +894,8 @@ function assertStyleMatchCaseAuthorization(caseCode, ctx) {
 }
 
 function assertAiTaskAuthorization(aiTaskId, ctx) {
-  const task = db.prepare("SELECT case_code FROM ai_image_tasks WHERE ai_task_id=?").get(aiTaskId);
+  const task = db.prepare("SELECT case_code FROM ai_image_tasks WHERE ai_task_id=? AND tenant_id=? AND organization_id=?")
+    .get(aiTaskId, ctx.tenant_id, ctx.organization_id);
   if (!task) fail("AI image task not found.", "AI_TASK_NOT_FOUND", 404);
   assertStyleMatchCaseAuthorization(task.case_code, ctx);
 }
@@ -2115,10 +2118,10 @@ function buildPassport(caseData) {
   };
 }
 
-function buildSdxlWorkflow({ prompt, negativePrompt, seed, width, height, filenamePrefix, sourceImage }) {
+function buildSdxlWorkflow({ prompt, negativePrompt, seed, width, height, filenamePrefix, sourceImage, denoise = 0.72 }) {
   const latentInput = sourceImage ? ["12", 0] : ["5", 0];
   return {
-    "3": { class_type: "KSampler", inputs: { seed, steps: 24, cfg: 7, sampler_name: "euler", scheduler: "normal", denoise: sourceImage ? 0.72 : 1, model: ["4", 0], positive: ["6", 0], negative: ["7", 0], latent_image: latentInput } },
+    "3": { class_type: "KSampler", inputs: { seed, steps: 24, cfg: 7, sampler_name: "euler", scheduler: "normal", denoise: sourceImage ? denoise : 1, model: ["4", 0], positive: ["6", 0], negative: ["7", 0], latent_image: latentInput } },
     "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: COMFYUI_CHECKPOINT } },
     "5": { class_type: "EmptyLatentImage", inputs: { width, height, batch_size: 1 } },
     "6": { class_type: "CLIPTextEncode", inputs: { text: prompt, clip: ["4", 1] } },
@@ -2318,9 +2321,12 @@ async function createImageTask(payload, ctx) {
     if (error?.status) throw error;
     fail(panorama ? "The four panorama sources could not be projected and imported into ComfyUI." : "The project reference image could not be imported into ComfyUI.", panorama ? "PANORAMA_PREPROCESS_FAILED" : "COMFYUI_SOURCE_IMPORT_FAILED", 502, { cause: error.message });
   }
+  const photoPolicy = sourceImage && !panorama && operation.creative_mode
+    ? photoDesignPolicy(operation.creative_mode, operation.space) : null;
+  if (photoPolicy) operation.photo_design_policy = { ...photoPolicy, version: 'photo-design-v1', geometry_preservation_verified: false };
   const workflow = panorama
     ? buildPanoramaWorkflow({ prompt: payload.prompt.trim(), negativePrompt, seed, filenamePrefix: `StyleMatchAI/${aiTaskId}`, sourceImage, conceptOnly: panoramaManifest?.concept_only === true })
-    : buildSdxlWorkflow({ prompt: payload.prompt.trim(), negativePrompt, seed, width, height, filenamePrefix: `StyleMatchAI/${aiTaskId}`, sourceImage });
+    : buildSdxlWorkflow({ prompt: photoPolicy ? `${photoPolicy.prompt} ${payload.prompt.trim()}` : payload.prompt.trim(), negativePrompt: photoPolicy ? `${negativePrompt}, ${photoPolicy.negative}` : negativePrompt, seed, width, height, filenamePrefix: `StyleMatchAI/${aiTaskId}`, sourceImage, denoise: photoPolicy?.denoise });
   let response;
   try {
     response = await fetch(`${COMFYUI_URL}/prompt`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: workflow, client_id: "stylematch-local-api" }) });
@@ -3248,6 +3254,11 @@ const server = createServer(async (req, res) => {
       || (url.pathname.startsWith("/api/v1/ai/image-tasks") && !url.pathname.endsWith("/image"))
       || ["/api/v1/handovers", "/api/handoffs/isafe", "/api/v1/isafe/case-create", "/api/v1/isafe/direct-intakes"].includes(url.pathname);
     if (isCaseRequest) assertCaseRequestContext(req);
+    if (req.method === 'POST' && url.pathname === '/api/v1/stylematch/stylemix/analyze') {
+      assertWriteAccess(req);
+      assertMemberTier(ctx, ['headquarter', 'dealer', 'certified_member'], 'stylemix_analyze');
+      return send(req, res, 200, await analyzeStyleMixImage(await readBody(req), { python: COMFYUI_PYTHON, script: join(root, 'stylemix-vision.py') }));
+    }
     const scopedCaseRequest = url.pathname.match(/^\/(?:api\/v1\/isafe\/cases|api\/cases)\/([^/]+)/);
     if (scopedCaseRequest) assertCaseAuthorization(decodeURIComponent(scopedCaseRequest[1]), ctx);
     const twcidMatch = url.pathname.match(/^\/api\/v1\/stylematch\/projects\/([^/]+)\/twcid\/matches$/);
@@ -3650,6 +3661,7 @@ const server = createServer(async (req, res) => {
     }
     const imageFileMatch = url.pathname.match(/^\/api\/v1\/ai\/image-tasks\/([^/]+)\/image$/);
     if (req.method === "GET" && imageFileMatch) {
+      assertAiTaskAuthorization(decodeURIComponent(imageFileMatch[1]), ctx);
       const task = await refreshImageTask(decodeURIComponent(imageFileMatch[1]));
       if (task.status !== "completed") fail("Image is not ready.", "AI_IMAGE_NOT_READY", 409);
       const output = await readImageTaskOutput(task);

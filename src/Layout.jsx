@@ -35,6 +35,7 @@ const generalNavigation = [
 ];
 
 const businessNavigation = [
+  { title: "StyleMix 風格混搭", url: createPageUrl("StyleMix"), icon: Palette },
   { title: "平面圖視覺化", url: createPageUrl("FloorPlanVisualizer"), icon: Layers3 },
   { title: "空間與 360°", url: createPageUrl("AIGenerate"), icon: Camera },
   { title: "提案圖確認", url: createPageUrl("ReferenceCanvas"), icon: Palette },

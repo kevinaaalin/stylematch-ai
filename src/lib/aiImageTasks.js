@@ -1,4 +1,5 @@
 import { API_ORIGIN, localDevelopmentToken } from './deploymentConfig.js';
+import { taskImageDataUrl } from './aiTaskImage.js';
 const API_BASE = `${API_ORIGIN}/api/v1`;
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -44,14 +45,18 @@ export async function createAndWaitForImageTask({
   provider = import.meta.env.VITE_AI_IMAGE_PROVIDER || undefined,
   quality = "standard",
   timeoutMs = 180000,
+  compactPreview = false,
+  idempotencyKey: suppliedKey,
+  seed,
 }) {
-  const idempotencyKey = `${outputType}-${project?.project_id || "local"}-${crypto.randomUUID()}`;
+  const idempotencyKey = suppliedKey || `${outputType}-${project?.project_id || "local"}-${crypto.randomUUID()}`;
   const headers = aiTaskHeaders({ idempotencyKey, purpose, caseCode: project?.case_code || "*" });
   const created = await readResponse(await fetch(`${API_BASE}/ai/image-tasks`, {
     method: "POST",
     headers,
     body: JSON.stringify({
       prompt,
+      ...(seed !== undefined ? { seed } : {}),
       negative_prompt: negativePrompt,
       stylematch_project_id: project?.stylematch_project_id || project?.project_id || null,
       case_code: project?.case_code || null,
@@ -83,7 +88,8 @@ export async function createAndWaitForImageTask({
     throw new Error(task?.error || (Date.now() >= deadline ? "AI task timed out." : "AI task did not complete."));
   }
   return {
-    url: `${task.image_url}?v=${encodeURIComponent(task.updated_at || Date.now())}`,
+    url: await taskImageDataUrl(task.image_url, project?.case_code || '*', compactPreview),
+    source_url: task.image_url,
     task,
     generation_source: task.provider_id === "google_gemini" ? "google_gemini_image" : "local_api_comfyui",
     authoritative: true,

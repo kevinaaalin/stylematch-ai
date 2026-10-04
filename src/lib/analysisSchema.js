@@ -23,11 +23,19 @@ export const StyleAnalysisSchema = z.object({
   confidence: z.number().min(0).max(100),
   confidence_level: z.enum(["low", "medium", "high"]),
   reasons: z.array(z.string().min(1)).min(1),
+  cultural_policy: z.object({
+    policy_version: z.string(),
+    eligible_weight: z.number().min(0).max(0.25),
+    applied_weight: z.number().min(0).max(0.25),
+    manual_review_required: z.boolean(),
+    review_reasons: z.array(z.string()),
+    status: z.enum(['READY', 'WAITING_APPROVAL']),
+  }).passthrough().optional(),
   evidence: z.object({
     source: z.enum(["style_test", "project_requirements"]),
     completed: z.number(),
     total: z.number(),
-    cultural_preference_weight: z.number().min(0).max(0.05),
+    cultural_preference_weight: z.number().min(0).max(0.25),
     zodiac_sign: z.string().nullable(),
   }),
 });

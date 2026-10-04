@@ -16,4 +16,7 @@ project.proposal_media.space_photos.living_room=Array(5).fill('/a');
 assert.equal(proposalSpaceCoverage(project)[0].upload_limit_exceeded,true);
 assert.equal(project.proposal_media.space_photos.living_room.length,5);
 assert.deepEqual(proposalSpaceCoverage(),[]);
+const concept = { ...revision, completion_room: 'study_room', source_photo_room: undefined, source_image_url: null, task_status: 'completed', provenance: 'no_photo_concept', output_sha256: 'hash' };
+project.reference_revisions = [concept];
+assert.equal(proposalSpaceCoverage(project)[1].generated_reference_count, 1);
 console.log('PASS: per-space coverage, zero photos, duplicate outputs, foreign/archived sources, immutable inputs and no count-to-panorama approval.');

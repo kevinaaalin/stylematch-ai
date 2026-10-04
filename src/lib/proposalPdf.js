@@ -1,6 +1,9 @@
 // Capture at a fixed desktop width regardless of the reader's mobile viewport.
 // Tall sections continue onto additional A4 pages, never squeeze or crop content.
 export async function captureProposalPdf(report, { html2canvas, jsPDF }) {
+  if (!report || report.querySelector('[data-proposal-image-state]')) {
+    throw new Error('PROPOSAL_IMAGES_NOT_READY');
+  }
   const container = document.createElement("div");
   container.style.cssText = "position:absolute;left:-10000px;top:0;width:794px;pointer-events:none;";
   const clone = report.cloneNode(true);

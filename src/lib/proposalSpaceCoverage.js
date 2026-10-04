@@ -9,8 +9,10 @@ export function proposalSpaceCoverage(project = {}) {
       && revision.source_photo_room === room && originals.includes(revision.source_image_url)
       && typeof revision.source_task_id === 'string' && revision.source_task_id.length
       && typeof revision.image_url === 'string' && revision.image_url.length
-      && revision.status !== 'archived');
-    const generated = new Set(valid.map(revision => revision.image_url));
+      && !['archived', 'failed', 'rejected'].includes(revision.status) && !revision.fallback_reason);
+    const completed = revisions.filter(r => r.project_id === projectId && r.completion_room === room && r.task_status === 'completed'
+      && r.source_task_id && r.image_url && !r.fallback_reason && !['archived', 'failed', 'rejected'].includes(r.status));
+    const generated = new Set([...valid, ...completed].map(revision => revision.output_sha256 || revision.image_url));
     const covered = originals.filter(url => valid.some(revision => revision.source_image_url === url));
     return {
       room, original_count: originals.length, covered_original_count: covered.length,

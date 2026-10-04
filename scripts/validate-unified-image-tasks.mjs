@@ -23,7 +23,8 @@ for (const header of ["X-Server-Role", "X-Case-Role", "X-Case-Authorization"]) {
   assert.match(client, new RegExp(header));
 }
 assert.match(client, /\/ai\/image-tasks/);
-assert.match(canvas, /local_sdk_fallback/);
+assert.doesNotMatch(canvas, /local_sdk_fallback|await GenerateImage\(/);
+assert.match(canvas, /await createAndWaitForImageTask/);
 assert.match(floorplan, /local_sdk_fallback/);
 assert.match(store, /authoritative:\s*data\.authoritative === true/);
 assert.match(store, /workflow_version:\s*data\.workflow_version/);

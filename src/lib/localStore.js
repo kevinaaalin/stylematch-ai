@@ -9,7 +9,7 @@ import { requireBusinessPlan } from "@/lib/planAccess";
 import { revisionLineage } from "@/lib/revisionLineage";
 import { imageResultTransaction } from "@/lib/imageResultTransaction";
 import { validateGeneratedImage } from "@/lib/validateGeneratedImage";
-import { appendProposalVersion } from "@/lib/proposalVersions";
+import { runDesignProposalWorkflow } from "@/lib/designProposalWorkflow";
 import { calculateBudgetScenario } from "@/lib/budgetScenario";
 import { proposalContextIssues } from "@/lib/proposalContext";
 import { assetType } from "@/lib/assetCompatibility";
@@ -759,7 +759,7 @@ export const localStore = {
     return { transaction, balance: database.point_balance, reused: false };
   },
 
-  generateProposalWithPoints(projectId, { idempotencyKey, cost = PROPOSAL_GENERATION_COST } = {}) {
+  generateProposalWithPoints(projectId, { idempotencyKey, cost = PROPOSAL_GENERATION_COST, approvedAssets = [] } = {}) {
     requireBusinessPlan("正式提案扣點生成");
     const database = readDatabase();
     const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
@@ -784,6 +784,8 @@ export const localStore = {
       confirmed_reference_set_id: confirmedSet.confirmed_reference_set_id,
       created_at: at,
     };
+    const workflow = runDesignProposalWorkflow(project, { versionId: randomId("proposal"), at, approvedAssets });
+    if (workflow.status !== "draft") throw new Error(`提案資料不足：${workflow.missing_inputs.join("、")}。`);
     database.point_balance -= Math.abs(cost);
     database.point_ledger.unshift(transaction);
     project.proposal_generation = {
@@ -795,7 +797,9 @@ export const localStore = {
     };
     project.proposal_images = confirmedSet.images.map((item) => item.image_url);
     project.updated_at = at;
-    project.proposal_versions = appendProposalVersion(project, randomId("proposal"), at);
+    project.proposal_workflow = workflow;
+    project.proposal_document = workflow.version.project_snapshot.proposal_document;
+    project.proposal_versions = [workflow.version, ...(project.proposal_versions || [])];
     writeDatabase(database);
     return { project, transaction, balance: database.point_balance, reused: false };
   },
