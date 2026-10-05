@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { encodeLocalDatabase, decodeLocalDatabase } from '../src/lib/localMediaEnvelope.js';
+const image = 'data:image/png;base64,' + 'A'.repeat(10000);
+const source = { projects: [{ images: [image, image], snapshot: { images: [image] } }] };
+const encoded = encodeLocalDatabase(source);
+assert.deepEqual(decodeLocalDatabase(encoded), source);
+assert.deepEqual(decodeLocalDatabase(JSON.stringify(source)), source);
+assert.ok(encoded.length < JSON.stringify(source).length / 2);
+assert.throws(() => decodeLocalDatabase(JSON.stringify({ format: 'stylematch-media-envelope-v1', media: [], data: { image: { __stylematch_inline_media_v1: 0 } } })));
+console.log('PASS media deduplication, lossless snapshots, legacy reads and missing-media rejection');

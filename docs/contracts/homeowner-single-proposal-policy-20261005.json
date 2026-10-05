@@ -1,0 +1,52 @@
+{
+  "policy_id": "stylematch.homeowner.single-proposal",
+  "version": "2026-10-05.1",
+  "status": "user_confirmed_specification",
+  "implementation_status": "not_verified_against_this_policy",
+  "authority": "User confirmation in workspace conversation on 2026-10-05",
+  "audience": "general_member",
+  "plan_id": "single",
+  "price": { "currency": "TWD", "amount": 2999, "basis": "one_time_proposal_service" },
+  "scope": {
+    "maximum_total_spaces": 10,
+    "balcony_counts_toward_limit": true,
+    "residential_example": { "bedrooms": 4, "living_and_dining_rooms": 2, "bathrooms": 2, "kitchen": 1, "balcony": 1 },
+    "note": "住宅範例不是固定配額；以案件納入提案的空間總數最多 10 個為準。"
+  },
+  "image_rules": {
+    "non_balcony": {
+      "minimum_generated_references_per_space": 4,
+      "applies_without_uploaded_space_photos": true,
+      "uploaded_photos_count_toward_generated_minimum": false,
+      "with_photos": "依該空間現場照片與案件需求生成參考圖。",
+      "without_photos": "依案件需求生成，明確標示為無現場照片的概念參考圖，不宣稱符合實際現場格局。"
+    },
+    "balcony": {
+      "exempt_from_four_image_minimum": true,
+      "generate_without_uploaded_balcony_photos": false,
+      "generated_count_when_photos_provided": null,
+      "note": "有陽台照片時的生成數量尚未指定，不自行套用四張規則。"
+    }
+  },
+  "billing": {
+    "required_reference_images_included_in_single_price": true,
+    "complete_proposal_included": true,
+    "requires_business_subscription": false,
+    "deduct_business_member_points_for_included_delivery": false,
+    "business_subscription_and_tool_points_remain_separate": true
+  },
+  "acceptance_examples": [
+    { "non_balcony_spaces": 9, "balcony_spaces": 1, "minimum_non_balcony_generated_images": 36, "condition": "不論前 9 個空間是否上傳現場照片。" },
+    { "non_balcony_spaces": 10, "balcony_spaces": 0, "minimum_non_balcony_generated_images": 40 }
+  ],
+  "supersedes": [
+    "一般會員單次方案最多 4 房 2 廳 1 衛的舊範圍。",
+    "除陽台外，未上傳空間照片就不生圖的錯誤解讀。",
+    "完成一般會員單次方案內含圖片與提案必須另購商業點數的解讀。"
+  ],
+  "not_yet_defined": [
+    "有照片的陽台生成數量",
+    "交付後修改次數與額外修改費用",
+    "超過 10 個空間的加購規則"
+  ]
+}

@@ -1,4 +1,5 @@
 // Read-only delivery projection. Image counts never establish panorama quality.
+import { isBalconySpace } from './singleProposalPolicy.js';
 export function proposalSpaceCoverage(project = {}) {
   const projectId = project.project_id || project.id;
   const revisions = Array.isArray(project.reference_revisions) ? project.reference_revisions : [];
@@ -17,8 +18,8 @@ export function proposalSpaceCoverage(project = {}) {
     return {
       room, original_count: originals.length, covered_original_count: covered.length,
       missing_original_count: originals.length - covered.length,
-      generated_reference_count: generated.size, target_reference_count: 4,
-      additional_reference_count: Math.max(0, 4 - generated.size),
+      generated_reference_count: generated.size, target_reference_count: isBalconySpace(room) ? 0 : 4,
+      additional_reference_count: isBalconySpace(room) ? 0 : Math.max(0, 4 - generated.size),
       upload_limit_exceeded: originals.length > 4,
       direction_quality_status: 'NOT_VERIFIED',
     };

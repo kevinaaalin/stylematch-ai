@@ -2269,7 +2269,14 @@ async function createImageTask(payload, ctx) {
     const supplied = payload.source_content?.panorama_capture?.ordered_sources || [];
     if (supplied.length !== 4 || references.ordered_sources.some((view) => !supplied.some((item) => item.id === view.id && item.yaw === view.yaw && item.media_url === view.media_url))) fail("Direction references changed; review the new set", "DIRECTION_LINEAGE_MISMATCH", 400);
   }
-  if (existing) return { task: serializeImageTask(existing), created: false };
+  if (existing) {
+    assertAiTaskAuthorization(existing.ai_task_id, ctx);
+    const current = await refreshImageTask(existing.ai_task_id);
+    if (current.status === 'failed' && current.error === 'COMFYUI_TASK_LOST') {
+      return createImageTask(payload, { ...ctx, idempotency_key: `${ctx.idempotency_key}:recovery:${existing.ai_task_id}` });
+    }
+    return { task: serializeImageTask(current), created: false };
+  }
   const aiTaskId = uid("aitask");
   const at = now();
   const seed = Number.isSafeInteger(payload.seed) ? payload.seed : Math.floor(Math.random() * 2147483647);
@@ -2365,6 +2372,17 @@ async function refreshImageTask(aiTaskId) {
       db.prepare("UPDATE ai_image_tasks SET status='completed',output_filename=?,output_subfolder=?,output_type=?,quality_report=?,output_sha256=?,updated_at=? WHERE ai_task_id=?").run(image.filename, image.subfolder || "", image.type || "output", qualityReport ? JSON.stringify(qualityReport) : null, outputSha256, now(), aiTaskId);
     } else if (item?.status?.status_str === "error") {
       db.prepare("UPDATE ai_image_tasks SET status='failed',error=?,updated_at=? WHERE ai_task_id=?").run(JSON.stringify(item.status.messages || []), now(), aiTaskId);
+    } else if (!item && Date.now() - Date.parse(row.created_at) > 60000) {
+      const queueResponse = await fetch(`${COMFYUI_URL}/queue`);
+      if (!queueResponse.ok) return row;
+      const queue = await queueResponse.json();
+      if (!Array.isArray(queue.queue_running) || !Array.isArray(queue.queue_pending)) return row;
+      const present = [...queue.queue_running, ...queue.queue_pending].some(entry => entry[1] === row.prompt_id);
+      if (!present) {
+        const recheck = await fetch(`${COMFYUI_URL}/history/${encodeURIComponent(row.prompt_id)}`);
+        if (!recheck.ok || (await recheck.json())[row.prompt_id]) return row;
+        db.prepare("UPDATE ai_image_tasks SET status='failed',error=?,updated_at=? WHERE ai_task_id=?").run('COMFYUI_TASK_LOST', now(), aiTaskId);
+      }
     } else {
       db.prepare("UPDATE ai_image_tasks SET status='running',updated_at=? WHERE ai_task_id=?").run(now(), aiTaskId);
     }

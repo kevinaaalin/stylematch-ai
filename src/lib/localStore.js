@@ -15,6 +15,9 @@ import { proposalContextIssues } from "@/lib/proposalContext";
 import { assetType } from "@/lib/assetCompatibility";
 import { compactProjectMedia } from "@/lib/proposalMedia";
 import { assertSpacePhotoCount } from "@/lib/spacePhotoContract";
+import { canDeliverLocalSingleProposal, assertSingleProposalSpaceLimit } from './singleProposalPolicy.js';
+import { completionRooms } from './proposalImageCompletion.js';
+import { encodeLocalDatabase, decodeLocalDatabase } from './localMediaEnvelope.js';
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 4;
@@ -368,10 +371,10 @@ function readDatabase() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...emptyDatabase };
-    const parsed = JSON.parse(raw);
+    const parsed = decodeLocalDatabase(raw);
     const compacted = compactDatabase(parsed);
     if (parsed.storage_schema_version !== STORAGE_SCHEMA_VERSION) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compacted));
+      window.localStorage.setItem(STORAGE_KEY, encodeLocalDatabase(compacted));
     }
     return compacted;
   } catch {
@@ -381,7 +384,7 @@ function readDatabase() {
 
 function writeDatabase(database) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compactDatabase(database)));
+    window.localStorage.setItem(STORAGE_KEY, encodeLocalDatabase(compactDatabase(database)));
     notifyDataChanged();
   } catch {
     throw new Error("本機案件資料儲存失敗，請先清出瀏覽器儲存空間後再試。");
@@ -525,10 +528,12 @@ export const localStore = {
   },
 
   saveProposalContext(projectId, values) {
-    requireBusinessPlan("補充提案資料");
     const database = readDatabase();
     const project = database.projects.find((item) => item.project_id === projectId);
     if (!project) throw new Error("找不到專案。");
+    if (!canDeliverLocalSingleProposal(project)) requireBusinessPlan("補充提案資料");
+    if (typeof values.project_name !== 'string' || !values.project_name.trim() || values.project_name.length > 120) throw new Error('請填寫有效專案名稱。');
+    project.project_name = values.project_name.trim();
     const area = Number(values.square_footage);
     if (!Number.isFinite(area) || area <= 0 || area > 100000) throw new Error("請填寫有效坪數。");
     for (const field of ["room_layout", "budget_range", "primary_style"]) {
@@ -536,6 +541,14 @@ export const localStore = {
       project[field] = values[field].trim();
     }
     project.square_footage = area;
+    if (Array.isArray(values.space_keys)) {
+      const keys = [...new Set(values.space_keys)];
+      if (!keys.length || keys.some(key => !/^[a-z][a-z0-9_]*$/.test(key) || key === 'floor_plan')) throw new Error('請選擇有效提案空間。');
+      const previous = project.proposal_media?.space_photos || {};
+      if (Object.keys(previous).some(key => key !== 'floor_plan' && !keys.includes(key) && previous[key]?.length)) throw new Error('有照片的空間不能直接移除，請先確認原始資料。');
+      project.proposal_media = { ...project.proposal_media, space_photos: { ...Object.fromEntries(keys.map(key => [key, previous[key] || []])), ...(previous.floor_plan ? { floor_plan: previous.floor_plan } : {}) } };
+      assertSingleProposalSpaceLimit(project);
+    }
     project.analysis = analyzeProject(project);
     project.updated_at = nowIso();
     writeDatabase(database);
@@ -651,11 +664,13 @@ export const localStore = {
   },
 
   async commitGeneratedRevision(projectId, data, payment) {
-    requireBusinessPlan("生成成果儲存與扣點");
+    const included = canDeliverLocalSingleProposal(readDatabase().projects.find(item => item.project_id === projectId)) && payment?.type === 'proposal_space_completion';
+    if (!included) requireBusinessPlan("生成成果儲存與扣點");
+    const effectivePayment = included ? { ...payment, cost: 0 } : payment;
     if (!navigator.locks) throw new Error("此瀏覽器不支援安全的本地圖片交易，請使用最新版 Edge 或 Chrome。");
     await validateGeneratedImage(data.image_url);
     return navigator.locks.request("stylematch-image-result", () => {
-      const result = imageResultTransaction(readDatabase(), projectId, data, payment, {
+      const result = imageResultTransaction(readDatabase(), projectId, data, effectivePayment, {
         revisionId: randomId("refrev"), transactionId: randomId("points"), at: nowIso(),
       });
       if (!result.reused) {
@@ -760,18 +775,25 @@ export const localStore = {
   },
 
   generateProposalWithPoints(projectId, { idempotencyKey, cost = PROPOSAL_GENERATION_COST, approvedAssets = [] } = {}) {
-    requireBusinessPlan("正式提案扣點生成");
     const database = readDatabase();
     const project = database.projects.find((item) => item.id === projectId || item.project_id === projectId);
     if (!project) throw new Error("找不到專案。");
+    const included = canDeliverLocalSingleProposal(project);
     const key = idempotencyKey || `proposal-${project.project_id}-${project.active_confirmed_reference_set_id}`;
-    const existing = (database.point_ledger || []).find((item) => item.idempotency_key === key);
+    const existing = (database.point_ledger || []).find((item) => item.idempotency_key === key && item.project_id === project.project_id && item.type === 'proposal_generation');
     if (existing) return { project, transaction: existing, balance: database.point_balance, reused: true };
+    if (!included) requireBusinessPlan("正式提案扣點生成");
+    if (included) cost = 0;
     const confirmedSet = (project.confirmed_reference_sets || []).find((item) => item.confirmed_reference_set_id === project.active_confirmed_reference_set_id);
     if (!confirmedSet) throw new Error("請先確認採用的參考圖片。");
     const missingContext = proposalContextIssues(project, confirmedSet);
     if (missingContext.length) throw new Error(`提案資料不足：${missingContext.join("、")}。`);
-    if (!Number.isFinite(cost) || cost <= 0) throw new Error("提案點數設定無效。");
+    if (!Number.isFinite(cost) || (included ? cost !== 0 : cost <= 0)) throw new Error("提案點數設定無效。");
+    if (included) {
+      assertSingleProposalSpaceLimit(project);
+      const rooms = completionRooms(project);
+      if (!rooms.length || rooms.some(room => room.revisions.filter(revision => confirmedSet.revision_ids.includes(revision.revision_id)).length < 4)) throw new Error('除陽台外，每個提案空間須確認至少 4 張生成參考圖。');
+    }
     if ((database.point_balance || 0) < cost) throw new Error(`點數不足，需要 ${cost} 點。`);
     const at = nowIso();
     const transaction = {
@@ -800,6 +822,7 @@ export const localStore = {
     project.proposal_workflow = workflow;
     project.proposal_document = workflow.version.project_snapshot.proposal_document;
     project.proposal_versions = [workflow.version, ...(project.proposal_versions || [])];
+    if (included) project.single_proposal_delivery = { version_id: workflow.version.version_id, delivered_at: at, policy_version: '2026-10-05.1', billing: 'included_local_acceptance' };
     writeDatabase(database);
     return { project, transaction, balance: database.point_balance, reused: false };
   },

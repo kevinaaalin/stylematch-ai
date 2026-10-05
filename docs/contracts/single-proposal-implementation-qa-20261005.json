@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-05",
+  "scope": "Local single-proposal entitlement and space reference completion",
+  "status": "Candidate Implementation / Automated Local Regression Passed",
+  "production_ready": false,
+  "policy": "homeowner-single-proposal-policy-20261005.json",
+  "implemented": [
+    "Maximum 10 spaces including balconies",
+    "At least four generated references for every included non-balcony space, including spaces without uploaded photos",
+    "Balcony excluded from automatic minimum-reference completion",
+    "Local paid or paid_test single-plan first delivery does not debit business points",
+    "Duplicate generated output and completion-slot protection",
+    "Saved proposal version and first-delivery marker",
+    "Project name and explicit space selection in proposal context editor",
+    "Project detail entry to reference preparation and proposal generation",
+    "Public structured-space authorization errors reject asynchronously"
+  ],
+  "verification": {
+    "local_regression_scripts": { "passed": 35, "failed": 0 },
+    "modified_source_eslint": "PASS",
+    "typescript": "PASS",
+    "vite_production_build": "PASS",
+    "http_4173": 200,
+    "http_4174": 200,
+    "http_4180_api_v1_health": 200,
+    "chrome_ui_e2e": "BLOCKED: Chrome reads pages but click commands time out",
+    "in_app_browser_image_completion": "PASS: original SM-2026-0006, 7 rooms, 28 new generated candidates, no point debit, reload persisted, repeat completion generated zero additional images",
+    "original_case_complete_rerun": "PASS draft delivery: 28 selected images, reference set v2, frozen proposal v1 proposal_fdd0a72f-bfad-41c9-9f68-356553faebf2; DOCX and PDF downloaded. Human design approval not claimed.",
+    "proposal_engine": "StyleMatchAI local engine; included draft does not call TIGI/AWOS asset approval",
+    "storage": "Lossless media-envelope deduplication fixes repeated inline-image quota failure; legacy format remains readable",
+    "comfy_restart_recovery": "PASS in actual rerun: missing provider task retained as failed; deterministic recovery child completed",
+    "single_plan_route_access": "PASS in app browser after correcting business-only route gate"
+  },
+  "limitations": [
+    "Automated storage tests use isolated in-memory fixtures, not the original user project",
+    "Public deployment must verify payment and entitlement on the server; browser payment metadata is not authoritative",
+    "No claim of full-site acceptance, generated-design quality acceptance, email delivery or production payment acceptance",
+    "ProposalReport chunk 620.58 kB warning and stale browser compatibility metadata remain",
+    "Git publishing status must be verified against origin; this report does not certify GitHub Pages deployment or public API operation"
+  ]
+}

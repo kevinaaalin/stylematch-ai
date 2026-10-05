@@ -36,7 +36,7 @@ const LocalApp = () => {
           path={`/${path}`}
           element={
             <LayoutWrapper currentPageName={path}>
-              <Suspense fallback={<PageLoading />}>{businessOnlyPages.has(path) ? <BusinessAccessGate><Page /></BusinessAccessGate> : <Page />}</Suspense>
+              <Suspense fallback={<PageLoading />}>{businessOnlyPages.has(path) ? <BusinessAccessGate allowSingleProposal={path === "ReferenceCanvas"}><Page /></BusinessAccessGate> : <Page />}</Suspense>
             </LayoutWrapper>
           }
         />

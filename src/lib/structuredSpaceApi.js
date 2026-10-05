@@ -24,186 +24,186 @@ async function read(response) {
   return data;
 }
 
-export function listStructuredSpaces(projectId) {
+export async function listStructuredSpaces(projectId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/structured-spaces`, { headers: headers() }).then(read);
 }
 
-export function analyzeStyleMixImage(image) {
+export async function analyzeStyleMixImage(image) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/stylemix/analyze`, {
     method: 'POST', headers: headers(true), body: JSON.stringify({ image }),
   }).then(read);
 }
 
-export function createStructuredSpace(projectId, payload) {
+export async function createStructuredSpace(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/structured-spaces`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function parseFloorplan(projectId, payload) {
+export async function parseFloorplan(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/structured-spaces:parse`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function approveStructuredSpace(snapshotId, revision) {
+export async function approveStructuredSpace(snapshotId, revision) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/structured-spaces/${encodeURIComponent(snapshotId)}/approve`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ expected_revision: revision }),
   }).then(read);
 }
 
-export function correctStructuredSpace(snapshotId, payload) {
+export async function correctStructuredSpace(snapshotId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/structured-spaces/${encodeURIComponent(snapshotId)}/corrections`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function listAutoLayouts(projectId) {
+export async function listAutoLayouts(projectId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/layouts`, { headers: headers() }).then(read);
 }
 
-export function validateAutoLayout(projectId, payload) {
+export async function validateAutoLayout(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/layouts`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function generateAutoLayoutCandidates(projectId, payload) {
+export async function generateAutoLayoutCandidates(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/layouts:generate`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function approveAutoLayout(layoutId, revision) {
+export async function approveAutoLayout(layoutId, revision) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/layouts/${encodeURIComponent(layoutId)}/approve`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ expected_revision: revision }),
   }).then(read);
 }
 
-export function listProposalSnapshots(projectId) {
+export async function listProposalSnapshots(projectId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/proposal-snapshots`, { headers: headers() }).then(read);
 }
 
-export function createProposalSnapshot(projectId, payload) {
+export async function createProposalSnapshot(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/proposal-snapshots`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function approveProposalSnapshot(proposalSnapshotId, revision) {
+export async function approveProposalSnapshot(proposalSnapshotId, revision) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/proposal-snapshots/${encodeURIComponent(proposalSnapshotId)}/approve`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ expected_revision: revision }),
   }).then(read);
 }
 
-export function listGovernanceHandoffsV2(projectId) {
+export async function listGovernanceHandoffsV2(projectId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/governance-handoffs/v2`, { headers: headers() }).then(read);
 }
 
-export function buildGovernanceHandoffV2(projectId, payload) {
+export async function buildGovernanceHandoffV2(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/governance-handoffs/v2`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function receiveGovernanceHandoffV2(handoffId, manifestChecksum) {
+export async function receiveGovernanceHandoffV2(handoffId, manifestChecksum) {
   return fetch(`${API_ORIGIN}/api/v1/isafe/intake/handoffs/v2/${encodeURIComponent(handoffId)}/receive`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ manifest_checksum: manifestChecksum }),
   }).then(read);
 }
 
-export function createCaseCreationProposal(handoffId, payload) {
+export async function createCaseCreationProposal(handoffId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/isafe/intake/handoffs/v2/${encodeURIComponent(handoffId)}/case-creation-proposals`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function decideCaseCreationProposal(proposalId, payload) {
+export async function decideCaseCreationProposal(proposalId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/isafe/case-creation-proposals/${encodeURIComponent(proposalId)}/decision`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function executeCaseCreationProposal(proposalId, version) {
+export async function executeCaseCreationProposal(proposalId, version) {
   return fetch(`${API_ORIGIN}/api/v1/isafe/case-creation-proposals/${encodeURIComponent(proposalId)}/execute`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ expected_version: version, confirmation: "CREATE_ISAFE_CASE" }),
   }).then(read);
 }
 
-export function listApprovedAssets(projectId) {
+export async function listApprovedAssets(projectId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/approved-assets`, { headers: headers() }).then(read);
 }
 
-export function createApprovedAsset(projectId, payload) {
+export async function createApprovedAsset(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/approved-assets`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function approveAsset(assetId, revision) {
+export async function approveAsset(assetId, revision) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/approved-assets/${encodeURIComponent(assetId)}/approve`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ expected_revision: revision }),
   }).then(read);
 }
 
-export function listLocalArtifacts(projectId, kind) {
+export async function listLocalArtifacts(projectId, kind) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/local-artifacts/${encodeURIComponent(kind)}`, { headers: headers() }).then(read);
 }
 
-export function createLocalArtifact(projectId, kind, payload) {
+export async function createLocalArtifact(projectId, kind, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/local-artifacts/${encodeURIComponent(kind)}`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function approveLocalArtifact(artifactId, revision) {
+export async function approveLocalArtifact(artifactId, revision) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/local-artifacts/${encodeURIComponent(artifactId)}/approve`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ expected_revision: revision }),
   }).then(read);
 }
 
-export function createSketchUpSession(projectId, payload) {
+export async function createSketchUpSession(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/connectors/sketchup/session`, { method: "POST", headers: headers(true), body: JSON.stringify(payload) }).then(read);
 }
 
-export function captureSketchUpScene(connectionId, payload) {
+export async function captureSketchUpScene(connectionId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/connectors/${encodeURIComponent(connectionId)}/scenes`, { method: "POST", headers: headers(true), body: JSON.stringify(payload) }).then(read);
 }
 
-export function createSketchUpRenderRoundTrip(connectionId, sceneId) {
+export async function createSketchUpRenderRoundTrip(connectionId, sceneId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/connectors/${encodeURIComponent(connectionId)}/render`, { method: "POST", headers: headers(true), body: JSON.stringify({ scene_id: sceneId }) }).then(read);
 }
 
-export function validateViewSet(payload) {
+export async function validateViewSet(payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/viewsets/validate`, { method: "POST", headers: headers(true), body: JSON.stringify(payload) }).then(read);
 }
 
-export function searchMaterials(query = "") { return fetch(`${API_ORIGIN}/api/v1/materials/search?q=${encodeURIComponent(query)}`, { headers: headers() }).then(read); }
-export function mapMaterialBudget(projectId, payload) { return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/budget-map`, { method: "POST", headers: headers(true), body: JSON.stringify(payload) }).then(read); }
+export async function searchMaterials(query = "") { return fetch(`${API_ORIGIN}/api/v1/materials/search?q=${encodeURIComponent(query)}`, { headers: headers() }).then(read); }
+export async function mapMaterialBudget(projectId, payload) { return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/budget-map`, { method: "POST", headers: headers(true), body: JSON.stringify(payload) }).then(read); }
 
-export function getPlatformCapabilities() {
+export async function getPlatformCapabilities() {
   return fetch(`${API_ORIGIN}/api/v1/platform/capabilities`).then(read);
 }
 
-export function createProjectPaymentOrder(projectId, payload) {
+export async function createProjectPaymentOrder(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/payment-orders`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function createTwcidMatch(projectId, payload) {
+export async function createTwcidMatch(projectId, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/twcid/matches`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);
 }
 
-export function confirmTwcidMatch(matchRequestId, memberId) {
+export async function confirmTwcidMatch(matchRequestId, memberId) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/twcid/matches/${encodeURIComponent(matchRequestId)}/confirm`, {
     method: "POST", headers: headers(true), body: JSON.stringify({ member_id: memberId }),
   }).then(read);
 }
 
-export function createConnectorExchangePackage(projectId, toolType, payload) {
+export async function createConnectorExchangePackage(projectId, toolType, payload) {
   return fetch(`${API_ORIGIN}/api/v1/stylematch/projects/${encodeURIComponent(projectId)}/connectors/${encodeURIComponent(toolType)}/packages`, {
     method: "POST", headers: headers(true), body: JSON.stringify(payload),
   }).then(read);

@@ -1,8 +1,10 @@
 const names = { living_room: '客廳', dining_room: '餐廳', master_bedroom: '主臥室', bedroom: '臥室', bedroom1: '臥室一', bedroom2: '臥室二', bedroom3: '臥室三', kitchen: '廚房', bathroom: '浴室', bathroom1: '衛浴一', bathroom2: '衛浴二', bathroom3: '衛浴三' };
 const subjects = { living_room: 'living room with sofa, coffee table, armchairs, television and rug', dining_room: 'dining room with dining table and chairs', master_bedroom: 'master bedroom with bed and bedside tables', bedroom: 'bedroom with bed and bedside tables', kitchen: 'kitchen with cabinets and appliances', bathroom: 'bathroom with basin, toilet and shower' };
+import { assertSingleProposalSpaceLimit, isBalconySpace, MIN_GENERATED_REFERENCES } from './singleProposalPolicy.js';
+
 export function completionRooms(project) {
   const media = project?.proposal_media?.space_photos || {};
-  return Object.keys(media).filter(room => room !== 'floor_plan').map(room => {
+  return Object.keys(media).filter(room => room !== 'floor_plan' && !isBalconySpace(room)).map(room => {
     const seen = new Set();
     const revisions = (project.reference_revisions || []).filter(r => {
       if (r.project_id !== (project.project_id || project.id) || (r.completion_room || r.source_photo_room || r.space) !== room ||
@@ -11,11 +13,12 @@ export function completionRooms(project) {
       if (seen.has(identity)) return false;
       seen.add(identity); return true;
     });
-    return { room, label: names[room] || room, sources: [...new Set((media[room] || []).filter(Boolean))], revisions, missing: Math.max(0, 4 - revisions.length) };
+    return { room, label: names[room] || room, sources: [...new Set((media[room] || []).filter(Boolean))], revisions, missing: Math.max(0, MIN_GENERATED_REFERENCES - revisions.length) };
   });
 }
 
 export async function completeProposalImages({ getProject, generate, save, onProgress = () => {} }) {
+  assertSingleProposalSpaceLimit(getProject());
   const rooms = completionRooms(getProject());
   if (!rooms.length) throw new Error('請先在需求表登錄提案空間；無照片的空間也可登錄。');
   let saved = 0;

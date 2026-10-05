@@ -61,6 +61,7 @@ export default function ProjectDetail() {
           <div className="flex flex-wrap items-center gap-3"><Badge variant="outline">StyleMatch 專案</Badge><span className="text-sm text-stone-500">{project.case_code}</span></div>
           <h1 className="mt-3 text-3xl font-bold text-stone-950">{project.house_type || "住宅"}裝修規劃專案</h1>
           <p className="mt-2 text-stone-600">需求、圖片與設計提案集中管理。本頁不執行 iSAFE 工程 Gate 或稽核。</p>
+          <Button asChild variant="outline" className="mt-4"><Link to={`${createPageUrl('ReferenceCanvas')}?project=${proposalProjectRef}`}>準備圖片與生成提案<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
         </header>
 
         <section className="py-7">

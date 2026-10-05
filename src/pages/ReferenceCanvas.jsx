@@ -23,6 +23,7 @@ import { localStore } from "@/lib/localStore";
 import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
 import { completionRooms, completeProposalImages } from '@/lib/proposalImageCompletion';
+import { canDeliverLocalSingleProposal } from '@/lib/singleProposalPolicy';
 
 const PROPOSAL_COST = 30;
 const REVISION_COST = 5;
@@ -50,6 +51,8 @@ export default function ReferenceCanvas() {
   const [planId, setPlanId] = useState(readActivePlan);
 
   const project = projects.find((item) => item.project_id === projectId || item.id === projectId);
+  const includedDelivery = canDeliverLocalSingleProposal(project);
+  const canGenerateProposal = includedDelivery || isBusinessPlan(planId);
   const revisions = useMemo(() => project?.reference_revisions || [], [project]);
   const handoffError = useRevisionHandoff(projects, (sourceProject, revision) => {
     setSelectedRevisionIds([]);
@@ -271,23 +274,27 @@ export default function ReferenceCanvas() {
       const completed = await navigator.locks.request(`proposal-fill-${project.project_id}`, async () => {
         const rooms = completionRooms(readProject());
         const missing = rooms.reduce((sum, r) => sum + r.missing, 0);
-        if (localStore.getAll().point_balance < missing * REVISION_COST) throw new Error(`需補 ${missing} 張，需 ${missing * REVISION_COST} 點；尚未生成或扣點。`);
+        if (!canDeliverLocalSingleProposal(readProject()) && localStore.getAll().point_balance < missing * REVISION_COST) throw new Error(`需補 ${missing} 張，需 ${missing * REVISION_COST} 點；尚未生成或扣點。`);
         return completeProposalImages({ getProject: readProject, generate: createAndWaitForImageTask, onProgress: setMessage,
           save: (data, key) => localStore.commitGeneratedRevision(project.project_id, data, { type: 'proposal_space_completion', cost: REVISION_COST, detail: '逐空間提案補圖', idempotencyKey: key }),
         });
       });
-      if (completed.saved) { setMessage(`已補齊 ${completed.saved} 張候選圖，每張 ${REVISION_COST} 點。請逐張核准並確認採用圖片後生成提案；尚未扣提案點數。`); return; }
+      if (completed.saved) { setMessage(includedDelivery ? `已補齊 ${completed.saved} 張內含候選圖，未扣點。請確認採用圖片後建立提案。` : `已補齊 ${completed.saved} 張候選圖，每張 ${REVISION_COST} 點。請逐張核准並確認採用圖片後生成提案；尚未扣提案點數。`); return; }
       if (completionOnly === true) { setMessage('每空間已具備至少 4 張候選圖，未重複生成或扣點。請核准並確認採用圖片。'); return; }
       const chosen = new Set(confirmedSet?.revision_ids || []);
       if (completed.rooms.some(r => r.revisions.filter(v => chosen.has(v.revision_id)).length < 4)) throw new Error('每空間需確認採用至少 4 張已生成圖片，請先核准並確認圖片組。');
-      const { assets } = await listApprovedAssets(project.project_id);
-      const approvedAssets = selectApprovedReferenceAssets(project.project_id, confirmedSet, assets);
+      // Included delivery is a draft, not a claim of human asset approval.
+      let approvedAssets = [];
+      if (!includedDelivery) {
+        const { assets } = await listApprovedAssets(project.project_id);
+        approvedAssets = selectApprovedReferenceAssets(project.project_id, confirmedSet, assets);
+      }
       const result = localStore.generateProposalWithPoints(project.project_id, {
         idempotencyKey: `proposal-${project.project_id}-${project.active_confirmed_reference_set_id}`,
         cost: PROPOSAL_COST,
         approvedAssets,
       });
-      setMessage(result.reused ? "此參考圖組已生成過提案，未重複扣點。" : `提案草稿已生成，扣除 ${PROPOSAL_COST} 點；仍須完成提案審核。`);
+      setMessage(result.reused ? "此參考圖組已生成過提案，未重複扣點。" : includedDelivery ? '單次提案已保存為新版本，未扣商業點數；仍須完成提案審核。' : `提案草稿已生成，扣除 ${PROPOSAL_COST} 點；仍須完成提案審核。`);
     } catch (requestError) { setError(requestError.message || "正式提案產生失敗，點數不會被扣除，請稍後再試。"); }
     finally { setBusy(false); }
   };
@@ -303,7 +310,7 @@ export default function ReferenceCanvas() {
 
       <RecentRevisionLauncher projects={projects} disabled={busy} />
       <Button type="button" variant="outline" disabled={busy || !activeRevision} onClick={loadCandidate}><Check className="mr-2 h-4 w-4" />登錄／讀取目前版本的核准紀錄</Button>
-      <Button type="button" disabled={busy || !project || !isBusinessPlan(planId)} onClick={() => generateProposal(true)}><Wand2 className="mr-2 h-4 w-4" />補齊每空間 4 張候選圖（每張 {REVISION_COST} 點，成功保存才扣點）</Button>
+      <Button type="button" disabled={busy || !project || !canGenerateProposal} onClick={() => generateProposal(true)}><Wand2 className="mr-2 h-4 w-4" />{includedDelivery ? '補齊方案內含圖片（陽台除外，不扣點）' : `補齊每空間 4 張候選圖（陽台除外，每張 ${REVISION_COST} 點）`}</Button>
       {activeRevision?.provenance && <p className="text-sm text-amber-800">{activeRevision.provenance === 'no_photo_concept' ? '無原照概念圖：空間幾何為推估。' : '原照衍生設計圖：新增內容須核對。'}非四方向實測重建，仍須人工核准。</p>}
       {project && <ProposalContextEditor key={project.project_id} project={project} disabled={busy} />}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newBranch} disabled={busy} onChange={(event) => setNewBranch(event.target.checked)} />下次改版建立獨立分支</label>
@@ -332,7 +339,7 @@ export default function ReferenceCanvas() {
             </CardContent>
           </Card>
 
-          <Card><CardHeader><CardTitle className="text-lg">確認與生成</CardTitle></CardHeader><CardContent className="space-y-4"><VisualEditingIntentControls intentId={visualIntentId} onIntentChange={setVisualIntentId} semanticRegion={semanticRegion} onSemanticRegionChange={setSemanticRegion} referenceAssetIds={referenceAssetIds} onReferenceAssetIdsChange={setReferenceAssetIds} /><label className="text-sm font-medium">文字版本指示<Textarea className="mt-2 min-h-28" placeholder="例如：建立較明亮的提案候選版本；保留格局與採光。" value={instruction} onChange={(event) => setInstruction(event.target.value)} /></label><Button type="button" variant="outline" className="w-full" disabled={busy || !isBusinessPlan(planId) || !activeRevision} onClick={generateRevision}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}產生候選版本（{REVISION_COST} 點）</Button>{assetCandidate && <div className="border border-stone-200 bg-stone-50 p-3 text-sm"><div className="flex items-center justify-between gap-3"><span>Asset v{assetCandidate.revision}</span><Badge className={assetCandidate.status === "approved" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}>{assetCandidate.status === "approved" ? "已核准" : "候選"}</Badge></div>{assetCandidate.status !== "approved" && <Button type="button" size="sm" className="mt-3 w-full" disabled={busy} onClick={approveCandidate}><Check className="mr-2 h-4 w-4" />人工核准資產版本</Button>}</div>}<div className="border-t pt-4"><p className="text-sm text-stone-600">已選 {selectedRevisionIds.length} 張。確認後建立不可覆寫的參考圖組版本。</p><Button type="button" className="mt-3 w-full bg-amber-500 text-white hover:bg-amber-600" disabled={!selectedRevisionIds.length} onClick={confirmSelection}>確定採用圖片</Button></div><div className="rounded-md bg-stone-100 p-3 text-xs leading-5 text-stone-600">候選圖片改版 {REVISION_COST} 點；正式圖像提案 {PROPOSAL_COST} 點。所有扣點功能僅限商業方案，成功才扣點。</div>{!isBusinessPlan(planId) && <Button asChild variant="outline" className="w-full"><Link to={createPageUrl("PricingPlans")}><Crown className="mr-2 h-4 w-4" />升級商業方案</Link></Button>}<Button type="button" className="w-full bg-stone-900 text-white hover:bg-stone-800" disabled={!confirmedSet || !isBusinessPlan(planId)} onClick={generateProposal}><Coins className="mr-2 h-4 w-4" />商業方案：扣點生成正式圖像提案</Button>{message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}{error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-lg">確認與生成</CardTitle></CardHeader><CardContent className="space-y-4"><VisualEditingIntentControls intentId={visualIntentId} onIntentChange={setVisualIntentId} semanticRegion={semanticRegion} onSemanticRegionChange={setSemanticRegion} referenceAssetIds={referenceAssetIds} onReferenceAssetIdsChange={setReferenceAssetIds} /><label className="text-sm font-medium">文字版本指示<Textarea className="mt-2 min-h-28" placeholder="例如：建立較明亮的提案候選版本；保留格局與採光。" value={instruction} onChange={(event) => setInstruction(event.target.value)} /></label><Button type="button" variant="outline" className="w-full" disabled={busy || !isBusinessPlan(planId) || !activeRevision} onClick={generateRevision}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}產生候選版本（{REVISION_COST} 點）</Button>{assetCandidate && <div className="border border-stone-200 bg-stone-50 p-3 text-sm"><div className="flex items-center justify-between gap-3"><span>Asset v{assetCandidate.revision}</span><Badge className={assetCandidate.status === "approved" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}>{assetCandidate.status === "approved" ? "已核准" : "候選"}</Badge></div>{assetCandidate.status !== "approved" && <Button type="button" size="sm" className="mt-3 w-full" disabled={busy} onClick={approveCandidate}><Check className="mr-2 h-4 w-4" />人工核准資產版本</Button>}</div>}<div className="border-t pt-4"><p className="text-sm text-stone-600">已選 {selectedRevisionIds.length} 張。確認後建立不可覆寫的參考圖組版本。</p><Button type="button" className="mt-3 w-full bg-amber-500 text-white hover:bg-amber-600" disabled={!selectedRevisionIds.length} onClick={confirmSelection}>確定採用圖片</Button></div><div className="rounded-md bg-stone-100 p-3 text-xs leading-5 text-stone-600">候選圖片改版 {REVISION_COST} 點；正式圖像提案 {PROPOSAL_COST} 點。所有扣點功能僅限商業方案，成功才扣點。</div>{!isBusinessPlan(planId) && <Button asChild variant="outline" className="w-full"><Link to={createPageUrl("PricingPlans")}><Crown className="mr-2 h-4 w-4" />升級商業方案</Link></Button>}<Button type="button" className="w-full bg-stone-900 text-white hover:bg-stone-800" disabled={busy || !confirmedSet || !canGenerateProposal} onClick={() => generateProposal(false)}><Coins className="mr-2 h-4 w-4" />{includedDelivery ? "建立方案內含提案（不扣點）" : "商業方案：扣點生成正式圖像提案"}</Button>{message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}{error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}</CardContent></Card>
         </div>
       )}
     </div>

@@ -44,3 +44,15 @@ const retry = await completeProposalImages({ getProject: () => numbered, generat
 assert.equal(retry.saved, 1);
 assert.ok(completionRooms(numbered).every(room => room.missing === 0));
 console.log('PASS two rooms, zero-photo concept, partial failure resume, no repeat, invalid results excluded');
+const single = { project_id: 'single', payment: { plan_id: 'single' }, proposal_media: { space_photos: {
+  bedroom1: [], bedroom2: [], bedroom3: [], bedroom4: [], living_room: [], dining_room: [], bathroom1: [], bathroom2: [], kitchen: [], balcony: [],
+} }, reference_revisions: [] };
+assert.equal(completionRooms(single).length, 9);
+assert.equal(completionRooms(single).reduce((sum, room) => sum + room.missing, 0), 36);
+single.proposal_media.space_photos.balcony = ['balcony-photo'];
+assert.equal(completionRooms(single).length, 9, 'Balcony quantity is not automatically assigned even with a photo');
+single.proposal_media.space_photos.study = [];
+let started = false;
+await assert.rejects(completeProposalImages({getProject: () => single, generate: async () => { started = true; }, save}), /10 個空間/);
+assert.equal(started, false, 'Scope is checked before a billable generation');
+console.log('PASS single proposal 10-space limit, 36 zero-photo references, balcony exemption');

@@ -355,7 +355,7 @@ export default function ProposalReport() {
         {chunks(delivery.spaceCoverage, 6).map((rooms, index) => <Page key={`coverage-${index}`}>
           <p className="text-sm font-semibold text-amber-700">SPACE / SOURCE CHECK</p>
           <h2 className="mt-3 text-3xl font-bold">逐空間圖片交付核對</h2>
-          <p className="mt-4 text-sm leading-6">每個空間最多上傳 4 張原照，每張原照應有對應參考圖；不足時仍需補足四方向素材。下表只核對本專案已保存的來源與成果，不會自動生圖或扣點，也不把圖片張數視為環景驗收。</p>
+          <p className="mt-4 text-sm leading-6">單次方案最多包含 10 個空間（含陽台）。除陽台外，每空間至少 4 張生成參考圖，不論是否上傳照片；原照不計入生成張數。無原照的成果為未驗證現場幾何的概念圖。陽台無照片不生圖，亦不適用四張最低數量。參考圖不等同四方向素材或 360° 環景驗收。</p>
           <div className="mt-6 space-y-5">{rooms.map(room => <section key={room.room} className="rounded border p-4">
             <h3 className="font-semibold">{proposal.spaces.find(space => space.room === room.room)?.label || room.room}</h3>
             <p className="mt-2">原照 {room.original_count} 張；已有對應成果 {room.covered_original_count} 張原照；尚缺對應成果 {room.missing_original_count} 張。</p>
