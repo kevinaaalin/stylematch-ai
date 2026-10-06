@@ -8,7 +8,7 @@ const suites = {
   browser: ['revision-handoff-browser', 'generation-billing-browser', 'panorama-browser'],
 };
 const group = process.argv[2] || 'local';
-const selected = group === 'local' ? [...suites.core, ...suites.workflow, 'local-media-envelope'] : suites[group];
+const selected = group === 'local' ? [...suites.core, ...suites.workflow, 'local-media-envelope', 'local-data-transfer', 'proposal-version-selection', 'proposal-delivery-status'] : suites[group];
 if (!selected) throw new Error(`Unknown suite: ${group}`);
 for (const name of selected) {
   console.log(`\n[local-suite] ${name}`);

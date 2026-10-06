@@ -7,6 +7,7 @@ import { buildIsafeWorkspaceUrl } from "@/lib/isafeContract";
 import { localStore } from "@/lib/localStore";
 import { createPageUrl } from "@/utils";
 import { resolveProposalVersion } from "@/lib/proposalVersions";
+import { proposalDeliveryStatus } from "@/lib/proposalDeliveryStatus";
 
 const roomLabels = {
   floor_plan: "平面配置",
@@ -52,6 +53,9 @@ export default function ProjectDetail() {
   const proposalProjectRef = encodeURIComponent(project.project_id || project.id);
   const proposalUrl = `${createPageUrl("ProposalReport")}?project=${proposalProjectRef}`;
   const proposalVersions = project.proposal_versions || [];
+  const delivery = proposalDeliveryStatus(project);
+  const prepareUrl = `${createPageUrl('ReferenceCanvas')}?project=${proposalProjectRef}`;
+  const deliveryUrl = delivery.versionId ? `${proposalUrl}&version=${encodeURIComponent(delivery.versionId)}` : prepareUrl;
 
   return (
     <div className="min-h-screen bg-stone-50 py-8">
@@ -94,8 +98,8 @@ export default function ProjectDetail() {
 
         <section className="border-t border-stone-200 py-7">
           <div className="flex flex-wrap items-center justify-between gap-4 bg-amber-50 p-6">
-            <div><h2 className="text-xl font-bold">設計提案預覽</h2><p className="mt-1 text-sm text-stone-600">{proposalPaid ? "付款已確認，可查看本專案提案並下載 PDF。" : "完成單次方案付款確認後，即可查看專案提案結果。"}</p></div>
-            <Link to={proposalPaid ? proposalUrl : `${createPageUrl("PricingPlans")}?checkout=single&project=${proposalProjectRef}`}><Button className="bg-stone-900 text-white hover:bg-stone-800">{proposalPaid ? "查看目前草稿" : "前往付費頁面"}<ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+            <div><h2 className="text-xl font-bold">設計提案交付</h2><p className="mt-1 text-sm text-stone-600">{delivery.versionId ? "已保存提案草稿，待設計審核。" : delivery.state === 'needs_scope' ? "尚未確認提案空間。" : delivery.missing ? `尚需補齊 ${delivery.missing} 張生成參考圖。` : "圖片已備齊，尚待確認圖組並建立提案。"}</p><p className="mt-2 text-sm text-stone-600">目前工作資料：{delivery.rooms} 個非陽台空間 · {delivery.generated} 張生成參考圖。歷史提案以各版本快照為準。</p></div>
+            <Link to={proposalPaid ? deliveryUrl : `${createPageUrl("PricingPlans")}?checkout=single&project=${proposalProjectRef}`}><Button className="bg-stone-900 text-white hover:bg-stone-800">{proposalPaid ? delivery.versionId ? "查看最新提案" : "繼續準備提案" : "前往付費頁面"}<ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
           </div>
           <h3 className="mt-6 text-lg font-semibold">提案歷史版本</h3>
           {!proposalVersions.length ? <p className="mt-3 text-sm text-stone-600">尚無已保存的提案版本，目前資料為未凍結草稿。</p> : (

@@ -1,3 +1,5 @@
+import { proposalImageProvenance } from './proposalImageProvenance.js';
+
 const labels = {
   title: '主題', narrative: '設計說明', planning: '空間規劃', requirement: '特殊需求',
   keywords: '風格重點', palette: '配色', materials: '材質', prompt: '生成描述',
@@ -11,6 +13,7 @@ const labels = {
 
 function lines(value, prefix = '') {
   if (value == null || value === '') return [];
+  if (typeof value === 'boolean') return [`${prefix}${value ? '是' : '否'}`];
   if (Array.isArray(value)) return value.flatMap(item => lines(item, prefix));
   if (typeof value === 'object') return Object.entries(value).flatMap(([key, item]) => lines(item, `${prefix}${labels[key] || key}：`));
   return [`${prefix}${value}`];
@@ -43,13 +46,13 @@ export function proposalExportPages(document) {
     }
   }
   const images = [
-    ...(document.delivery.adopted || []).map(image => ({ title: `${image.status === 'candidate' ? '候選參考圖片' : '採用圖片'} ${image.space || ''}`, url: image.image_url, ref: `${image.revision_id} / v${image.version || ''}` })),
+    ...(document.delivery.adopted || []).map(image => ({ title: `${image.status === 'candidate' ? '候選參考圖片' : '採用圖片'} ${image.space || ''}`, url: image.image_url, ref: `${image.revision_id} / v${image.version || ''}`, provenance: proposalImageProvenance(image) })),
     ...(p.floorPlans || []).map((url, i) => ({ title: '平面圖', url, ref: `floorplan-${i + 1}` })),
     ...(p.references || []).map((url, i) => ({ title: '喜好參考圖片', url, ref: `reference-${i + 1}` })),
   ];
   for (const image of images) {
     if (!image.url) throw new Error('圖片來源不完整。');
-    pages.push({ title: image.title, lines: [image.ref], image: image.url });
+    pages.push({ title: image.title, lines: [image.ref, image.provenance].filter(Boolean), image: image.url });
   }
   return pages;
 }

@@ -57,10 +57,10 @@ export async function exportFrozenProposal(documentData, format) {
     pages.forEach((page, index) => {
       const slide = deck.addSlide();
       slide.addText(page.title, { x: 0.65, y: 0.35, w: 12, h: 0.65, fontFace: 'Microsoft JhengHei', fontSize: 24, bold: true });
-      slide.addText(page.lines.join('\n'), { x: 0.65, y: 1.15, w: 12, h: page.image ? 0.45 : 5.6, fontFace: 'Microsoft JhengHei', fontSize: 17, breakLine: false, valign: 'top', margin: 0, lineSpacingMultiple: 1.05 });
+      slide.addText(page.lines.join('\n'), { x: 0.65, y: 1.15, w: 12, h: page.image ? 0.75 : 5.6, fontFace: 'Microsoft JhengHei', fontSize: 17, breakLine: false, valign: 'top', margin: 0, lineSpacingMultiple: 1.05 });
       if (page.image) {
-        const image = cache.get(page.image); const size = fit(image, 11.8, 4.85);
-        slide.addImage({ data: image.data, x: (13.333 - size.width) / 2, y: 1.75, w: size.width, h: size.height });
+        const image = cache.get(page.image); const size = fit(image, 11.8, 4.7);
+        slide.addImage({ data: image.data, x: (13.333 - size.width) / 2, y: 1.95, w: size.width, h: size.height });
       }
       slide.addText(footer(index), { x: 0.65, y: 7.05, w: 12, h: 0.25, fontSize: 9, color: '666666', margin: 0 });
     });

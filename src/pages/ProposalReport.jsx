@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { localStore } from "@/lib/localStore";
@@ -14,6 +12,8 @@ import { createProposalBrief } from "@/lib/awosProposalBrief";
 import { resolveProposalVersion } from "@/lib/proposalVersions";
 import { getFrozenProposalDocument } from "@/lib/proposalDocument";
 import ProposalImage from "@/components/ProposalImage";
+import { selectProposalVersionId } from "@/lib/proposalVersionSelection";
+import { proposalImageProvenance } from "@/lib/proposalImageProvenance";
 
 function Page({ children, className = "", style }) {
   return (
@@ -44,11 +44,10 @@ export default function ProposalReport() {
   const reportRef = useRef(null);
   const projectId = searchParams.get("project");
   const sampleMode = searchParams.get("sample") === "1";
-  const versionId = searchParams.get("version") || "";
   const setVersionId = (value) => {
     const next = new URLSearchParams(searchParams);
-    if (value) next.set("version", value);
-    else next.delete("version");
+    if (value) { next.set("version", value); next.delete("preview"); }
+    else { next.delete("version"); next.set("preview", "1"); }
     setSearchParams(next);
   };
 
@@ -61,6 +60,7 @@ export default function ProposalReport() {
     ? buildSampleProject()
     : database.projects.find((item) => item.id === projectId || item.project_id === projectId);
   const versions = currentProject?.proposal_versions || [];
+  const versionId = selectProposalVersionId(currentProject, searchParams);
   const project = resolveProposalVersion(currentProject, versionId);
   const proposal = useMemo(() => project ? project.proposal_document?.proposal || buildProposal(project) : null, [project]);
   const delivery = useMemo(() => project ? project.proposal_document?.delivery || proposalDeliveryContent(project) : null, [project]);
@@ -69,6 +69,8 @@ export default function ProposalReport() {
     setIsExporting(true);
     setError("");
     try {
+      const { default: html2canvas } = await import('html2canvas');
+      const { jsPDF } = await import('jspdf');
       const blobUrl = URL.createObjectURL(await captureProposalPdf(reportRef.current, { html2canvas, jsPDF }));
       const anchor = document.createElement("a");
       anchor.href = blobUrl;
@@ -293,16 +295,17 @@ export default function ProposalReport() {
 
         {(chunks(proposal.spaces).length ? chunks(proposal.spaces) : [[]]).map((spaces, index) => <Page key={`space-${index}`}>
           <p className="text-sm font-semibold text-amber-700">08 / SPACE REVIEW</p>
-          <h2 className="mt-3 text-4xl font-bold">空間現況與規劃方向</h2>
+          <h2 className="mt-3 text-4xl font-bold">空間圖像與規劃方向</h2>
+          <p className="mt-4 text-sm text-stone-600">生成參考圖不代表現場原貌；現場幾何、尺寸與配置仍須核對。</p>
           <div className="mt-8 grid grid-cols-2 gap-4">
             {spaces.map((space) => (
               <figure key={`${space.room}-${space.url}`} className="border border-stone-200">
                 <ProposalImage src={space.url} alt={space.label} className="h-52 w-full object-contain" />
-                <figcaption className="p-3 text-sm font-medium">{space.label}</figcaption>
+                <figcaption className="p-3 text-sm font-medium">{space.label}<span className="mt-1 block font-normal text-stone-600">{space.source === 'confirmed_reference_set' ? '已確認參考圖，非現場原照。' : space.source === 'uploaded_space_photo' ? '使用者上傳空間照片，尺寸尚待現場核對。' : '此版本未記錄圖像來源類型，不能據此確認現場原貌。'}</span></figcaption>
               </figure>
             ))}
           </div>
-          {!proposal.spaces.length && <div className="mt-8 grid h-72 place-items-center border border-dashed border-stone-300 text-stone-500">尚無可納入提案的空間照片</div>}
+          {!proposal.spaces.length && <div className="mt-8 grid h-72 place-items-center border border-dashed border-stone-300 text-stone-500">尚無可納入提案的空間圖像</div>}
         </Page>)}
 
         {chunks(delivery.adopted, 2).map((images, index) => <Page key={`adopted-${index}`}>
@@ -311,7 +314,7 @@ export default function ProposalReport() {
           <p className="mt-4 text-sm text-stone-600">使用生成此提案時確認的圖片組，不以工作區後續修改覆蓋。圖像為概念示意，非施工依據。</p>
           {images.map((image) => <figure key={image.revision_id} className="mt-6 border border-stone-200 p-3">
             <ProposalImage src={image.image_url} alt={image.space || "採用設計圖"} className="h-72 w-full object-contain" />
-            <figcaption className="mt-2 text-sm">{image.space || "設計圖"} · v{image.version || 1} · {image.revision_id}</figcaption>
+            <figcaption className="mt-2 break-all text-sm">{image.space || "設計圖"} · v{image.version || 1} · {image.revision_id}<span className="mt-1 block text-stone-600">{proposalImageProvenance(image)}</span></figcaption>
           </figure>)}
         </Page>)}
 
@@ -348,7 +351,7 @@ export default function ProposalReport() {
             <p>版本：{versionId || "目前資料預覽（未凍結版本）"}</p>
             <p>採用圖片組：{delivery.setId || "尚未建立"}</p>
             <p>生成時間：{delivery.generatedAt || "尚未生成"}</p>
-            <p>內容核對：參考圖 {proposal.references.length}、平面圖 {proposal.floorPlans.length}、空間照片 {proposal.spaces.length}、採用圖 {delivery.adopted.length}。</p>
+            <p>內容核對：參考圖 {proposal.references.length}、平面圖 {proposal.floorPlans.length}、空間圖像 {proposal.spaces.length}、採用圖 {delivery.adopted.length}。不同章節可能引用同一張圖，不合計為新增圖片數。</p>
             <p>{proposal.disclaimer}</p>
           </div>
         </Page>

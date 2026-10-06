@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { selectProposalVersionId } from '../src/lib/proposalVersionSelection.js';
+const project = { proposal_versions: [{version:1,version_id:'v1'}, {version:3,version_id:'v3'}, {version:2,version_id:'v2'}] };
+assert.equal(selectProposalVersionId(project,new URLSearchParams()),'v3');
+assert.equal(selectProposalVersionId(project,new URLSearchParams('version=v1')),'v1');
+assert.equal(selectProposalVersionId(project,new URLSearchParams('version=missing')),'missing');
+assert.equal(selectProposalVersionId(project,new URLSearchParams('preview=1')),'');
+assert.equal(selectProposalVersionId(null,new URLSearchParams()),'');
+assert.equal(project.proposal_versions[0].version_id,'v1');
+console.log('PASS latest saved version, explicit history, invalid ID preservation and preview');

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { localStore } from "@/lib/localStore";
+import { encodeLocalDatabase } from "@/lib/localMediaEnvelope";
 import { readActivePlan, setActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
 
@@ -31,7 +32,7 @@ function serviceLabel(value) {
 }
 
 function downloadJson(payload, filename) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const blob = new Blob([encodeLocalDatabase(payload)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -80,8 +81,8 @@ export default function MyProjects() {
       downloadJson(summary.backup, `stylematch-before-import-${backupTime}.json`);
       setDatabase(localStore.getAll());
       setDataTransferStatus({ type: "import", summary });
-    } catch {
-      setDataTransferStatus({ type: "error", message: "匯入失敗，請確認檔案是 StyleMatch 匯出的 JSON，且瀏覽器有足夠的儲存空間。" });
+    } catch (error) {
+      setDataTransferStatus({ type: "error", message: `匯入未完成：${error.message || '請確認備份格式與瀏覽器儲存空間。'}` });
     } finally {
       event.target.value = "";
     }

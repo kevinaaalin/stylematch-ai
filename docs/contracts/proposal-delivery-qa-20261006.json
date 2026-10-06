@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-06",
+  "scope": "StyleMatchAI local proposal delivery and backup improvements",
+  "status": "Candidate Implementation / Browser Acceptance Incomplete",
+  "production_ready": false,
+  "changes": [
+    "Default report selection uses the latest saved version; explicit missing versions fail closed.",
+    "Project delivery progress validates a matching frozen document before claiming saved delivery.",
+    "Single-proposal customers see included delivery pricing separately from business editing charges.",
+    "Per-room generated and selected counts plus batch selection retain explicit human confirmation.",
+    "Compact lossless backup exports and imports preserve legacy export compatibility.",
+    "Invalid imports and quota failures do not replace the primary database.",
+    "Merging newer project records preserves saved proposal histories; conflicting content for the same version ID aborts before any write. Object key order alone is not a conflict.",
+    "New frozen delivery data retains image provenance; legacy renderings disclose missing provenance without rewriting snapshots.",
+    "PDF preview libraries load on demand instead of on report route entry.",
+    "ReferenceCanvas project selection updates the URL; browser Back restores the selected project.",
+    "Fulfilled single-proposal cases cannot enter paid proposal regeneration even when the account has a business plan.",
+    "Space images are no longer mislabeled as site photographs; new uploaded-photo records carry explicit source labels. Frozen snapshots remain unchanged."
+  ],
+  "validation": {
+    "local_validation_scripts": { "passed": 38, "failed": 0 },
+    "api_contract_tests": { "passed": 20, "failed": 0, "live_provider_acceptance": false },
+    "eslint": "PASS",
+    "typescript": "PASS",
+    "vite_build": "PASS",
+    "report_route_chunk_kb": 28.19,
+    "oversize_chunk_warning": false,
+    "other_build_warnings": ["Outdated baseline-browser-mapping data", "Outdated caniuse-lite data"],
+    "http_status": { "4173": 200, "4174": 200, "4180_api_v1_health": 200 },
+    "chrome": "After restarting services, Chrome MyProjects DOM was readable. Export clicks failed through both the semantic locator and accessibility control with no visible state change. Import, download and full screenshot acceptance remain incomplete; no Chrome data migration claimed.",
+    "in_app_browser": {
+      "original_saved_version_default": "PASS",
+      "report_images": { "loaded": 57, "broken": 0 },
+      "downloads": ["DOCX", "PPTX", "PDF"],
+      "fulfilled_single_proposal_paid_regeneration_hidden": "PASS",
+      "project_selection_url_and_back": "PASS",
+      "chrome_equivalent_acceptance": false
+    },
+    "original_export_inspection": {
+      "version_id": "proposal_fdd0a72f-bfad-41c9-9f68-356553faebf2",
+      "existing_pdf_pages": 37,
+      "existing_docx_libreoffice_pages": 37,
+      "docx_render_contact_sheets_reviewed": 4,
+      "visible_generated_images": 28,
+      "new_exports": { "docx_libreoffice_pages": 37, "pptx_libreoffice_pages": 37, "pdf_pages": 37, "all_pages_rendered": true, "contact_sheets_reviewed": 3, "docx_and_pptx_legacy_source_disclosures_each": 28 },
+      "limitations": "New exports downloaded through the in-app browser, not Chrome. Contact sheets show all 28 adopted images without blank placeholders or obvious clipping. PDF uses raster text, so automated text extraction cannot count its provenance captions. Contact-sheet inspection is not professional design approval or proof of site geometry."
+    }
+  },
+  "remaining": [
+    "Reconnect Chrome automation, back up Chrome data, import the existing rerun through the product UI and verify saved delivery.",
+    "Browser acceptance of the single-proposal controls and compact backup import/export.",
+    "Complete broader website browser acceptance; this report is not an all-features acceptance certificate.",
+    "Real SMTP, payment callbacks, production identity/authorization, hosting DB/queue and external connectors require separate configuration and acceptance."
+  ],
+  "publishing": "Validated local proposal-delivery changes prepared for GitHub main as Candidate Implementation at user request. Chrome automation and full-site acceptance remain incomplete. Git push and Pages deployment must be verified separately; this report does not certify production readiness.",
+  "boundaries": "No AWOS or iSAFE code changes; no real payment, mail transmission or new image generation in this batch."
+}

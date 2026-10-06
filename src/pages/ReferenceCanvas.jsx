@@ -23,17 +23,25 @@ import { localStore } from "@/lib/localStore";
 import { isBusinessPlan, PLAN_CHANGE_EVENT, readActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
 import { completionRooms, completeProposalImages } from '@/lib/proposalImageCompletion';
-import { canDeliverLocalSingleProposal } from '@/lib/singleProposalPolicy';
+import { canDeliverLocalSingleProposal, hasLocalSingleProposal } from '@/lib/singleProposalPolicy';
+import { proposalDeliveryStatus } from '@/lib/proposalDeliveryStatus';
 
 const PROPOSAL_COST = 30;
 const REVISION_COST = 5;
 
 export default function ReferenceCanvas() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [database, setDatabase] = useState(() => localStore.getAll());
   const projects = database.projects || [];
   const requestedProjectId = searchParams.get("project");
-  const [projectId, setProjectId] = useState(requestedProjectId || projects[0]?.project_id || "");
+  const [fallbackProjectId, setProjectId] = useState(projects[0]?.project_id || "");
+  const projectId = searchParams.has('project') ? requestedProjectId : fallbackProjectId;
+  const selectProject = (value) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('project', value);
+    params.delete('revision');
+    setSearchParams(params);
+  };
   const [activeRevisionId, setActiveRevisionId] = useState("");
   const [selectedRevisionIds, setSelectedRevisionIds] = useState([]);
   const [space, setSpace] = useState("客廳");
@@ -52,7 +60,10 @@ export default function ReferenceCanvas() {
 
   const project = projects.find((item) => item.project_id === projectId || item.id === projectId);
   const includedDelivery = canDeliverLocalSingleProposal(project);
-  const canGenerateProposal = includedDelivery || isBusinessPlan(planId);
+  const singleProposal = hasLocalSingleProposal(project);
+  const canGenerateProposal = includedDelivery || (!singleProposal && isBusinessPlan(planId));
+  const rooms = useMemo(() => completionRooms(project), [project]);
+  const savedVersionId = proposalDeliveryStatus(project).versionId;
   const revisions = useMemo(() => project?.reference_revisions || [], [project]);
   const handoffError = useRevisionHandoff(projects, (sourceProject, revision) => {
     setSelectedRevisionIds([]);
@@ -70,6 +81,8 @@ export default function ReferenceCanvas() {
   useEffect(() => localStore.subscribe(() => setDatabase(localStore.getAll())), []);
   useEffect(() => {
     setSelectedRevisionIds([]);
+    setMessage('');
+    setError('');
     setAssetCandidate(null);
     setShowDifference(false);
     setInstruction("");
@@ -259,6 +272,7 @@ export default function ReferenceCanvas() {
   };
 
   const confirmSelection = () => {
+    if (!project || busy) return;
     clearStatus();
     try {
       const result = localStore.confirmReferenceSet(project.project_id, selectedRevisionIds);
@@ -267,6 +281,7 @@ export default function ReferenceCanvas() {
   };
 
   const generateProposal = async (completionOnly = false) => {
+    if (!project || busy || !canGenerateProposal) return;
     clearStatus(); setBusy(true);
     try {
       const readProject = () => localStore.getAll().projects.find(p => p.project_id === project.project_id);
@@ -280,7 +295,7 @@ export default function ReferenceCanvas() {
         });
       });
       if (completed.saved) { setMessage(includedDelivery ? `已補齊 ${completed.saved} 張內含候選圖，未扣點。請確認採用圖片後建立提案。` : `已補齊 ${completed.saved} 張候選圖，每張 ${REVISION_COST} 點。請逐張核准並確認採用圖片後生成提案；尚未扣提案點數。`); return; }
-      if (completionOnly === true) { setMessage('每空間已具備至少 4 張候選圖，未重複生成或扣點。請核准並確認採用圖片。'); return; }
+      if (completionOnly === true) { setMessage('每空間已具備至少 4 張候選圖，未重複生成或扣點。請檢視並確認採用圖片。'); return; }
       const chosen = new Set(confirmedSet?.revision_ids || []);
       if (completed.rooms.some(r => r.revisions.filter(v => chosen.has(v.revision_id)).length < 4)) throw new Error('每空間需確認採用至少 4 張已生成圖片，請先核准並確認圖片組。');
       // Included delivery is a draft, not a claim of human asset approval.
@@ -295,7 +310,7 @@ export default function ReferenceCanvas() {
         approvedAssets,
       });
       setMessage(result.reused ? "此參考圖組已生成過提案，未重複扣點。" : includedDelivery ? '單次提案已保存為新版本，未扣商業點數；仍須完成提案審核。' : `提案草稿已生成，扣除 ${PROPOSAL_COST} 點；仍須完成提案審核。`);
-    } catch (requestError) { setError(requestError.message || "正式提案產生失敗，點數不會被扣除，請稍後再試。"); }
+    } catch (requestError) { setError(requestError.message || "提案草稿產生失敗；已保存的圖片會保留，請檢查進度後重試。"); }
     finally { setBusy(false); }
   };
 
@@ -303,14 +318,23 @@ export default function ReferenceCanvas() {
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><p className="text-sm font-medium text-amber-700">設計參考圖定稿</p><h1 className="mt-1 flex items-center gap-2 text-3xl font-bold"><Layers3 className="h-7 w-7" />提案圖確認</h1><p className="mt-2 text-stone-600">管理圖片版本、比較候選並鎖定正式提案採用圖組；遮罩與區域重繪請至平面圖 AI 視覺化。</p></div>
-        <div className="flex flex-wrap items-center gap-3"><Badge variant="secondary" className="px-3 py-2"><Coins className="mr-2 h-4 w-4" />可用 {database.point_balance ?? 0} 點</Badge><Badge className={isBusinessPlan(planId) ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-stone-200 text-stone-700 hover:bg-stone-200"}>{isBusinessPlan(planId) ? "商業方案已啟用" : "非商業方案"}</Badge>{project?.proposal_generation?.status === "completed" && <Button asChild><Link to={`${createPageUrl("ProposalReport")}?project=${project.project_id}`}>查看正式提案</Link></Button>}</div>
+        <div className="flex flex-wrap items-center gap-3">{!singleProposal && <Badge variant="secondary" className="px-3 py-2"><Coins className="mr-2 h-4 w-4" />可用 {database.point_balance ?? 0} 點</Badge>}<Badge variant="secondary">{singleProposal ? '單次提案服務' : isBusinessPlan(planId) ? '商業方案已啟用' : '尚未啟用提案服務'}</Badge>{savedVersionId && <Button asChild><Link to={`${createPageUrl("ProposalReport")}?project=${project.project_id}&version=${savedVersionId}`}>查看已保存提案</Link></Button>}</div>
       </div>
 
-      <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-2"><label className="text-sm font-medium">專案<select className="mt-2 h-10 w-full rounded-md border border-stone-200 bg-white px-3" value={projectId} onChange={(event) => { setProjectId(event.target.value); setSelectedRevisionIds([]); }}><option value="">請選擇專案</option>{projects.map((item) => <option key={item.project_id} value={item.project_id}>{item.case_code}－{item.project_name || item.name || "未命名專案"}</option>)}</select></label><label className="text-sm font-medium">空間<Input className="mt-2" value={space} onChange={(event) => setSpace(event.target.value)} /></label></CardContent></Card>
+      <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-2"><label className="text-sm font-medium">專案<select disabled={busy} className="mt-2 h-10 w-full rounded-md border border-stone-200 bg-white px-3" value={projectId} onChange={(event) => selectProject(event.target.value)}><option value="">請選擇專案</option>{projects.map((item) => <option key={item.project_id} value={item.project_id}>{item.case_code}－{item.project_name || item.name || "未命名專案"}</option>)}</select></label><label className="text-sm font-medium">空間<Input disabled={busy} className="mt-2" value={space} onChange={(event) => setSpace(event.target.value)} /></label></CardContent></Card>
+
+      {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
+      {error && <Alert role="alert" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {project && <section className="border-y border-stone-200 py-4" aria-label="逐空間交付進度">
+        <h2 className="font-semibold">逐空間交付進度</h2>
+        <ul className="my-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{rooms.map(room => <li key={room.room} className="text-sm">{room.label}：已生成 {room.revisions.length} 張 · 已選 {room.revisions.filter(revision => selectedRevisionIds.includes(revision.revision_id)).length} 張{room.missing > 0 ? ` · 尚缺 ${room.missing} 張` : ' · 已達最低圖數'}</li>)}</ul>
+        {!rooms.length && <p className="my-3 text-sm text-stone-600">尚未登錄非陽台空間。</p>}
+        <Button type="button" variant="outline" disabled={busy || !rooms.some(room => room.revisions.length)} onClick={() => setSelectedRevisionIds([...new Set(rooms.flatMap(room => room.revisions.map(revision => revision.revision_id)))])}>選取各空間生成圖</Button>
+      </section>}
 
       <RecentRevisionLauncher projects={projects} disabled={busy} />
       <Button type="button" variant="outline" disabled={busy || !activeRevision} onClick={loadCandidate}><Check className="mr-2 h-4 w-4" />登錄／讀取目前版本的核准紀錄</Button>
-      <Button type="button" disabled={busy || !project || !canGenerateProposal} onClick={() => generateProposal(true)}><Wand2 className="mr-2 h-4 w-4" />{includedDelivery ? '補齊方案內含圖片（陽台除外，不扣點）' : `補齊每空間 4 張候選圖（陽台除外，每張 ${REVISION_COST} 點）`}</Button>
+      <Button type="button" disabled={busy || !project || !canGenerateProposal} onClick={() => generateProposal(true)}><Wand2 className="mr-2 h-4 w-4" />{singleProposal ? includedDelivery ? '補齊方案內含圖片（陽台除外，不扣點）' : '單次提案已交付，不重複補圖' : `補齊每空間 4 張候選圖（陽台除外，每張 ${REVISION_COST} 點）`}</Button>
       {activeRevision?.provenance && <p className="text-sm text-amber-800">{activeRevision.provenance === 'no_photo_concept' ? '無原照概念圖：空間幾何為推估。' : '原照衍生設計圖：新增內容須核對。'}非四方向實測重建，仍須人工核准。</p>}
       {project && <ProposalContextEditor key={project.project_id} project={project} disabled={busy} />}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newBranch} disabled={busy} onChange={(event) => setNewBranch(event.target.checked)} />下次改版建立獨立分支</label>
@@ -339,7 +363,22 @@ export default function ReferenceCanvas() {
             </CardContent>
           </Card>
 
-          <Card><CardHeader><CardTitle className="text-lg">確認與生成</CardTitle></CardHeader><CardContent className="space-y-4"><VisualEditingIntentControls intentId={visualIntentId} onIntentChange={setVisualIntentId} semanticRegion={semanticRegion} onSemanticRegionChange={setSemanticRegion} referenceAssetIds={referenceAssetIds} onReferenceAssetIdsChange={setReferenceAssetIds} /><label className="text-sm font-medium">文字版本指示<Textarea className="mt-2 min-h-28" placeholder="例如：建立較明亮的提案候選版本；保留格局與採光。" value={instruction} onChange={(event) => setInstruction(event.target.value)} /></label><Button type="button" variant="outline" className="w-full" disabled={busy || !isBusinessPlan(planId) || !activeRevision} onClick={generateRevision}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}產生候選版本（{REVISION_COST} 點）</Button>{assetCandidate && <div className="border border-stone-200 bg-stone-50 p-3 text-sm"><div className="flex items-center justify-between gap-3"><span>Asset v{assetCandidate.revision}</span><Badge className={assetCandidate.status === "approved" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}>{assetCandidate.status === "approved" ? "已核准" : "候選"}</Badge></div>{assetCandidate.status !== "approved" && <Button type="button" size="sm" className="mt-3 w-full" disabled={busy} onClick={approveCandidate}><Check className="mr-2 h-4 w-4" />人工核准資產版本</Button>}</div>}<div className="border-t pt-4"><p className="text-sm text-stone-600">已選 {selectedRevisionIds.length} 張。確認後建立不可覆寫的參考圖組版本。</p><Button type="button" className="mt-3 w-full bg-amber-500 text-white hover:bg-amber-600" disabled={!selectedRevisionIds.length} onClick={confirmSelection}>確定採用圖片</Button></div><div className="rounded-md bg-stone-100 p-3 text-xs leading-5 text-stone-600">候選圖片改版 {REVISION_COST} 點；正式圖像提案 {PROPOSAL_COST} 點。所有扣點功能僅限商業方案，成功才扣點。</div>{!isBusinessPlan(planId) && <Button asChild variant="outline" className="w-full"><Link to={createPageUrl("PricingPlans")}><Crown className="mr-2 h-4 w-4" />升級商業方案</Link></Button>}<Button type="button" className="w-full bg-stone-900 text-white hover:bg-stone-800" disabled={busy || !confirmedSet || !canGenerateProposal} onClick={() => generateProposal(false)}><Coins className="mr-2 h-4 w-4" />{includedDelivery ? "建立方案內含提案（不扣點）" : "商業方案：扣點生成正式圖像提案"}</Button>{message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}{error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-lg">確認與生成</CardTitle></CardHeader><CardContent className="space-y-4">
+            {isBusinessPlan(planId) && <>
+              <VisualEditingIntentControls intentId={visualIntentId} onIntentChange={setVisualIntentId} semanticRegion={semanticRegion} onSemanticRegionChange={setSemanticRegion} referenceAssetIds={referenceAssetIds} onReferenceAssetIdsChange={setReferenceAssetIds} />
+              <label className="text-sm font-medium">文字版本指示<Textarea disabled={busy} className="mt-2 min-h-28" placeholder="例如：建立較明亮的提案候選版本；保留格局與採光。" value={instruction} onChange={(event) => setInstruction(event.target.value)} /></label>
+              <Button type="button" variant="outline" className="w-full" disabled={busy || !activeRevision} onClick={generateRevision}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}產生候選版本（{REVISION_COST} 點）</Button>
+            </>}
+            {assetCandidate && <div className="border border-stone-200 bg-stone-50 p-3 text-sm"><div className="flex items-center justify-between gap-3"><span>Asset v{assetCandidate.revision}</span><Badge variant="secondary">{assetCandidate.status === "approved" ? "已核准" : "候選"}</Badge></div>{assetCandidate.status !== "approved" && <Button type="button" size="sm" className="mt-3 w-full" disabled={busy} onClick={approveCandidate}><Check className="mr-2 h-4 w-4" />人工核准資產版本</Button>}</div>}
+            <div className="border-t pt-4"><p className="text-sm text-stone-600">已選 {selectedRevisionIds.length} 張。確認後建立不可覆寫的參考圖組版本。</p><Button type="button" className="mt-3 w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy || !selectedRevisionIds.length} onClick={confirmSelection}>確定採用圖片</Button></div>
+            <p className="text-sm text-stone-600">{singleProposal ? 'NT$2,999 單次提案：最多 10 個空間；非陽台空間各至少 4 張生成參考圖與一份提案，不扣商業點數。' : `商業方案：候選圖片改版 ${REVISION_COST} 點，提案草稿 ${PROPOSAL_COST} 點；成功才扣點。`}</p>
+            {!singleProposal && !isBusinessPlan(planId) && <Button asChild variant="outline" className="w-full"><Link to={createPageUrl("PricingPlans")}><Crown className="mr-2 h-4 w-4" />查看服務方案</Link></Button>}
+            {singleProposal && !includedDelivery
+              ? savedVersionId
+                ? <Button asChild className="w-full"><Link to={`${createPageUrl('ProposalReport')}?project=${project.project_id}&version=${savedVersionId}`}>查看已保存提案</Link></Button>
+                : <p role="alert">找不到已交付版本，請還原包含此版本的案件備份；不重複生成或扣點。</p>
+              : <Button type="button" className="w-full bg-stone-900 text-white hover:bg-stone-800" disabled={busy || !confirmedSet || !canGenerateProposal} onClick={() => generateProposal(false)}><Wand2 className="mr-2 h-4 w-4" />{includedDelivery ? '建立方案內含提案（不扣點）' : `建立提案草稿（${PROPOSAL_COST} 點）`}</Button>}
+          </CardContent></Card>
         </div>
       )}
     </div>

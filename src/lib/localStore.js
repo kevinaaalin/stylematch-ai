@@ -18,6 +18,7 @@ import { assertSpacePhotoCount } from "@/lib/spacePhotoContract";
 import { canDeliverLocalSingleProposal, assertSingleProposalSpaceLimit } from './singleProposalPolicy.js';
 import { completionRooms } from './proposalImageCompletion.js';
 import { encodeLocalDatabase, decodeLocalDatabase } from './localMediaEnvelope.js';
+import { mergeProposalHistory } from './proposalHistoryMerge.js';
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 4;
@@ -454,7 +455,7 @@ function recordTimestamp(record) {
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
-function mergeRecords(current = [], incoming = [], getKey = (item) => item.id) {
+function mergeRecords(current = [], incoming = [], getKey = (item) => item.id, reconcile = null) {
   const merged = new Map();
   const summary = { added: 0, updated: 0, skipped: 0, conflicts: 0 };
 
@@ -473,8 +474,10 @@ function mergeRecords(current = [], incoming = [], getKey = (item) => item.id) {
     }
 
     summary.conflicts += 1;
-    if (recordTimestamp(item) > recordTimestamp(existing)) {
-      merged.set(key, item);
+    const newer = recordTimestamp(item) > recordTimestamp(existing);
+    const selected = reconcile ? reconcile(existing, item, newer ? item : existing) : newer ? item : existing;
+    if (newer || (reconcile && JSON.stringify(selected) !== JSON.stringify(existing))) {
+      merged.set(key, selected);
       summary.updated += 1;
     } else {
       summary.skipped += 1;
@@ -872,8 +875,11 @@ export const localStore = {
   },
 
   importData(payload, { mode = "merge" } = {}) {
-    const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+    const parsed = decodeLocalDatabase(typeof payload === "string" ? payload : JSON.stringify(payload));
     const incomingDatabase = parsed?.format === EXPORT_FORMAT ? parsed.database : parsed;
+    if (!incomingDatabase || typeof incomingDatabase !== 'object' || !Array.isArray(incomingDatabase.projects) || !Array.isArray(incomingDatabase.styleTests)) {
+      throw new Error('檔案不是完整的 StyleMatch 資料備份。');
+    }
     const imported = compactDatabase(incomingDatabase || {});
     const current = readDatabase();
     const backup = {
@@ -886,7 +892,7 @@ export const localStore = {
     };
     const collections = mode === "replace" ? null : {
       styleTests: mergeRecords(current.styleTests, imported.styleTests),
-      projects: mergeRecords(current.projects, imported.projects, projectKey),
+      projects: mergeRecords(current.projects, imported.projects, projectKey, mergeProposalHistory),
       isafeCases: mergeRecords(current.isafeCases, imported.isafeCases, isafeCaseKey),
       notifications: mergeRecords(current.notifications, imported.notifications),
       auditLogs: mergeRecords(current.auditLogs, imported.auditLogs),
@@ -904,7 +910,7 @@ export const localStore = {
           jobs: collections.jobs.records,
         });
 
-    window.localStorage.setItem(STORAGE_IMPORT_BACKUP_KEY, JSON.stringify(backup));
+    window.localStorage.setItem(STORAGE_IMPORT_BACKUP_KEY, encodeLocalDatabase(backup));
     writeDatabase(nextDatabase);
     const collectionSummary = mode === "replace"
       ? {}

@@ -14,7 +14,10 @@ export function proposalDeliveryContent(project) {
   const revisions = project.reference_revisions || [];
   const adopted = validSet ? (set.images || []).filter((image) =>
     set.revision_ids?.includes(image.revision_id) && revisions.some((revision) =>
-      revision.revision_id === image.revision_id && revision.image_url === image.image_url)) : [];
+      revision.revision_id === image.revision_id && revision.image_url === image.image_url)).map(image => {
+        const source = revisions.find(revision => revision.revision_id === image.revision_id && revision.image_url === image.image_url);
+        return { ...image, provenance: source.provenance || null, geometry_verified: source.geometry_verified === true };
+      }) : [];
   const pending = [];
   if (!project.square_footage) pending.push("補充室內坪數，重新確認預算估算基礎。");
   if (!project.room_layout) pending.push("補充空間配置與動線需求。");

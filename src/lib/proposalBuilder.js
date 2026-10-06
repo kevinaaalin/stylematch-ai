@@ -33,7 +33,7 @@ function allSpaceImages(project) {
   }));
   return Object.entries(project.proposal_media?.space_photos || {})
     .filter(([room]) => room !== "floor_plan")
-    .flatMap(([room, images]) => images.map((url) => ({ room, label: roomLabels[room] || room, url })));
+    .flatMap(([room, images]) => images.map((url) => ({ room, label: roomLabels[room] || room, url, source: 'uploaded_space_photo' })));
 }
 
 function inferConcept(project, style) {
