@@ -1,0 +1,1 @@
+function v(s,e){var r;return e.has("version")?e.get("version")||"":e.get("preview")==="1"?"":((r=[...(s==null?void 0:s.proposal_versions)||[]].sort((n,i)=>Number(i.version)-Number(n.version))[0])==null?void 0:r.version_id)||""}export{v as s};
