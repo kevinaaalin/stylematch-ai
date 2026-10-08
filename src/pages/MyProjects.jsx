@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { localStore } from "@/lib/localStore";
 import { encodeLocalDatabase } from "@/lib/localMediaEnvelope";
+import { readLatestImportBackup } from '@/lib/importBackup';
 import { readActivePlan, setActivePlan } from "@/lib/planAccess";
 import { createPageUrl } from "@/utils";
 
@@ -47,6 +48,7 @@ export default function MyProjects() {
   const [database, setDatabase] = useState(() => localStore.getAll());
   const [planId, setPlanId] = useState(readActivePlan);
   const [dataTransferStatus, setDataTransferStatus] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -73,10 +75,11 @@ export default function MyProjects() {
 
   const importLocalData = async (event) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || importBusy) return;
+    setImportBusy(true);
 
     try {
-      const summary = localStore.importData(await file.text(), { mode: "merge" });
+      const summary = await localStore.importData(await file.text(), { mode: "merge" });
       const backupTime = summary.backup.exported_at.replace(/[:.]/g, "-");
       downloadJson(summary.backup, `stylematch-before-import-${backupTime}.json`);
       setDatabase(localStore.getAll());
@@ -84,6 +87,7 @@ export default function MyProjects() {
     } catch (error) {
       setDataTransferStatus({ type: "error", message: `匯入未完成：${error.message || '請確認備份格式與瀏覽器儲存空間。'}` });
     } finally {
+      setImportBusy(false);
       event.target.value = "";
     }
   };
@@ -144,10 +148,17 @@ export default function MyProjects() {
                 <Download className="mr-2 h-4 w-4" />
                 匯出資料
               </Button>
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Button variant="outline" disabled={importBusy} onClick={() => fileInputRef.current?.click()}>
                 <Upload className="mr-2 h-4 w-4" />
-                匯入資料
+                {importBusy ? '正在備份並匯入' : '匯入資料'}
               </Button>
+              <Button variant="outline" disabled={importBusy} onClick={async () => {
+                try {
+                  const backup = await readLatestImportBackup();
+                  if (!backup) throw new Error('尚無匯入前備份。');
+                  downloadJson(backup, `stylematch-before-import-${backup.exported_at.replace(/[:.]/g, '-')}.json`);
+                } catch (error) { setDataTransferStatus({ type: 'error', message: error.message }); }
+              }}>下載最近匯入前備份</Button>
               <input
                 ref={fileInputRef}
                 type="file"

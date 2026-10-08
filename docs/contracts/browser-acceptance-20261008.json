@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-08",
+  "result": "TARGETED FIXES PASSED; FULL CHROME ACCEPTANCE INCOMPLETE",
+  "fix_verification": {
+    "backup_storage": "IndexedDB transaction completes before main localStorage write; prior backups retained",
+    "round_trip": "PASS in-app browser: 4004974-byte original file imported; six projects, seven style tests, twenty audit records retained",
+    "data_equality": "PASS deepEqual: original export database equals post-import export and downloaded persisted pre-import backup database",
+    "backup_reload": "PASS downloaded latest backup after page reload",
+    "pricing": "PASS visible ten-space limit, four generated references per non-balcony space irrespective of uploads, no-photo concept disclaimer, balcony exception and no business-point charge for included service",
+    "validation": "38 local scripts, ESLint, TypeScript and Vite build passed",
+    "build_warnings": "Existing stale baseline-browser-mapping and Browserslist data warnings",
+    "published": false
+  },
+  "scope": "StyleMatchAI local browser acceptance; no production transactions",
+  "chrome": {
+    "project_list_readable": true,
+    "project_count": 6,
+    "export_click": "Automation timed out and reset; export not confirmed",
+    "import": "Not attempted without confirmed current Chrome backup"
+  },
+  "supplementary_browser": "Codex in-app browser; not a substitute for Chrome acceptance",
+  "passed_checks": [
+    "Exported six projects to C:/Users/Kevin/Downloads/stylematch-local-data-2026-10-08.json (4004974 bytes).",
+    "Home loaded with nine image elements and no completed broken images.",
+    "StyleMix, FloorPlanVisualizer, AIGenerate, StyleTest, AIProposal, PricingPlans, MyProjects, ProjectDetail and ProposalReport loaded through UI navigation.",
+    "One five-star rating updates progress to 1/30 and result action remains disabled.",
+    "Empty proposal basic-data form disables Next.",
+    "Customer support opens, accepts a quick question and returns an answer with source label.",
+    "After failed import, original project remains visible with seven rooms, 28 generated references and frozen V1.",
+    "Frozen report has 57 image elements without completed broken images; captured error console log is empty."
+  ],
+  "findings": [
+    {
+      "severity": "P1",
+      "area": "Browser import",
+      "result": "FIXED; browser round-trip and database equality passed",
+      "reproduction": "Export current in-app browser database then import the same file using MyProjects Import.",
+      "observed": "QuotaExceededError while writing stylematch_local_mvp_import_backup_v1. Import cannot complete when the primary data plus duplicated backup exceeds localStorage quota.",
+      "data_loss_observed": false,
+      "required_action": "Move durable import backups outside localStorage or implement a verified external-backup import flow; rerun actual browser round-trip. Do not discard backups automatically."
+    },
+    {
+      "severity": "P2",
+      "area": "PricingPlans content",
+      "result": "FIXED; visible pricing content verified",
+      "observed": "The single-proposal offer does not explicitly display the confirmed ten-space limit, four generated references per non-balcony space regardless of uploads, and balcony exception.",
+      "required_action": "Align customer-facing scope with homeowner-single-proposal-policy-20261005.json."
+    }
+  ],
+  "not_verified": [
+    "Chrome interactions and Chrome-specific import round-trip (in-app browser passed)",
+    "Responsive visual acceptance and panorama interaction quality",
+    "Fresh image generation and complete proposal creation",
+    "Real SMTP, payment, role authorization and external connectors",
+    "All page controls and all alternative workflow branches"
+  ],
+  "limitations": "Page-load smoke checks are not full functional E2E acceptance. No real payment, mail, new image task or governance-state change was submitted. No GitHub publication in this acceptance run."
+}

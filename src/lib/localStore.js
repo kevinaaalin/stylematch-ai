@@ -19,13 +19,13 @@ import { canDeliverLocalSingleProposal, assertSingleProposalSpaceLimit } from '.
 import { completionRooms } from './proposalImageCompletion.js';
 import { encodeLocalDatabase, decodeLocalDatabase } from './localMediaEnvelope.js';
 import { mergeProposalHistory } from './proposalHistoryMerge.js';
+import { saveImportBackup } from './importBackup.js';
 
 const STORAGE_KEY = "stylematch_local_mvp_v1";
 const STORAGE_SCHEMA_VERSION = 4;
 const DEFAULT_POINT_BALANCE = 100;
 const PROPOSAL_GENERATION_COST = 30;
 const STORAGE_EVENT_KEY = "stylematch_local_mvp_event_v1";
-const STORAGE_IMPORT_BACKUP_KEY = "stylematch_local_mvp_import_backup_v1";
 const STORAGE_CHANNEL_NAME = "stylematch-local-mvp-sync";
 const EXPORT_FORMAT = "stylematch-local-mvp-export";
 const EXPORT_VERSION = 1;
@@ -874,14 +874,28 @@ export const localStore = {
     };
   },
 
-  importData(payload, { mode = "merge" } = {}) {
+  async importData(payload, { mode = "merge" } = {}) {
+    if (!['merge', 'replace'].includes(mode)) throw new Error('不支援的資料匯入方式。');
     const parsed = decodeLocalDatabase(typeof payload === "string" ? payload : JSON.stringify(payload));
+    if (parsed?.format != null && parsed.format !== EXPORT_FORMAT) throw new Error('不支援的備份格式，未匯入。');
+    if (parsed?.format === EXPORT_FORMAT && parsed.export_version !== EXPORT_VERSION) throw new Error('不支援的備份版本，請使用相容版本匯出。');
     const incomingDatabase = parsed?.format === EXPORT_FORMAT ? parsed.database : parsed;
     if (!incomingDatabase || typeof incomingDatabase !== 'object' || !Array.isArray(incomingDatabase.projects) || !Array.isArray(incomingDatabase.styleTests)) {
       throw new Error('檔案不是完整的 StyleMatch 資料備份。');
     }
+    if (Number(incomingDatabase.storage_schema_version) > STORAGE_SCHEMA_VERSION) throw new Error('備份資料版本較新，請先更新網站再匯入。');
     const imported = compactDatabase(incomingDatabase || {});
-    const current = readDatabase();
+    // Imports must not treat an unreadable existing database as an empty workspace.
+    const currentRaw = window.localStorage.getItem(STORAGE_KEY);
+    let current;
+    try {
+      const stored = currentRaw ? decodeLocalDatabase(currentRaw) : emptyDatabase;
+      if (!stored || !Array.isArray(stored.projects) || !Array.isArray(stored.styleTests)
+        || Number(stored.storage_schema_version) > STORAGE_SCHEMA_VERSION) throw new Error('Invalid stored database');
+      current = compactDatabase(stored);
+    } catch {
+      throw new Error('本機既有資料無法安全讀取，已停止匯入並保留原資料。請先備份及修復資料。');
+    }
     const backup = {
       format: EXPORT_FORMAT,
       export_version: EXPORT_VERSION,
@@ -910,7 +924,10 @@ export const localStore = {
           jobs: collections.jobs.records,
         });
 
-    window.localStorage.setItem(STORAGE_IMPORT_BACKUP_KEY, encodeLocalDatabase(backup));
+    await saveImportBackup(backup);
+    if (window.localStorage.getItem(STORAGE_KEY) !== currentRaw) {
+      throw new Error('備份期間案件資料已被其他操作更新，已停止匯入，請重試。');
+    }
     writeDatabase(nextDatabase);
     const collectionSummary = mode === "replace"
       ? {}

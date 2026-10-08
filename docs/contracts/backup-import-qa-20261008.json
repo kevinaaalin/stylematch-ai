@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-08",
+  "scope": "Local backup import compatibility and existing-data protection",
+  "status": "Candidate Implementation",
+  "production_ready": false,
+  "changes": [
+    "Reject unknown import modes, envelope formats and export versions before writing.",
+    "Reject a backup whose storage schema is newer than this application.",
+    "Decode and validate the existing primary database directly before import; corrupt or future-version data must not be treated as an empty workspace.",
+    "Preserve both the primary database and previous import backup when validation fails.",
+    "Commit the import backup to IndexedDB before updating primary localStorage; retain previous backups.",
+    "Reject import if primary data changes while awaiting the backup."
+  ],
+  "verification": {
+    "local_validation_scripts": 38,
+    "local_validation_result": "PASS",
+    "eslint": "PASS",
+    "typescript": "PASS",
+    "production_build": "PASS",
+    "new_failure_tests": "Unknown mode, unknown format, unsupported export version, future incoming schema, malformed stored JSON, missing stored collections, future stored schema",
+    "browser_import_e2e": "PASS in-app browser: 4004974-byte round-trip; downloaded persisted backup and post-import export databases deep-equal original. Chrome-specific acceptance remains incomplete."
+  },
+  "limitations": [
+    "This does not expand localStorage capacity or repair already-corrupt backups.",
+    "Real browser import and complete website acceptance remain separate from automated store tests.",
+    "No customer records, payment state or external services were changed by these tests."
+  ]
+}
